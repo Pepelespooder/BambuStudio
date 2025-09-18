@@ -20,7 +20,7 @@ class BBLTask;
 class BBLModelTask;
 
 
-enum MachineBedType {
+enum MachineBedType : int {
     //BED_TYPE_AUTO = 0,
     BED_TYPE_PC = 0,
     BED_TYPE_PE,

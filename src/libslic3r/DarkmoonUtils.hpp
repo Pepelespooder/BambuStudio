@@ -9,8 +9,8 @@
 
 namespace Slic3r {
 
-enum BedType : int;
-enum MachineBedType : int;
+enum BedType;
+enum MachineBedType;
 
 enum class DarkmoonPlateKind {
     G10,
