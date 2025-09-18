@@ -560,8 +560,10 @@ double getTemperatureFromExtruder(const PrintObject* printObject) {
 
     const PrintConfig& config = print->config();
     BedType curr_bed_type = BedType::btDefault;
-    if (config.has("curr_bed_type"))
-        curr_bed_type = config.opt_enum<BedType>("curr_bed_type");
+    if (config.has("curr_bed_type")) {
+        if (const ConfigOption* opt = config.option("curr_bed_type"))
+            curr_bed_type = static_cast<BedType>(opt->getInt());
+    }
     const ConfigOptionInts* bed_temp_1st_layer_opt = config.option<ConfigOptionInts>(get_bed_temp_1st_layer_key(curr_bed_type));
     if (bed_temp_1st_layer_opt == nullptr) {
         BOOST_LOG_TRIVIAL(warning) << "Missing first-layer bed temperature config for bed type " << int(curr_bed_type);
