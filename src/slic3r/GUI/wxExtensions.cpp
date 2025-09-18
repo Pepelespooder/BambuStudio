@@ -5,6 +5,7 @@
 
 #include <wx/sizer.h>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 
 /* mac need the macro while including <boost/stacktrace.hpp>*/
 #ifdef  __APPLE__
@@ -473,7 +474,15 @@ wxBitmap create_scaled_bitmap(  const std::string& bmp_name_in,
     }
 
     if (bmp == nullptr) {
-
+        // Fallback: if a highlighted variant (suffix _o) is missing, try loading the base icon.
+        if (boost::algorithm::ends_with(bmp_name, "_o")) {
+            std::string fallback = bmp_name.substr(0, bmp_name.size() - 2);
+            try {
+                return create_scaled_bitmap(fallback, win, px_cnt, grayscale, new_color, menu_bitmap, resize, bitmap2, array_new_color);
+            } catch (...) {
+                // swallow and continue with error handling below.
+            }
+        }
         /*stacktrace is time-consuming, optimize it*/
         if (s_bmps_not_found.count(bmp_name) == 0) {
             BOOST_LOG_TRIVIAL(error) << "Could not load bitmap: " << boost::stacktrace::stacktrace();
