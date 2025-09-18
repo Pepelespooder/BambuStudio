@@ -2711,9 +2711,15 @@ static std::vector<std::string> tokenize_filament(const std::string &input)
     return tokens;
 }
 
-static bool has_token(const std::vector<std::string> &tokens, const char *token)
+static bool has_token(const std::vector<std::string> &tokens, const char *token, bool allow_substring = true)
 {
-    return std::find(tokens.begin(), tokens.end(), token) != tokens.end();
+    for (const std::string &t : tokens) {
+        if (t == token)
+            return true;
+        if (allow_substring && t.find(token) != std::string::npos)
+            return true;
+    }
+    return false;
 }
 
 static bool has_all_tokens(const std::vector<std::string> &tokens, const char *a, const char *b)
@@ -2723,15 +2729,17 @@ static bool has_all_tokens(const std::vector<std::string> &tokens, const char *a
 
 static bool is_token_pet_only(const std::vector<std::string> &tokens)
 {
-    if (!has_token(tokens, "PET"))
+    if (!has_token(tokens, "PET", false))
         return false;
     return !has_token(tokens, "PETG") && !has_token(tokens, "PCTG") && !has_all_tokens(tokens, "PET", "CF");
 }
 
 static bool is_token_pp(const std::vector<std::string> &tokens)
 {
-    return has_token(tokens, "POLYPROPYLENE") || has_token(tokens, "PP");
+    return has_token(tokens, "POLYPROPYLENE") || has_token(tokens, "PP", false);
 }
+
+static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
 
 static int default_g10_temperature(const std::string &filament_type_raw)
 {
