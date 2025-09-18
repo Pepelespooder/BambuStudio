@@ -103,7 +103,7 @@ int default_satin_temperature(const std::string &filament_type_raw)
     auto tokens = tokenize_filament(filament_type_raw);
 
     if (has_token(tokens, "TPU"))
-        return 0;
+        return 1;
     if (has_token(tokens, "PLA"))
         return 58;
     if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
@@ -117,6 +117,26 @@ int default_satin_temperature(const std::string &filament_type_raw)
     if (is_token_pet_only(tokens))
         return 105;
     if (has_token(tokens, "PPS"))
+        return 105;
+
+    return -1;
+}
+
+int default_lux_temperature(const std::string &filament_type_raw)
+{
+    auto tokens = tokenize_filament(filament_type_raw);
+
+    if (has_token(tokens, "TPU"))
+        return 0;
+    if (has_token(tokens, "PLA"))
+        return 58;
+    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
+        return 75;
+    if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
+        return 105;
+    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC"))
+        return 100;
+    if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA"))
         return 105;
 
     return -1;
@@ -230,6 +250,12 @@ std::optional<int> default_darkmoon_temperature(const DarkmoonPlateInfo &plate, 
     switch (plate.kind) {
     case DarkmoonPlateKind::G10:
         return default_g10_temperature(filament_type_raw);
+    case DarkmoonPlateKind::Lux: {
+        int value = default_lux_temperature(filament_type_raw);
+        if (value < 0)
+            return std::nullopt;
+        return value;
+    }
     case DarkmoonPlateKind::CFX: {
         int value = default_cfx_temperature(filament_type_raw);
         if (value < 0)

@@ -9,6 +9,7 @@
 #include <array>
 
 #include "libslic3r/Model.hpp"
+#include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/DarkmoonUtils.hpp"
 #include "../GUI/MsgDialog.hpp"
 #include "BBLUtil.hpp"
