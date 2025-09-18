@@ -771,9 +771,17 @@ HelioQuery::CreateSimulationResult HelioQuery::create_simulation(const std::stri
     const float chamber_temp = sinput.chamber_temp;
     DynamicPrintConfig print_config = GUI::wxGetApp().preset_bundle->full_config();
     const float layer_threshold = 20; //Default values from Helio
-    std::string bed_temp_key = Slic3r::get_bed_temp_1st_layer_key((Slic3r::BedType)(print_config.option("curr_bed_type")->getInt()));
+    BedType bed_type = BedType::btDefault;
+    if (auto bed_type_opt = print_config.option("curr_bed_type"))
+        bed_type = static_cast<BedType>(bed_type_opt->getInt());
+    std::string bed_temp_key = Slic3r::get_bed_temp_1st_layer_key(bed_type);
 
-    const float bed_temp = print_config.option<ConfigOptionInts>(bed_temp_key)->get_at(0);
+    float bed_temp = 0.0f;
+    if (const ConfigOptionInts* bed_temp_opt = print_config.option<ConfigOptionInts>(bed_temp_key)) {
+        bed_temp = static_cast<float>(bed_temp_opt->get_at(0));
+    } else {
+        BOOST_LOG_TRIVIAL(warning) << "Missing first-layer bed temperature config for bed type key '" << bed_temp_key << "' in Helio simulation setup";
+    }
     float initial_room_airtemp = -1;
     if (chamber_temp > 0.0f) {
         initial_room_airtemp = (chamber_temp + bed_temp) / 2;
@@ -956,9 +964,17 @@ Slic3r::HelioQuery::CreateOptimizationResult HelioQuery::create_optimization(con
     const float chamber_temp = sinput.chamber_temp;
     DynamicPrintConfig print_config = GUI::wxGetApp().preset_bundle->full_config();
     const float layer_threshold = 20; //Default values from Helio
-    std::string bed_temp_key = Slic3r::get_bed_temp_1st_layer_key((Slic3r::BedType)(print_config.option("curr_bed_type")->getInt()));
+    BedType bed_type = BedType::btDefault;
+    if (auto bed_type_opt = print_config.option("curr_bed_type"))
+        bed_type = static_cast<BedType>(bed_type_opt->getInt());
+    std::string bed_temp_key = Slic3r::get_bed_temp_1st_layer_key(bed_type);
 
-    const float bed_temp = print_config.option<ConfigOptionInts>(bed_temp_key)->get_at(0);
+    float bed_temp = 0.0f;
+    if (const ConfigOptionInts* bed_temp_opt = print_config.option<ConfigOptionInts>(bed_temp_key)) {
+        bed_temp = static_cast<float>(bed_temp_opt->get_at(0));
+    } else {
+        BOOST_LOG_TRIVIAL(warning) << "Missing first-layer bed temperature config for bed type key '" << bed_temp_key << "' in Helio optimization setup";
+    }
     float initial_room_airtemp = -1;
     if (chamber_temp > 0.0f) {
         initial_room_airtemp = (chamber_temp + bed_temp) / 2;
