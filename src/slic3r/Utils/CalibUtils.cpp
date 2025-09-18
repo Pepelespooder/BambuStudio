@@ -32,19 +32,28 @@ static const std::string temp_gcode_path = temp_dir + "/temp.gcode";
 static const std::string path            = temp_dir + "/test.3mf";
 static const std::string config_3mf_path = temp_dir + "/test_config.3mf";
 
-static std::string MachineBedTypeString[11] = {
-    "auto",
-    "pc",
-    "ep",
-    "pei",
-    "pte",
-    "suprtack",
-    "darkmoon_g10",
-    "darkmoon_ice",
-    "darkmoon_lux",
-    "darkmoon_cfx",
-    "darkmoon_satin"
-};
+// Map BedType -> firmware string, incl. Darkmoon plates, with a safe fallback.
+// If the firmware doesn't recognize the plate string, it may use temp=0.
+// This switch prevents that by returning only known-good names.
+static inline const char* bed_type_to_string(BedType bt)
+{
+    switch (bt) {
+    case BedType::btDefault:       return "auto";
+    case BedType::btPC:            return "pc";
+    case BedType::btEP:            return "ep";
+    case BedType::btPEI:           return "pei";
+    case BedType::btPTE:           return "pte";
+    // Firmware expects this legacy spelling.
+    case BedType::btSuperTack:     return "suprtack";
+    // Darkmoon variants
+    case BedType::btDarkmoonG10:   return "darkmoon_g10";
+    case BedType::btDarkmoonIce:   return "darkmoon_ice";
+    case BedType::btDarkmoonLux:   return "darkmoon_lux";
+    case BedType::btDarkmoonCFX:   return "darkmoon_cfx";
+    case BedType::btDarkmoonSatin: return "darkmoon_satin";
+    default:                       return "auto"; // future-proof fallback
+    }
+}
 
 std::vector<std::string> not_support_auto_pa_cali_filaments = {
     "GFU03", // TPU 90A
@@ -1864,7 +1873,7 @@ void CalibUtils::send_to_print(const CalibInfo &calib_info, wxString &error_mess
     print_job->set_calibration_task(true);
 
     print_job->has_sdcard = obj_->GetStorage()->get_sdcard_state() == DevStorage::HAS_SDCARD_NORMAL;
-    print_job->set_print_config(MachineBedTypeString[bed_type], true, false, false, false, true, false, 0, 0, 0);
+    print_job->set_print_config(bed_type_to_string(bed_type), true, false, false, false, true, false, 0, 0, 0);
     print_job->set_print_job_finished_event(wxGetApp().plater()->get_send_calibration_finished_event(), print_job->m_project_name);
 
     {  // after send: record the print job
@@ -1980,7 +1989,7 @@ void CalibUtils::send_to_print(const std::vector<CalibInfo> &calib_infos, wxStri
     print_job->set_calibration_task(true);
 
     print_job->has_sdcard = obj_->GetStorage()->get_sdcard_state() == DevStorage::HAS_SDCARD_NORMAL;
-    print_job->set_print_config(MachineBedTypeString[bed_type], true, true, false, false, true, false, 0, 1, 0);
+    print_job->set_print_config(bed_type_to_string(bed_type), true, true, false, false, true, false, 0, 1, 0);
     print_job->set_print_job_finished_event(wxGetApp().plater()->get_send_calibration_finished_event(), print_job->m_project_name);
 
     { // after send: record the print job

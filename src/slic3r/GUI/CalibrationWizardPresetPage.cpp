@@ -4,6 +4,7 @@
 #include "Widgets/Label.hpp"
 #include "MsgDialog.hpp"
 #include "libslic3r/Print.hpp"
+#include "libslic3r/PrintConfig.hpp"
 #include "BBLUtil.hpp"
 
 #include "DeviceCore/DevConfig.h"
@@ -1549,11 +1550,14 @@ bool CalibrationPresetPage::is_filaments_compatiable(const std::map<int, Preset*
 
         // update bed temperature
         BedType curr_bed_type = BedType(m_displayed_bed_types[m_comboBox_bed_type->GetSelection()]);
-        const ConfigOptionInts *opt_bed_temp_ints = item_preset->config.option<ConfigOptionInts>(get_bed_temp_key(curr_bed_type));
-        int bed_temp_int = 0;
-        if (opt_bed_temp_ints) {
-            bed_temp_int = opt_bed_temp_ints->get_at(0);
-        }
+        ConfigOptionInts bed_temp_fallback;
+        const ConfigOptionInts* opt_bed_temp_ints = bed_temp_option_with_fallback(
+            item_preset->config,
+            curr_bed_type,
+            false,
+            bed_temp_fallback,
+            1);
+        int bed_temp_int = opt_bed_temp_ints->get_at(0);
 
         if (bed_temp_int <= 0) {
             if (!item_preset->alias.empty())

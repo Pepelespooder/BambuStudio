@@ -3,7 +3,10 @@
 #include "Config.hpp"
 #include "I18N.hpp"
 
+#include <algorithm>
+#include <array>
 #include <set>
+#include <utility>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/split.hpp>
@@ -55,6 +58,93 @@ namespace Slic3r {
 #define L(s) (s)
 #define _(s) Slic3r::I18N::translate(s)
 
+namespace {
+constexpr std::array<BedType, size_t(BedType::btCount)> kBedTempFallbackOrder = {
+    BedType::btPC,
+    BedType::btPEI,
+    BedType::btPTE,
+    BedType::btEP,
+    BedType::btSuperTack,
+    BedType::btDarkmoonG10,
+    BedType::btDarkmoonIce,
+    BedType::btDarkmoonLux,
+    BedType::btDarkmoonCFX,
+    BedType::btDarkmoonSatin,
+    BedType::btDefault
+};
+}
+
+const ConfigOptionInts* bed_temp_option_with_fallback(const ConfigBase& config,
+    BedType bed_type,
+    bool first_layer,
+    ConfigOptionInts& fallback_storage,
+    size_t fallback_len,
+    int fallback_temp)
+{
+    const char* stage = first_layer ? "first-layer" : "bed";
+
+    auto fetch_option = [&](BedType type) {
+        std::string key = first_layer ? get_bed_temp_1st_layer_key(type) : get_bed_temp_key(type);
+        const ConfigOptionInts* opt = key.empty() ? nullptr : config.option<ConfigOptionInts>(key);
+        return std::make_pair(opt, std::move(key));
+    };
+
+    auto [primary_opt, primary_key] = fetch_option(bed_type);
+    BedType effective_type = bed_type;
+
+    if (primary_opt != nullptr)
+        return primary_opt;
+
+    if (bed_type <= BedType::btDefault || bed_type >= BedType::btCount) {
+        effective_type = BedType::btPC;
+        auto [normalized_opt, normalized_key] = fetch_option(effective_type);
+        if (normalized_opt != nullptr) {
+            if (bed_type == BedType::btDefault)
+                BOOST_LOG_TRIVIAL(warning) << "No explicit bed type; using " << stage
+                                           << " temperature key '" << normalized_key << "'.";
+            else
+                BOOST_LOG_TRIVIAL(warning) << "Unknown bed type " << int(bed_type)
+                                           << "; using " << stage
+                                           << " temperature key '" << normalized_key << "'.";
+            return normalized_opt;
+        }
+        if (!normalized_key.empty())
+            primary_key = normalized_key;
+    }
+
+    const auto missing_label = primary_key.empty() ? std::string("<unknown>") : primary_key;
+
+    for (BedType candidate : kBedTempFallbackOrder) {
+        if (candidate == effective_type)
+            continue;
+        auto [candidate_opt, candidate_key] = fetch_option(candidate);
+        if (candidate_opt != nullptr) {
+            BOOST_LOG_TRIVIAL(warning) << "Missing " << stage
+                                       << " temperature config '" << missing_label
+                                       << "' for bed type " << int(bed_type)
+                                       << "; falling back to '" << candidate_key << "'.";
+            return candidate_opt;
+        }
+    }
+
+    fallback_storage = ConfigOptionInts(std::max<size_t>(size_t(1), fallback_len), fallback_temp);
+    BOOST_LOG_TRIVIAL(warning) << "Missing " << stage
+                               << " temperature config '" << missing_label
+                               << "' for bed type " << int(bed_type)
+                               << "; using safe fallback value " << fallback_temp << '.';
+    return &fallback_storage;
+}
+
+int bed_temp_value_with_fallback(const ConfigBase& config,
+    BedType bed_type,
+    size_t extruder_idx,
+    bool first_layer,
+    int fallback_temp)
+{
+    ConfigOptionInts fallback_storage;
+    const ConfigOptionInts* opt = bed_temp_option_with_fallback(config, bed_type, first_layer, fallback_storage, extruder_idx + 1, fallback_temp);
+    return opt->get_at(extruder_idx);
+}
 
 const std::vector<std::string> filament_extruder_override_keys = {
     // floats

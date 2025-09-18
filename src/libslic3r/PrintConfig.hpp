@@ -436,6 +436,19 @@ static std::string get_bed_temp_1st_layer_key(const BedType type)
     return "";
 }
 
+const ConfigOptionInts* bed_temp_option_with_fallback(const ConfigBase& config,
+    BedType bed_type,
+    bool first_layer,
+    ConfigOptionInts& fallback_storage,
+    size_t fallback_len,
+    int fallback_temp = 50);
+
+int bed_temp_value_with_fallback(const ConfigBase& config,
+    BedType bed_type,
+    size_t extruder_idx,
+    bool first_layer,
+    int fallback_temp = 50);
+
 extern const std::vector<std::string> filament_extruder_override_keys;
 
 // for parse extruder_ams_count
