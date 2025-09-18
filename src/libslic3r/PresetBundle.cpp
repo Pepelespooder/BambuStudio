@@ -2686,6 +2686,37 @@ DynamicPrintConfig PresetBundle::full_config_secure(std::optional<std::vector<in
     return config;
 }
 
+static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
+{
+    static const char *const keys[] = {
+        "darkmoon_g10_plate_temp",
+        "darkmoon_g10_plate_temp_initial_layer",
+        "darkmoon_ice_plate_temp",
+        "darkmoon_ice_plate_temp_initial_layer",
+        "darkmoon_lux_plate_temp",
+        "darkmoon_lux_plate_temp_initial_layer",
+        "darkmoon_cfx_plate_temp",
+        "darkmoon_cfx_plate_temp_initial_layer",
+        "darkmoon_satin_plate_temp",
+        "darkmoon_satin_plate_temp_initial_layer"
+    };
+
+    extruder_count = std::max<size_t>(1, extruder_count);
+
+    for (const char *key : keys) {
+        ConfigOptionInts *opt = config.opt<ConfigOptionInts>(key);
+        if (opt == nullptr) {
+            opt = config.option<ConfigOptionInts>(key, true);
+            opt->values.assign(extruder_count, 0);
+        } else {
+            if (opt->values.empty())
+                opt->values.assign(extruder_count, 0);
+            else if (opt->values.size() < extruder_count)
+                opt->values.resize(extruder_count, opt->values.back());
+        }
+    }
+}
+
 const std::set<std::string> ignore_settings_list ={
     "inherits",
     "print_settings_id", "filament_settings_id", "printer_settings_id"
@@ -2930,6 +2961,10 @@ DynamicPrintConfig PresetBundle::full_fff_config(bool apply_extruder, std::optio
         assert(opt != nullptr);
         opt->value = boost::algorithm::clamp<int>(opt->value, 0, int(num_filaments));
     }
+
+    const auto *nozzle_opt = dynamic_cast<const ConfigOptionFloatsNullable*>(out.option("nozzle_diameter", false));
+    size_t extruder_count = nozzle_opt != nullptr ? nozzle_opt->values.size() : 1;
+    ensure_darkmoon_bed_temps(out, extruder_count);
 
     out.option<ConfigOptionString >("print_settings_id",    true)->value  = this->prints.get_selected_preset_name();
     out.option<ConfigOptionStrings>("filament_settings_id", true)->values = this->filament_presets;
