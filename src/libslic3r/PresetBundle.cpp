@@ -2849,7 +2849,7 @@ static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extrude
         bool is_cfx   = key.find("darkmoon_cfx")   != std::string::npos;
         bool is_satin = key.find("darkmoon_satin") != std::string::npos;
         bool is_g10   = key.find("darkmoon_g10")   != std::string::npos;
-        if (need_fallback) {
+        if (need_fallback || dm_opt->values.size() < extruder_count) {
             std::vector<int> values;
             bool filled = false;
             if (is_cfx || is_satin || is_g10) {
