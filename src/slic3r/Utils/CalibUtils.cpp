@@ -6,7 +6,10 @@
 #include "../GUI/PartPlate.hpp"
 #include "../GUI/OpenGLManager.hpp"
 
+#include <array>
+
 #include "libslic3r/Model.hpp"
+#include "libslic3r/DarkmoonUtils.hpp"
 #include "../GUI/MsgDialog.hpp"
 #include "BBLUtil.hpp"
 #include "libslic3r/FlushVolCalc.hpp"
@@ -32,19 +35,18 @@ static const std::string temp_gcode_path = temp_dir + "/temp.gcode";
 static const std::string path            = temp_dir + "/test.3mf";
 static const std::string config_3mf_path = temp_dir + "/test_config.3mf";
 
-static std::string MachineBedTypeString[11] = {
-    "auto",
-    "pc",
-    "ep",
-    "pei",
-    "pte",
-    "suprtack",
-    "darkmoon_g10",
-    "darkmoon_ice",
-    "darkmoon_lux",
-    "darkmoon_cfx",
-    "darkmoon_satin"
-};
+static std::array<std::string, btCount> MachineBedTypeString = [] {
+    std::array<std::string, btCount> values{};
+    values[btDefault]   = "auto";
+    values[btPC]        = "pc";
+    values[btEP]        = "ep";
+    values[btPEI]       = "pei";
+    values[btPTE]       = "pte";
+    values[btSuperTack] = "suprtack";
+    for (const DarkmoonPlateInfo &plate : darkmoon_plates())
+        values[static_cast<size_t>(plate.bed_type)] = plate.slug;
+    return values;
+}();
 
 std::vector<std::string> not_support_auto_pa_cali_filaments = {
     "GFU03", // TPU 90A

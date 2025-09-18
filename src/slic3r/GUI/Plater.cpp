@@ -49,6 +49,7 @@
 #include "libslic3r/Format/bbs_3mf.hpp"
 #include "libslic3r/GCode/ThumbnailData.hpp"
 #include "libslic3r/Model.hpp"
+#include "libslic3r/DarkmoonUtils.hpp"
 #include "libslic3r/SLA/Hollowing.hpp"
 #include "libslic3r/SLA/SupportPoint.hpp"
 #include "libslic3r/SLA/ReprojectPointsOnMesh.hpp"
@@ -263,18 +264,18 @@ void Plater::clear_plate_toolbar_image_dirty()
     m_b_plate_toolbar_image_dirty = false;
 }
 
-static std::map<BedType, std::string> bed_type_thumbnails = {
-    {BedType::btPC, "bed_cool"},
-    {BedType::btEP, "bed_engineering"},
-    {BedType::btPEI, "bed_high_templ"},
-    {BedType::btPTE, "bed_pei"},
-    {BedType::btSuperTack, "bed_cool_supertack"},
-    {BedType::btDarkmoonG10, "bed_cool"},
-    {BedType::btDarkmoonIce, "bed_cool"},
-    {BedType::btDarkmoonLux, "bed_cool"},
-    {BedType::btDarkmoonCFX, "bed_cool"},
-    {BedType::btDarkmoonSatin, "bed_cool"}
-};
+static std::map<BedType, std::string> bed_type_thumbnails = [] {
+    std::map<BedType, std::string> thumbnails = {
+        {BedType::btPC, "bed_cool"},
+        {BedType::btEP, "bed_engineering"},
+        {BedType::btPEI, "bed_high_templ"},
+        {BedType::btPTE, "bed_pei"},
+        {BedType::btSuperTack, "bed_cool_supertack"}
+    };
+    for (const DarkmoonPlateInfo &plate : darkmoon_plates())
+        thumbnails.emplace(plate.bed_type, plate.thumbnail_key);
+    return thumbnails;
+}();
 
 // print_model_id
 static std::map<std::string, std::string> printer_thumbnails = {

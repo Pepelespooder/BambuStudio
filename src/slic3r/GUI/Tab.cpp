@@ -6,6 +6,7 @@
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
+#include "libslic3r/DarkmoonUtils.hpp"
 
 #include "Search.hpp"
 #include "OG_CustomCtrl.hpp"
@@ -3485,30 +3486,12 @@ void TabFilament::build()
         line.append_option(optgroup->get_option("textured_plate_temp"));
         optgroup->append_line(line);
 
-        line = {L("Darkmoon G10 Garolite"), L("Bed temperature when the Darkmoon G10 Garolite plate is installed. Value 0 means the filament does not support this plate")};
-        line.append_option(optgroup->get_option("darkmoon_g10_plate_temp_initial_layer"));
-        line.append_option(optgroup->get_option("darkmoon_g10_plate_temp"));
-        optgroup->append_line(line);
-
-        line = {L("Darkmoon Ice"), L("Bed temperature when the Darkmoon Ice plate is installed. Value 0 means the filament does not support this plate")};
-        line.append_option(optgroup->get_option("darkmoon_ice_plate_temp_initial_layer"));
-        line.append_option(optgroup->get_option("darkmoon_ice_plate_temp"));
-        optgroup->append_line(line);
-
-        line = {L("Darkmoon Lux"), L("Bed temperature when the Darkmoon Lux plate is installed. Value 0 means the filament does not support this plate")};
-        line.append_option(optgroup->get_option("darkmoon_lux_plate_temp_initial_layer"));
-        line.append_option(optgroup->get_option("darkmoon_lux_plate_temp"));
-        optgroup->append_line(line);
-
-        line = {L("Darkmoon CFX"), L("Bed temperature when the Darkmoon CFX plate is installed. Value 0 means the filament does not support this plate")};
-        line.append_option(optgroup->get_option("darkmoon_cfx_plate_temp_initial_layer"));
-        line.append_option(optgroup->get_option("darkmoon_cfx_plate_temp"));
-        optgroup->append_line(line);
-
-        line = {L("Darkmoon Satin"), L("Bed temperature when the Darkmoon Satin plate is installed. Value 0 means the filament does not support this plate")};
-        line.append_option(optgroup->get_option("darkmoon_satin_plate_temp_initial_layer"));
-        line.append_option(optgroup->get_option("darkmoon_satin_plate_temp"));
-        optgroup->append_line(line);
+        for (const DarkmoonPlateInfo &plate : darkmoon_plates()) {
+            line = {L(plate.display_name), L(plate.tooltip)};
+            line.append_option(optgroup->get_option(plate.bed_temp_initial_layer_key));
+            line.append_option(optgroup->get_option(plate.bed_temp_key));
+            optgroup->append_line(line);
+        }
 
         optgroup->m_on_change = [this, optgroup](t_config_option_key opt_key, boost::any value)
         {
@@ -3777,10 +3760,17 @@ void TabFilament::toggle_options()
         bool support_chamber_temp_control = this->m_preset_bundle->printers.get_edited_preset().config.opt_bool("support_chamber_temp_control");
         toggle_line("chamber_temperatures", support_chamber_temp_control);
 
-        for (auto el : {"supertack_plate_temp", "supertack_plate_temp_initial_layer", "cool_plate_temp", "cool_plate_temp_initial_layer", "eng_plate_temp", "eng_plate_temp_initial_layer", "textured_plate_temp", "textured_plate_temp_initial_layer",
-                        "darkmoon_g10_plate_temp", "darkmoon_g10_plate_temp_initial_layer", "darkmoon_ice_plate_temp", "darkmoon_ice_plate_temp_initial_layer",
-                        "darkmoon_lux_plate_temp", "darkmoon_lux_plate_temp_initial_layer", "darkmoon_cfx_plate_temp", "darkmoon_cfx_plate_temp_initial_layer",
-                        "darkmoon_satin_plate_temp", "darkmoon_satin_plate_temp_initial_layer"})
+        std::vector<const char*> bed_temperature_keys = {
+            "supertack_plate_temp", "supertack_plate_temp_initial_layer",
+            "cool_plate_temp", "cool_plate_temp_initial_layer",
+            "eng_plate_temp", "eng_plate_temp_initial_layer",
+            "textured_plate_temp", "textured_plate_temp_initial_layer"
+        };
+        for (const DarkmoonPlateInfo &plate : darkmoon_plates()) {
+            bed_temperature_keys.push_back(plate.bed_temp_key);
+            bed_temperature_keys.push_back(plate.bed_temp_initial_layer_key);
+        }
+        for (const char *el : bed_temperature_keys)
             toggle_line(el, is_BBL_printer);
 
         std::string volumetric_speed_cos = m_config->opt_string("volumetric_speed_coefficients", (unsigned int)(m_variant_combo->GetSelection()));
