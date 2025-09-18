@@ -58,6 +58,8 @@ const char *PresetBundle::BBL_DEFAULT_PRINTER_MODEL = "Bambu Lab X1 Carbon";
 const char *PresetBundle::BBL_DEFAULT_PRINTER_VARIANT = "0.4";
 const char *PresetBundle::BBL_DEFAULT_FILAMENT = "Generic PLA";
 
+static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
+
 DynamicPrintConfig PresetBundle::construct_full_config(
     Preset& in_printer_preset,
     Preset& in_print_preset,
@@ -2738,8 +2740,6 @@ static bool is_token_pp(const std::vector<std::string> &tokens)
 {
     return has_token(tokens, "POLYPROPYLENE") || has_token(tokens, "PP", false);
 }
-
-static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
 
 static int default_g10_temperature(const std::string &filament_type_raw)
 {
