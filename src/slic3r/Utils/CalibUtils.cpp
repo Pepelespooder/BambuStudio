@@ -44,6 +44,7 @@ static const std::string config_3mf_path = temp_dir + "/test_config.3mf";
     case BedType::btEP:            return "ep";
     case BedType::btPEI:           return "pei";
     case BedType::btPTE:           return "pte";
+
     // Firmware expects this legacy spelling.
     case BedType::btSuperTack:     return "suprtack";
     // Darkmoon variants
