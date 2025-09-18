@@ -8,6 +8,7 @@
 #include "CaliHistoryDialog.hpp"
 #include "CalibUtils.hpp"
 #include "BBLUtil.hpp"
+#include "../../libslic3r/PrintConfig.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -630,7 +631,13 @@ void PressureAdvanceWizard::on_device_connected(MachineObject* obj)
 static bool get_preset_info(const DynamicConfig& config, const BedType plate_type, int& nozzle_temp, int& bed_temp, float& max_volumetric_speed)
 {
     const ConfigOptionIntsNullable* nozzle_temp_opt = config.option<ConfigOptionIntsNullable>("nozzle_temperature");
-    const ConfigOptionInts* opt_bed_temp_ints = config.option<ConfigOptionInts>(get_bed_temp_key(plate_type));
+    ConfigOptionInts bed_temp_fallback;
+    const ConfigOptionInts* opt_bed_temp_ints = bed_temp_option_with_fallback(
+        config,
+        plate_type,
+        false,
+        bed_temp_fallback,
+        1);
     const ConfigOptionFloatsNullable* speed_opt = config.option<ConfigOptionFloatsNullable>("filament_max_volumetric_speed");
     if (nozzle_temp_opt && speed_opt && opt_bed_temp_ints) {
         nozzle_temp = nozzle_temp_opt->get_at(0);

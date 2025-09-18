@@ -126,12 +126,26 @@ ArrangePolygon get_instance_arrange_poly(ModelInstance* instance, const Slic3r::
         ap.first_bed_temp = 0;
         BedType curr_bed_type = config.opt_enum<BedType>("curr_bed_type");
 
-        const ConfigOptionInts* bed_opt = config.option<ConfigOptionInts>(get_bed_temp_key(curr_bed_type));
-        if (bed_opt != nullptr) ap.bed_temp = bed_opt->get_at(first_extruder_id);
+        size_t extruder_idx = first_extruder_id >= 0 ? size_t(first_extruder_id) : size_t(0);
+        size_t fallback_len = extruder_idx + 1;
 
-        const ConfigOptionInts* bed_opt_1st_layer = config.option<ConfigOptionInts>(get_bed_temp_1st_layer_key(curr_bed_type));
-        if (bed_opt_1st_layer != nullptr)
-            ap.first_bed_temp = bed_opt_1st_layer->get_at(first_extruder_id);
+        ConfigOptionInts bed_temp_fallback;
+        const ConfigOptionInts* bed_opt = bed_temp_option_with_fallback(
+            config,
+            curr_bed_type,
+            false,
+            bed_temp_fallback,
+            fallback_len);
+        ap.bed_temp = bed_opt->get_at(extruder_idx);
+
+        ConfigOptionInts bed_first_layer_fallback;
+        const ConfigOptionInts* bed_opt_1st_layer = bed_temp_option_with_fallback(
+            config,
+            curr_bed_type,
+            true,
+            bed_first_layer_fallback,
+            fallback_len);
+        ap.first_bed_temp = bed_opt_1st_layer->get_at(extruder_idx);
     }
 
     if (config.has("nozzle_temperature")) //get the print temperature

@@ -774,14 +774,9 @@ HelioQuery::CreateSimulationResult HelioQuery::create_simulation(const std::stri
     BedType bed_type = BedType::btDefault;
     if (auto bed_type_opt = print_config.option("curr_bed_type"))
         bed_type = static_cast<BedType>(bed_type_opt->getInt());
-    std::string bed_temp_key = Slic3r::get_bed_temp_1st_layer_key(bed_type);
 
-    float bed_temp = 0.0f;
-    if (const ConfigOptionInts* bed_temp_opt = print_config.option<ConfigOptionInts>(bed_temp_key)) {
-        bed_temp = static_cast<float>(bed_temp_opt->get_at(0));
-    } else {
-        BOOST_LOG_TRIVIAL(warning) << "Missing first-layer bed temperature config for bed type key '" << bed_temp_key << "' in Helio simulation setup";
-    }
+    const int bed_temp_value = bed_temp_value_with_fallback(print_config, bed_type, 0, true);
+    const float bed_temp     = static_cast<float>(bed_temp_value);
     float initial_room_airtemp = -1;
     if (chamber_temp > 0.0f) {
         initial_room_airtemp = (chamber_temp + bed_temp) / 2;
@@ -967,14 +962,9 @@ Slic3r::HelioQuery::CreateOptimizationResult HelioQuery::create_optimization(con
     BedType bed_type = BedType::btDefault;
     if (auto bed_type_opt = print_config.option("curr_bed_type"))
         bed_type = static_cast<BedType>(bed_type_opt->getInt());
-    std::string bed_temp_key = Slic3r::get_bed_temp_1st_layer_key(bed_type);
 
-    float bed_temp = 0.0f;
-    if (const ConfigOptionInts* bed_temp_opt = print_config.option<ConfigOptionInts>(bed_temp_key)) {
-        bed_temp = static_cast<float>(bed_temp_opt->get_at(0));
-    } else {
-        BOOST_LOG_TRIVIAL(warning) << "Missing first-layer bed temperature config for bed type key '" << bed_temp_key << "' in Helio optimization setup";
-    }
+    const int bed_temp_value = bed_temp_value_with_fallback(print_config, bed_type, 0, true);
+    const float bed_temp     = static_cast<float>(bed_temp_value);
     float initial_room_airtemp = -1;
     if (chamber_temp > 0.0f) {
         initial_room_airtemp = (chamber_temp + bed_temp) / 2;
