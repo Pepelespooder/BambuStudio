@@ -7,6 +7,7 @@
 #include "Geometry/ConvexHull.hpp"
 #include "GCode/PrintExtents.hpp"
 #include "GCode/WipeTower.hpp"
+#include "PrintConfig.hpp"
 #include "ShortestPath.hpp"
 #include "Print.hpp"
 #include "Utils.hpp"
@@ -1612,18 +1613,18 @@ void GCode::do_export(Print* print, const char* path, GCodeProcessorResult* resu
     m_processor.result().long_retraction_when_cut = activate_long_retraction_when_cut;
 
     {   //BBS:check bed and filament compatible
-        const ConfigOptionInts *bed_temp_opt = m_config.option<ConfigOptionInts>(get_bed_temp_1st_layer_key(m_config.curr_bed_type));
+        ConfigOptionInts bed_temp_fallback;
+        const ConfigOptionInts* bed_temp_opt = bed_temp_option_with_fallback(
+            m_config,
+            m_config.curr_bed_type,
+            true,
+            bed_temp_fallback,
+            m_writer.extruders().size());
+
         std::vector<int> conflict_filament;
-        if (bed_temp_opt == nullptr) {
-            BOOST_LOG_TRIVIAL(warning) << "Missing first-layer bed temperature config for bed type " << int(m_config.curr_bed_type);
-            conflict_filament.assign(m_initial_layer_extruders.begin(), m_initial_layer_extruders.end());
-        } else {
-            for(auto extruder_id : m_initial_layer_extruders){
-                int cur_bed_temp = bed_temp_opt->get_at(extruder_id);
-                if (cur_bed_temp == 0) {
-                    conflict_filament.push_back(extruder_id);
-                }
-            }
+        for (auto extruder_id : m_initial_layer_extruders) {
+            if (bed_temp_opt->get_at(extruder_id) == 0)
+                conflict_filament.push_back(extruder_id);
         }
 
         m_processor.result().filament_printable_reuslt = FilamentPrintableResult(conflict_filament, bed_type_to_gcode_string(m_config.curr_bed_type));
@@ -2445,22 +2446,23 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             min_temperature_vitrification = std::min(min_temperature_vitrification, m_config.temperature_vitrification.get_at(extruder.id()));
 
 
-        std::string first_layer_bed_temp_str;
         const size_t extruder_count = std::max<size_t>(1, m_writer.extruders().size());
-        ConfigOptionInts fallback_first_layer(extruder_count, 0);
-        ConfigOptionInts fallback_bed(extruder_count, 0);
+        ConfigOptionInts first_layer_fallback;
+        ConfigOptionInts bed_temp_fallback;
 
-        const ConfigOptionInts* first_bed_temp_opt = m_config.option<ConfigOptionInts>(get_bed_temp_1st_layer_key((BedType)curr_bed_type));
-        if (first_bed_temp_opt == nullptr) {
-            BOOST_LOG_TRIVIAL(warning) << "Missing first-layer bed temperature config for bed type " << int(curr_bed_type);
-            first_bed_temp_opt = &fallback_first_layer;
-        }
+        const ConfigOptionInts* first_bed_temp_opt = bed_temp_option_with_fallback(
+            m_config,
+            curr_bed_type,
+            true,
+            first_layer_fallback,
+            extruder_count);
 
-        const ConfigOptionInts* bed_temp_opt = m_config.option<ConfigOptionInts>(get_bed_temp_key((BedType)curr_bed_type));
-        if (bed_temp_opt == nullptr) {
-            BOOST_LOG_TRIVIAL(warning) << "Missing bed temperature config for bed type " << int(curr_bed_type);
-            bed_temp_opt = &fallback_bed;
-        }
+        const ConfigOptionInts* bed_temp_opt = bed_temp_option_with_fallback(
+            m_config,
+            curr_bed_type,
+            false,
+            bed_temp_fallback,
+            extruder_count);
         int target_bed_temp = 0;
         if (m_config.bed_temperature_formula == BedTempFormula::btfHighestTemp)
             target_bed_temp = get_highest_bed_temperature(true, print);
@@ -3339,13 +3341,7 @@ void GCode::print_machine_envelope(GCodeOutputStream &file, Print &print, int ex
 // BBS
 int GCode::get_bed_temperature(const int extruder_id, const bool is_first_layer, const BedType bed_type) const
 {
-    std::string bed_temp_key = is_first_layer ? get_bed_temp_1st_layer_key(bed_type) : get_bed_temp_key(bed_type);
-    const ConfigOptionInts* bed_temp_opt = m_config.option<ConfigOptionInts>(bed_temp_key);
-    if (bed_temp_opt == nullptr) {
-        BOOST_LOG_TRIVIAL(warning) << "Missing bed temperature config for key '" << bed_temp_key << "' and bed type " << int(bed_type);
-        return 0;
-    }
-    return bed_temp_opt->get_at(extruder_id);
+    return bed_temp_value_with_fallback(m_config, bed_type, extruder_id, is_first_layer);
 }
 
 int GCode::get_highest_bed_temperature(const bool is_first_layer, const Print& print) const

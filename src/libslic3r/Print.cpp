@@ -1499,14 +1499,20 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
     assert(bed_type_def != nullptr);
 
     const t_config_enum_values* bed_type_keys_map = bed_type_def->enum_keys_map;
-    const ConfigOptionInts* bed_temp_opt = m_config.option<ConfigOptionInts>(get_bed_temp_key(m_config.curr_bed_type));
+    size_t fallback_len = 1;
+    for (unsigned int extruder_id : extruders)
+        fallback_len = std::max(fallback_len, size_t(extruder_id + 1));
+
+    ConfigOptionInts bed_temp_fallback;
+    const ConfigOptionInts* bed_temp_opt = bed_temp_option_with_fallback(
+        m_config,
+        m_config.curr_bed_type,
+        false,
+        bed_temp_fallback,
+        fallback_len);
     for (unsigned int extruder_id : extruders) {
         int curr_bed_temp = 0;
-        if (bed_temp_opt != nullptr) {
-            curr_bed_temp = bed_temp_opt->get_at(extruder_id);
-        } else {
-            BOOST_LOG_TRIVIAL(warning) << "Missing bed temperature config for bed type " << int(m_config.curr_bed_type);
-        }
+        curr_bed_temp = bed_temp_opt->get_at(extruder_id);
         if (curr_bed_temp == 0 && bed_type_keys_map != nullptr) {
             std::string bed_type_name;
             for (auto item : *bed_type_keys_map) {
