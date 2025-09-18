@@ -2,6 +2,7 @@
 #include "GUI_App.hpp"
 #include "MsgDialog.hpp"
 #include "libslic3r/Preset.hpp"
+#include "libslic3r/PrintConfig.hpp"
 #include "I18N.hpp"
 #include <boost/log/trivial.hpp>
 #include <wx/dcgraph.h>
@@ -827,11 +828,14 @@ void ExtrusionCalibration::update_filament_info()
 int ExtrusionCalibration::get_bed_temp(DynamicPrintConfig* config)
 {
     BedType curr_bed_type = BedType(m_comboBox_bed_type->GetSelection() + btDefault + 1);
-    const ConfigOptionInts* opt_bed_temp_ints = config->option<ConfigOptionInts>(get_bed_temp_key(curr_bed_type));
-    if (opt_bed_temp_ints) {
-        return opt_bed_temp_ints->get_at(0);
-    }
-    return -1;
+    ConfigOptionInts bed_temp_fallback;
+    const ConfigOptionInts* opt_bed_temp_ints = bed_temp_option_with_fallback(
+        *config,
+        curr_bed_type,
+        false,
+        bed_temp_fallback,
+        1);
+    return opt_bed_temp_ints->get_at(0);
 }
 
 void ExtrusionCalibration::on_select_bed_type(wxCommandEvent &evt)

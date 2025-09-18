@@ -34,8 +34,9 @@ static const std::string config_3mf_path = temp_dir + "/test_config.3mf";
 
 // Map BedType -> firmware string, incl. Darkmoon plates, with a safe fallback.
 // If the firmware doesn't recognize the plate string, it may use temp=0.
-// This switch prevents that by returning only known-good names.
-static inline const char* bed_type_to_string(BedType bt)
+// This switch prevents that by returning only known-good names and keeps the
+// firmware's legacy identifiers (for example, "suprtack").
+[[nodiscard]] static constexpr const char* bed_type_to_string(const BedType bt) noexcept
 {
     switch (bt) {
     case BedType::btDefault:       return "auto";
@@ -43,8 +44,10 @@ static inline const char* bed_type_to_string(BedType bt)
     case BedType::btEP:            return "ep";
     case BedType::btPEI:           return "pei";
     case BedType::btPTE:           return "pte";
+
+    // Firmware expects this legacy spelling.
     case BedType::btSuperTack:     return "suprtack";
-        // Darkmoon variants
+    // Darkmoon variants
     case BedType::btDarkmoonG10:   return "darkmoon_g10";
     case BedType::btDarkmoonIce:   return "darkmoon_ice";
     case BedType::btDarkmoonLux:   return "darkmoon_lux";
@@ -1868,7 +1871,8 @@ void CalibUtils::send_to_print(const CalibInfo &calib_info, wxString &error_mess
     print_job->task_ams_mapping2 = new_ams_mapping;
 
     CalibMode cali_mode       = calib_info.params.mode;
-    print_job->m_project_name = get_calib_mode_name(cali_mode, flow_ratio_mode);
+    auto       project_name   = get_calib_mode_name(cali_mode, flow_ratio_mode);
+    print_job->m_project_name = std::move(project_name);
     print_job->set_calibration_task(true);
 
     print_job->has_sdcard = obj_->GetStorage()->get_sdcard_state() == DevStorage::HAS_SDCARD_NORMAL;
@@ -1984,11 +1988,12 @@ void CalibUtils::send_to_print(const std::vector<CalibInfo> &calib_infos, wxStri
     }
 
     CalibMode cali_mode       = calib_infos[0].params.mode;
-    print_job->m_project_name = get_calib_mode_naame(cali_mode, flow_ratio_mode);
+    auto       project_name   = get_calib_mode_name(cali_mode, flow_ratio_mode);
+    print_job->m_project_name = std::move(project_name);
     print_job->set_calibration_task(true);
 
     print_job->has_sdcard = obj_->GetStorage()->get_sdcard_state() == DevStorage::HAS_SDCARD_NORMAL;
-    print_job->set_print_config(MachineBedTypeString[bed_type], true, true, false, false, true, false, 0, 1, 0);
+    print_job->set_print_config(bed_type_to_string(bed_type), true, true, false, false, true, false, 0, 1, 0);
     print_job->set_print_job_finished_event(wxGetApp().plater()->get_send_calibration_finished_event(), print_job->m_project_name);
 
     { // after send: record the print job

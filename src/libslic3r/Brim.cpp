@@ -564,11 +564,13 @@ double getTemperatureFromExtruder(const PrintObject* printObject) {
         if (const ConfigOption* opt = config.option("curr_bed_type"))
             curr_bed_type = static_cast<BedType>(opt->getInt());
     }
-    const ConfigOptionInts* bed_temp_1st_layer_opt = config.option<ConfigOptionInts>(get_bed_temp_1st_layer_key(curr_bed_type));
-    if (bed_temp_1st_layer_opt == nullptr) {
-        BOOST_LOG_TRIVIAL(warning) << "Missing first-layer bed temperature config for bed type " << int(curr_bed_type);
-        return 0.0;
-    }
+    ConfigOptionInts bed_temp_fallback;
+    const ConfigOptionInts* bed_temp_1st_layer_opt = bed_temp_option_with_fallback(
+        config,
+        curr_bed_type,
+        true,
+        bed_temp_fallback,
+        std::max<size_t>(1, print->extruders().size()));
 
     double maxDeltaTemp = 0;
     for (auto extruderID : extrudersFirstLayer) {
