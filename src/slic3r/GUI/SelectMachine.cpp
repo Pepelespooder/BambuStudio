@@ -2,6 +2,7 @@
 #include "I18N.hpp"
 
 #include "libslic3r/Utils.hpp"
+#include "libslic3r/DarkmoonUtils.hpp"
 #include "libslic3r/Thread.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
@@ -77,16 +78,14 @@ void                SelectMachineDialog::init_machine_bed_types()
                                    _L("Bamabu Engineering Plate"),
                                    _L("Bamabu Smooth PEI Plate") + "/" + _L("High temperature Plate"),
                                    _L("Bamabu Textured PEI Plate"),
-                                   _L("Bambu Cool Plate SuperTack"),
-                                   _L("Darkmoon G10 Garolite"),
-                                   _L("Darkmoon Ice"),
-                                   _L("Darkmoon Lux"),
-                                   _L("Darkmoon CFX"),
-                                   _L("Darkmoon Satin")
+                                   _L("Bambu Cool Plate SuperTack")
         };
         MachineBedTypeString    = {//"auto",
-                                   "pc", "pe", "pei", "pte", "suprtack",
-                                   "darkmoon_g10", "darkmoon_ice", "darkmoon_lux", "darkmoon_cfx", "darkmoon_satin"};
+                                   "pc", "pe", "pei", "pte", "suprtack"};
+        for (const DarkmoonPlateInfo &plate : darkmoon_plates()) {
+            MACHINE_BED_TYPE_STRING.emplace_back(_L(plate.display_name));
+            MachineBedTypeString.emplace_back(plate.slug);
+        }
     }
 }
 SelectMachineDialog::SelectMachineDialog(Plater *plater)

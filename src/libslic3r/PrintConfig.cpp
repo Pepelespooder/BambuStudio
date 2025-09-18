@@ -2,6 +2,7 @@
 #include "ClipperUtils.hpp"
 #include "Config.hpp"
 #include "I18N.hpp"
+#include "DarkmoonUtils.hpp"
 
 #include <set>
 #include <boost/algorithm/string/case_conv.hpp>
@@ -368,19 +369,19 @@ static const t_config_enum_values s_keys_map_OverhangThresholdParticipatingCooli
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(OverhangThresholdParticipatingCooling)
 
 // BBS
-static const t_config_enum_values s_keys_map_BedType = {
-    { "Default Plate",          btDefault },
-    { "Cool Plate",             btPC },
-    { "Engineering Plate",      btEP  },
-    { "High Temp Plate",        btPEI  },
-    { "Textured PEI Plate",     btPTE },
-    {"Supertack Plate",         btSuperTack},
-    {"Darkmoon G10 Garolite",   btDarkmoonG10},
-    {"Darkmoon Ice",            btDarkmoonIce},
-    {"Darkmoon Lux",            btDarkmoonLux},
-    {"Darkmoon CFX",            btDarkmoonCFX},
-    {"Darkmoon Satin",          btDarkmoonSatin}
-};
+static const t_config_enum_values s_keys_map_BedType = [] {
+    t_config_enum_values values = {
+        { "Default Plate",          btDefault },
+        { "Cool Plate",             btPC },
+        { "Engineering Plate",      btEP  },
+        { "High Temp Plate",        btPEI  },
+        { "Textured PEI Plate",     btPTE },
+        { "Supertack Plate",        btSuperTack }
+    };
+    for (const DarkmoonPlateInfo &plate : darkmoon_plates())
+        values.emplace_back(plate.display_name, plate.bed_type);
+    return values;
+}();
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(BedType)
 
 // BBS

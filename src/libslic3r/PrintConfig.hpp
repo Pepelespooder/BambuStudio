@@ -18,6 +18,7 @@
 
 #include "libslic3r.h"
 #include "CommonDefs.hpp"
+#include "DarkmoonUtils.hpp"
 #include "Config.hpp"
 #include "Polygon.hpp"
 #include <boost/preprocessor/facilities/empty.hpp>
@@ -371,20 +372,8 @@ static std::string get_bed_temp_key(const BedType type)
     if (type == btSuperTack)
         return "supertack_plate_temp";
 
-    if (type == btDarkmoonG10)
-        return "darkmoon_g10_plate_temp";
-
-    if (type == btDarkmoonIce)
-        return "darkmoon_ice_plate_temp";
-
-    if (type == btDarkmoonLux)
-        return "darkmoon_lux_plate_temp";
-
-    if (type == btDarkmoonCFX)
-        return "darkmoon_cfx_plate_temp";
-
-    if (type == btDarkmoonSatin)
-        return "darkmoon_satin_plate_temp";
+    if (const DarkmoonPlateInfo *plate = find_darkmoon_plate(type))
+        return plate->bed_temp_key;
 
     if (type == btPC)
         return "cool_plate_temp";
@@ -406,20 +395,8 @@ static std::string get_bed_temp_1st_layer_key(const BedType type)
     if (type == btSuperTack)
         return "supertack_plate_temp_initial_layer";
 
-    if (type == btDarkmoonG10)
-        return "darkmoon_g10_plate_temp_initial_layer";
-
-    if (type == btDarkmoonIce)
-        return "darkmoon_ice_plate_temp_initial_layer";
-
-    if (type == btDarkmoonLux)
-        return "darkmoon_lux_plate_temp_initial_layer";
-
-    if (type == btDarkmoonCFX)
-        return "darkmoon_cfx_plate_temp_initial_layer";
-
-    if (type == btDarkmoonSatin)
-        return "darkmoon_satin_plate_temp_initial_layer";
+    if (const DarkmoonPlateInfo *plate = find_darkmoon_plate(type))
+        return plate->bed_temp_initial_layer_key;
 
     if (type == btPC)
         return "cool_plate_temp_initial_layer";
