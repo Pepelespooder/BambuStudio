@@ -1986,7 +1986,7 @@ void CalibUtils::send_to_print(const std::vector<CalibInfo> &calib_infos, wxStri
     }
 
     CalibMode cali_mode       = calib_infos[0].params.mode;
-    print_job->m_project_name = get_calib_mode_name(cali_mode, flow_ratio_mode);
+    print_job->m_project_name = get_calib_mode_naame(cali_mode, flow_ratio_mode);
     print_job->set_calibration_task(true);
 
     print_job->has_sdcard = obj_->GetStorage()->get_sdcard_state() == DevStorage::HAS_SDCARD_NORMAL;
