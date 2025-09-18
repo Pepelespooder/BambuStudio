@@ -275,6 +275,8 @@ set(lisbslic3r_sources
     PolygonTrimmer.hpp
     Polyline.cpp
     Polyline.hpp
+    DarkmoonUtils.cpp
+    DarkmoonUtils.hpp
     Preset.cpp
     Preset.hpp
     PresetBundle.cpp

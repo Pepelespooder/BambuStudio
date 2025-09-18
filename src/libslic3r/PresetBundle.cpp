@@ -6,6 +6,7 @@
 #include "Utils.hpp"
 #include "Model.hpp"
 #include "format.hpp"
+#include "DarkmoonUtils.hpp"
 
 #include <algorithm>
 #include <set>
@@ -2695,145 +2696,13 @@ DynamicPrintConfig PresetBundle::full_config_secure(std::optional<std::vector<in
     return config;
 }
 
-static std::vector<std::string> tokenize_filament(const std::string &input)
-{
-    std::vector<std::string> tokens;
-    std::string token;
-    token.reserve(input.size());
-    for (char ch : input) {
-        if (std::isalnum(static_cast<unsigned char>(ch)))
-            token.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(ch))));
-        else if (!token.empty()) {
-            tokens.push_back(token);
-            token.clear();
-        }
-    }
-    if (!token.empty())
-        tokens.push_back(token);
-    return tokens;
-}
-
-static bool has_token(const std::vector<std::string> &tokens, const char *token, bool allow_substring = true)
-{
-    for (const std::string &t : tokens) {
-        if (t == token)
-            return true;
-        if (allow_substring && t.find(token) != std::string::npos)
-            return true;
-    }
-    return false;
-}
-
-static bool has_all_tokens(const std::vector<std::string> &tokens, const char *a, const char *b)
-{
-    return has_token(tokens, a) && has_token(tokens, b);
-}
-
-static bool is_token_pet_only(const std::vector<std::string> &tokens)
-{
-    if (!has_token(tokens, "PET", false))
-        return false;
-    return !has_token(tokens, "PETG") && !has_token(tokens, "PCTG") && !has_all_tokens(tokens, "PET", "CF");
-}
-
-static bool is_token_pp(const std::vector<std::string> &tokens)
-{
-    return has_token(tokens, "POLYPROPYLENE") || has_token(tokens, "PP", false);
-}
-
-static int default_g10_temperature(const std::string &filament_type_raw)
-{
-    auto tokens = tokenize_filament(filament_type_raw);
-
-    if (has_token(tokens, "TPU"))
-        return 1;
-    if (has_token(tokens, "PLA"))
-        return 55;
-    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
-        return 70;
-    if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
-        return 110;
-
-    // Materials not listed are not recommended on G10; use 0°C to flag unsupported.
-    return 0;
-}
-
-static int default_cfx_temperature(const std::string &filament_type_raw)
-{
-    auto tokens = tokenize_filament(filament_type_raw);
-
-    if (has_token(tokens, "TPU"))
-        return 0;
-    if (has_token(tokens, "PLA"))
-        return 60;
-    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
-        return 80;
-    if (has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF"))
-        return 105;
-    if (has_token(tokens, "PPS"))
-        return 110;
-    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC"))
-        return 115;
-    if (has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "NYLON") || has_token(tokens, "PA"))
-        return 105;
-    if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
-        return 110;
-    if (is_token_pp(tokens))
-        return 90;
-
-    return -1;
-}
-
-static int default_satin_temperature(const std::string &filament_type_raw)
-{
-    auto tokens = tokenize_filament(filament_type_raw);
-
-    if (has_token(tokens, "TPU"))
-        return 0;
-    if (has_token(tokens, "PLA"))
-        return 58;
-    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
-        return 75;
-    if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
-        return 105;
-    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC"))
-        return 115;
-    if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA"))
-        return 105;
-    if (is_token_pet_only(tokens))
-        return 105;
-    if (has_token(tokens, "PPS"))
-        return 105;
-
-    return -1;
-}
-
 static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
 {
-    struct DarkmoonMapping {
-        const char *darkmoon_key;
-        const char *fallback_key;
-    };
-
-    static const DarkmoonMapping mappings[] = {
-        {"darkmoon_g10_plate_temp",                 "cool_plate_temp"},
-        {"darkmoon_g10_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
-        {"darkmoon_ice_plate_temp",                 "cool_plate_temp"},
-        {"darkmoon_ice_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
-        {"darkmoon_lux_plate_temp",                 "hot_plate_temp"},
-        {"darkmoon_lux_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
-        {"darkmoon_cfx_plate_temp",                 "hot_plate_temp"},
-        {"darkmoon_cfx_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
-        {"darkmoon_satin_plate_temp",               "hot_plate_temp"},
-        {"darkmoon_satin_plate_temp_initial_layer", "hot_plate_temp_initial_layer"}
-    };
-
     extruder_count = std::max<size_t>(1, extruder_count);
 
     std::vector<std::string> filament_types;
-    if (const auto *types_opt = config.opt<ConfigOptionStrings>("filament_type")) {
+    if (const auto *types_opt = config.opt<ConfigOptionStrings>("filament_type"))
         filament_types = types_opt->values;
-    }
     if (filament_types.empty())
         filament_types.assign(extruder_count, "PLA");
     if (filament_types.size() < extruder_count)
@@ -2850,44 +2719,36 @@ static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extrude
             opt->values.resize(extruder_count);
     };
 
-    for (const DarkmoonMapping &mapping : mappings) {
-        ConfigOptionInts *dm_opt = config.opt<ConfigOptionInts>(mapping.darkmoon_key);
-        const std::string key(mapping.darkmoon_key);
-        bool need_fallback = (dm_opt == nullptr || dm_opt->values.empty());
-        bool is_cfx   = key.find("darkmoon_cfx")   != std::string::npos;
-        bool is_satin = key.find("darkmoon_satin") != std::string::npos;
-        bool is_g10   = key.find("darkmoon_g10")   != std::string::npos;
-        if (need_fallback || dm_opt->values.size() < extruder_count) {
-            std::vector<int> values;
-            bool filled = false;
-            if (is_cfx || is_satin || is_g10) {
-                values.resize(extruder_count);
-                filled = true;
-                for (size_t idx = 0; idx < extruder_count; ++idx) {
-                    int v = is_cfx ? default_cfx_temperature(filament_types[idx])
-                                    : is_satin ? default_satin_temperature(filament_types[idx])
-                                               : default_g10_temperature(filament_types[idx]);
-                    if (v < 0) {
-                        filled = false;
-                        break;
-                    }
-                    values[idx] = v;
-                }
-            }
+    struct KeyPair {
+        const char *dm_key;
+        const char *fallback_key;
+    };
 
-            if (!filled) {
-                values.clear();
-                if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty())
+    for (const DarkmoonPlateInfo &plate : darkmoon_plates()) {
+        const KeyPair key_pairs[] = {
+            {plate.bed_temp_key, plate.fallback_temp_key},
+            {plate.bed_temp_initial_layer_key, plate.fallback_temp_initial_layer_key}
+        };
+
+        for (const KeyPair &pair : key_pairs) {
+            ConfigOptionInts *dm_opt = config.opt<ConfigOptionInts>(pair.dm_key);
+            const bool needs_values = (dm_opt == nullptr || dm_opt->values.empty() || dm_opt->values.size() < extruder_count);
+            if (needs_values) {
+                std::vector<int> values;
+                if (auto defaults = default_darkmoon_temperatures(plate, filament_types)) {
+                    values = std::move(*defaults);
+                } else if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(pair.fallback_key); fallback && !fallback->values.empty()) {
                     values.assign(fallback->values.begin(), fallback->values.end());
-                else
+                } else {
                     values.assign(extruder_count, 0);
+                }
+
+                dm_opt = config.option<ConfigOptionInts>(pair.dm_key, true);
+                dm_opt->values = std::move(values);
             }
 
-            dm_opt = config.option<ConfigOptionInts>(mapping.darkmoon_key, true);
-            dm_opt->values = std::move(values);
+            resize_to_extruders(dm_opt);
         }
-
-        resize_to_extruders(dm_opt);
     }
 }
 

@@ -4,6 +4,7 @@
 #include "Preset.hpp"
 #include "PresetBundle.hpp"
 #include "AppConfig.hpp"
+#include "DarkmoonUtils.hpp"
 
 #ifdef _MSC_VER
     #define WIN32_LEAN_AND_MEAN
@@ -971,45 +972,50 @@ static std::vector<std::string> s_Preset_print_options {
     "seam_slope_steps", "seam_slope_inner_walls", "role_base_wipe_speed" , "seam_slope_gap", "precise_outer_wall",
     "interlocking_beam", "interlocking_orientation", "interlocking_beam_layer_count", "interlocking_depth", "interlocking_boundary_avoidance", "interlocking_beam_width"};
 
-static std::vector<std::string> s_Preset_filament_options{/*"filament_colour", */ "default_filament_colour", "required_nozzle_HRC", "filament_diameter", "volumetric_speed_coefficients", "filament_type",
-                                                          "filament_soluble", "filament_is_support", "filament_printable", "filament_scarf_seam_type", "filament_scarf_height",
-                                                          "filament_scarf_gap", "filament_scarf_length",
-    "filament_max_volumetric_speed", "impact_strength_z", "filament_ramming_volumetric_speed", "filament_adaptive_volumetric_speed",
-    "filament_flow_ratio", "filament_density", "filament_adhesiveness_category", "filament_cost", "filament_minimal_purge_on_wipe_tower",
-    "nozzle_temperature", "nozzle_temperature_initial_layer",
-    // BBS
-    "cool_plate_temp", "eng_plate_temp", "hot_plate_temp", "textured_plate_temp", "cool_plate_temp_initial_layer", "eng_plate_temp_initial_layer", "hot_plate_temp_initial_layer","textured_plate_temp_initial_layer",
-    "supertack_plate_temp_initial_layer", "supertack_plate_temp",
-    "darkmoon_g10_plate_temp", "darkmoon_g10_plate_temp_initial_layer",
-    "darkmoon_ice_plate_temp", "darkmoon_ice_plate_temp_initial_layer",
-    "darkmoon_lux_plate_temp", "darkmoon_lux_plate_temp_initial_layer",
-    "darkmoon_cfx_plate_temp", "darkmoon_cfx_plate_temp_initial_layer",
-    "darkmoon_satin_plate_temp", "darkmoon_satin_plate_temp_initial_layer",
-    "circle_compensation_speed", "counter_coef_1", "counter_coef_2", "counter_coef_3", "hole_coef_1", "hole_coef_2", "hole_coef_3",
-    "counter_limit_min", "counter_limit_max", "hole_limit_min", "hole_limit_max", "diameter_limit",
-    // "bed_type",
-    //BBS:temperature_vitrification
-    "temperature_vitrification", "reduce_fan_stop_start_freq", "slow_down_for_layer_cooling", "fan_min_speed","filament_ramming_travel_time","filament_pre_cooling_temperature",
-    "fan_max_speed", "enable_overhang_bridge_fan", "overhang_fan_speed", "pre_start_fan_time", "overhang_fan_threshold", "overhang_threshold_participating_cooling","close_fan_the_first_x_layers", "full_fan_speed_layer", "fan_cooling_layer_time", "slow_down_layer_time", "slow_down_min_speed",
-    "filament_start_gcode", "filament_end_gcode",
-    //exhaust fan control
-    "activate_air_filtration","during_print_exhaust_fan_speed","complete_print_exhaust_fan_speed",
-    // Retract overrides
-    "filament_retraction_length", "filament_z_hop", "filament_z_hop_types", "filament_retraction_speed", "filament_deretraction_speed", "filament_retract_restart_extra", "filament_retraction_minimum_travel",
-    "filament_retract_when_changing_layer", "filament_wipe", "filament_retract_before_wipe",
-    // Profile compatibility
-    "filament_vendor", "compatible_prints", "compatible_prints_condition", "compatible_printers", "compatible_printers_condition", "inherits",
-    //BBS
-    "filament_wipe_distance", "additional_cooling_fan_speed",
-    "nozzle_temperature_range_low", "nozzle_temperature_range_high",
-    "filament_extruder_variant",
-    //OrcaSlicer
-    "enable_pressure_advance", "pressure_advance", "chamber_temperatures","filament_notes",
-    "filament_long_retractions_when_cut","filament_retraction_distances_when_cut","filament_shrink", "filament_velocity_adaptation_factor",
-    //BBS filament change length while the extruder color
-    "filament_change_length","filament_prime_volume","filament_flush_volumetric_speed","filament_flush_temp",
-    "long_retractions_when_ec", "retraction_distances_when_ec"
-};
+static std::vector<std::string> s_Preset_filament_options = [] {
+    std::vector<std::string> options = {
+        /*"filament_colour", */ "default_filament_colour", "required_nozzle_HRC", "filament_diameter", "volumetric_speed_coefficients", "filament_type",
+        "filament_soluble", "filament_is_support", "filament_printable", "filament_scarf_seam_type", "filament_scarf_height",
+        "filament_scarf_gap", "filament_scarf_length",
+        "filament_max_volumetric_speed", "impact_strength_z", "filament_ramming_volumetric_speed", "filament_adaptive_volumetric_speed",
+        "filament_flow_ratio", "filament_density", "filament_adhesiveness_category", "filament_cost", "filament_minimal_purge_on_wipe_tower",
+        "nozzle_temperature", "nozzle_temperature_initial_layer",
+        // BBS
+        "cool_plate_temp", "eng_plate_temp", "hot_plate_temp", "textured_plate_temp", "cool_plate_temp_initial_layer", "eng_plate_temp_initial_layer", "hot_plate_temp_initial_layer", "textured_plate_temp_initial_layer",
+        "supertack_plate_temp_initial_layer", "supertack_plate_temp"
+    };
+
+    append_darkmoon_temperature_keys(options);
+
+    options.insert(options.end(), {
+        "circle_compensation_speed", "counter_coef_1", "counter_coef_2", "counter_coef_3", "hole_coef_1", "hole_coef_2", "hole_coef_3",
+        "counter_limit_min", "counter_limit_max", "hole_limit_min", "hole_limit_max", "diameter_limit",
+        // "bed_type",
+        //BBS:temperature_vitrification
+        "temperature_vitrification", "reduce_fan_stop_start_freq", "slow_down_for_layer_cooling", "fan_min_speed", "filament_ramming_travel_time", "filament_pre_cooling_temperature",
+        "fan_max_speed", "enable_overhang_bridge_fan", "overhang_fan_speed", "pre_start_fan_time", "overhang_fan_threshold", "overhang_threshold_participating_cooling", "close_fan_the_first_x_layers", "full_fan_speed_layer", "fan_cooling_layer_time", "slow_down_layer_time", "slow_down_min_speed",
+        "filament_start_gcode", "filament_end_gcode",
+        //exhaust fan control
+        "activate_air_filtration", "during_print_exhaust_fan_speed", "complete_print_exhaust_fan_speed",
+        // Retract overrides
+        "filament_retraction_length", "filament_z_hop", "filament_z_hop_types", "filament_retraction_speed", "filament_deretraction_speed", "filament_retract_restart_extra", "filament_retraction_minimum_travel",
+        "filament_retract_when_changing_layer", "filament_wipe", "filament_retract_before_wipe",
+        // Profile compatibility
+        "filament_vendor", "compatible_prints", "compatible_prints_condition", "compatible_printers", "compatible_printers_condition", "inherits",
+        //BBS
+        "filament_wipe_distance", "additional_cooling_fan_speed",
+        "nozzle_temperature_range_low", "nozzle_temperature_range_high",
+        "filament_extruder_variant",
+        //OrcaSlicer
+        "enable_pressure_advance", "pressure_advance", "chamber_temperatures", "filament_notes",
+        "filament_long_retractions_when_cut", "filament_retraction_distances_when_cut", "filament_shrink", "filament_velocity_adaptation_factor",
+        //BBS filament change length while the extruder color
+        "filament_change_length", "filament_prime_volume", "filament_flush_volumetric_speed", "filament_flush_temp",
+        "long_retractions_when_ec", "retraction_distances_when_ec"
+    });
+
+    return options;
+}();
 
 static std::vector<std::string> s_Preset_machine_limits_options {
     "machine_max_acceleration_extruding", "machine_max_acceleration_retracting", "machine_max_acceleration_travel",

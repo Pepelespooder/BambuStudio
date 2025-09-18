@@ -15,6 +15,7 @@
 #include "GCode/WipeTower.hpp"
 #include "Utils.hpp"
 #include "PrintConfig.hpp"
+#include "DarkmoonUtils.hpp"
 #include "Model.hpp"
 #include <float.h>
 
@@ -88,7 +89,8 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
 
     // Cache the plenty of parameters, which influence the G-code generator only,
     // or they are only notes not influencing the generated G-code.
-    static std::unordered_set<std::string> steps_gcode = {
+    static std::unordered_set<std::string> steps_gcode = [] {
+        std::unordered_set<std::string> keys = {
         //BBS
         "additional_cooling_fan_speed",
         "reduce_crossing_wall",
@@ -136,11 +138,6 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
         "accel_to_decel_factor",
         // BBS
         "supertack_plate_temp_initial_layer",
-        "darkmoon_g10_plate_temp_initial_layer",
-        "darkmoon_ice_plate_temp_initial_layer",
-        "darkmoon_lux_plate_temp_initial_layer",
-        "darkmoon_cfx_plate_temp_initial_layer",
-        "darkmoon_satin_plate_temp_initial_layer",
         "cool_plate_temp_initial_layer",
         "eng_plate_temp_initial_layer",
         "hot_plate_temp_initial_layer",
@@ -213,7 +210,12 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
         "process_notes",
         "printer_notes",
         "filament_velocity_adaptation_factor"
-    };
+        };
+        std::vector<std::string> darkmoon_initial;
+        append_darkmoon_initial_temperature_keys(darkmoon_initial);
+        keys.insert(darkmoon_initial.begin(), darkmoon_initial.end());
+        return keys;
+    }();
 
     static std::unordered_set<std::string> steps_ignore;
 
@@ -278,11 +280,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
             || opt_key == "filament_ramming_travel_time"
             // BBS
             || opt_key == "supertack_plate_temp"
-            || opt_key == "darkmoon_g10_plate_temp"
-            || opt_key == "darkmoon_ice_plate_temp"
-            || opt_key == "darkmoon_lux_plate_temp"
-            || opt_key == "darkmoon_cfx_plate_temp"
-            || opt_key == "darkmoon_satin_plate_temp"
+            || is_darkmoon_temp_key(opt_key)
             || opt_key == "cool_plate_temp"
             || opt_key == "eng_plate_temp"
             || opt_key == "hot_plate_temp"
