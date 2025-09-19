@@ -2741,6 +2741,8 @@ static bool is_token_pp(const std::vector<std::string> &tokens)
     return has_token(tokens, "POLYPROPYLENE") || has_token(tokens, "PP", false);
 }
 
+static constexpr int kDarkmoonPlaceholderTemp = 45;
+
 static int default_g10_temperature(const std::string &filament_type_raw)
 {
     auto tokens = tokenize_filament(filament_type_raw);
@@ -2853,10 +2855,17 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
             opt->values.resize(extruder_count);
     };
 
+    auto is_placeholder = [](const ConfigOptionInts *opt) {
+        return opt != nullptr && !opt->values.empty() &&
+               std::all_of(opt->values.begin(), opt->values.end(), [](int v) {
+                   return v == kDarkmoonPlaceholderTemp;
+               });
+    };
+
     for (const DarkmoonMapping &mapping : mappings) {
         ConfigOptionInts *dm_opt = config.opt<ConfigOptionInts>(mapping.darkmoon_key);
         const std::string key(mapping.darkmoon_key);
-        bool need_fallback = (dm_opt == nullptr || dm_opt->values.empty());
+        bool need_fallback = (dm_opt == nullptr || dm_opt->values.empty() || is_placeholder(dm_opt));
         bool is_cfx   = key.find("darkmoon_cfx")   != std::string::npos;
         bool is_satin = key.find("darkmoon_satin") != std::string::npos;
         bool is_g10   = key.find("darkmoon_g10")   != std::string::npos;
