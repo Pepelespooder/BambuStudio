@@ -372,7 +372,9 @@ void Preset::normalize(DynamicPrintConfig &config)
         // This config contains single or multiple filament presets.
         // Ensure that the filament preset vector options contain the correct number of values.
         // BBS
-        size_t n = (filament_diameter == nullptr) ? 1 : filament_diameter->values.size();
+        size_t n = filament_diameter->values.size();
+        if (n == 0)
+            n = 1;
         const auto &defaults = FullPrintConfig::defaults();
         for (const std::string &key : Preset::filament_options()) {
             if (key == "compatible_prints" || key == "compatible_printers")
@@ -392,6 +394,8 @@ void Preset::normalize(DynamicPrintConfig &config)
             if (opt != nullptr && opt->type() == coStrings)
                 static_cast<ConfigOptionStrings*>(opt)->values.resize(n, std::string());
         }
+
+        ensure_darkmoon_bed_temps(config, n);
     }
 
     handle_legacy_sla(config);
@@ -1208,7 +1212,9 @@ void PresetCollection::add_default_preset(const std::vector<std::string> &keys, 
 {
     // Insert just the default preset.
     m_presets.emplace_back(Preset(this->type(), preset_name, true));
-    m_presets.back().config.apply_only(defaults, keys.empty() ? defaults.keys() : keys);
+    DynamicPrintConfig &config = m_presets.back().config;
+    config.apply_only(defaults, keys.empty() ? defaults.keys() : keys);
+    Preset::normalize(config);
     m_presets.back().loaded = true;
     ++ m_num_default_presets;
 }

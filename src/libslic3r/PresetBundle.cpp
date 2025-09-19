@@ -58,7 +58,7 @@ const char *PresetBundle::BBL_DEFAULT_PRINTER_MODEL = "Bambu Lab X1 Carbon";
 const char *PresetBundle::BBL_DEFAULT_PRINTER_VARIANT = "0.4";
 const char *PresetBundle::BBL_DEFAULT_FILAMENT = "Generic PLA";
 
-static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
+void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
 
 DynamicPrintConfig PresetBundle::construct_full_config(
     Preset& in_printer_preset,
@@ -2741,6 +2741,8 @@ static bool is_token_pp(const std::vector<std::string> &tokens)
     return has_token(tokens, "POLYPROPYLENE") || has_token(tokens, "PP", false);
 }
 
+static constexpr int kDarkmoonPlaceholderTemp = 45;
+
 static int default_g10_temperature(const std::string &filament_type_raw)
 {
     auto tokens = tokenize_filament(filament_type_raw);
@@ -2765,9 +2767,9 @@ static int default_cfx_temperature(const std::string &filament_type_raw)
     if (has_token(tokens, "TPU"))
         return 0;
     if (has_token(tokens, "PLA"))
-        return 60;
+        return 63;
     if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
-        return 80;
+        return 105;
     if (has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF"))
         return 105;
     if (has_token(tokens, "PPS"))
@@ -2779,7 +2781,7 @@ static int default_cfx_temperature(const std::string &filament_type_raw)
     if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
         return 110;
     if (is_token_pp(tokens))
-        return 90;
+        return 85;
 
     return -1;
 }
@@ -2792,14 +2794,17 @@ static int default_satin_temperature(const std::string &filament_type_raw)
         return 0;
     if (has_token(tokens, "PLA"))
         return 58;
-    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
-        return 75;
+    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG") ||
+        has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF"))
+        return 105;
     if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
         return 105;
     if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC"))
         return 115;
     if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA"))
         return 105;
+    if (is_token_pp(tokens))
+        return 85;
     if (is_token_pet_only(tokens))
         return 105;
     if (has_token(tokens, "PPS"))
@@ -2808,7 +2813,7 @@ static int default_satin_temperature(const std::string &filament_type_raw)
     return -1;
 }
 
-static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
+void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
 {
     struct DarkmoonMapping {
         const char *darkmoon_key;
@@ -2850,10 +2855,17 @@ static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extrude
             opt->values.resize(extruder_count);
     };
 
+    auto is_placeholder = [](const ConfigOptionInts *opt) {
+        return opt != nullptr && !opt->values.empty() &&
+               std::all_of(opt->values.begin(), opt->values.end(), [](int v) {
+                   return v == kDarkmoonPlaceholderTemp;
+               });
+    };
+
     for (const DarkmoonMapping &mapping : mappings) {
         ConfigOptionInts *dm_opt = config.opt<ConfigOptionInts>(mapping.darkmoon_key);
         const std::string key(mapping.darkmoon_key);
-        bool need_fallback = (dm_opt == nullptr || dm_opt->values.empty());
+        bool need_fallback = (dm_opt == nullptr || dm_opt->values.empty() || is_placeholder(dm_opt));
         bool is_cfx   = key.find("darkmoon_cfx")   != std::string::npos;
         bool is_satin = key.find("darkmoon_satin") != std::string::npos;
         bool is_g10   = key.find("darkmoon_g10")   != std::string::npos;
