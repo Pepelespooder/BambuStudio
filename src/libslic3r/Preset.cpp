@@ -1212,7 +1212,9 @@ void PresetCollection::add_default_preset(const std::vector<std::string> &keys, 
 {
     // Insert just the default preset.
     m_presets.emplace_back(Preset(this->type(), preset_name, true));
-    m_presets.back().config.apply_only(defaults, keys.empty() ? defaults.keys() : keys);
+    DynamicPrintConfig &config = m_presets.back().config;
+    config.apply_only(defaults, keys.empty() ? defaults.keys() : keys);
+    Preset::normalize(config);
     m_presets.back().loaded = true;
     ++ m_num_default_presets;
 }
