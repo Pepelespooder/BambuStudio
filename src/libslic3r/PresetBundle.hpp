@@ -21,6 +21,8 @@
 
 namespace Slic3r {
 
+void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
+
 struct AMSMapInfo
 {
     /*for new ams mapping*/ // from struct FilamentInfo

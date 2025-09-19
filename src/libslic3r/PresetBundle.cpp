@@ -58,7 +58,7 @@ const char *PresetBundle::BBL_DEFAULT_PRINTER_MODEL = "Bambu Lab X1 Carbon";
 const char *PresetBundle::BBL_DEFAULT_PRINTER_VARIANT = "0.4";
 const char *PresetBundle::BBL_DEFAULT_FILAMENT = "Generic PLA";
 
-static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
+void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
 
 DynamicPrintConfig PresetBundle::construct_full_config(
     Preset& in_printer_preset,
@@ -2746,7 +2746,7 @@ static int default_g10_temperature(const std::string &filament_type_raw)
     auto tokens = tokenize_filament(filament_type_raw);
 
     if (has_token(tokens, "TPU"))
-        return 0;
+        return 1;
     if (has_token(tokens, "PLA"))
         return 55;
     if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
@@ -2811,7 +2811,7 @@ static int default_satin_temperature(const std::string &filament_type_raw)
     return -1;
 }
 
-static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
+void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
 {
     struct DarkmoonMapping {
         const char *darkmoon_key;
