@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <fstream>
 #include <sstream>
+#include <boost/log/trivial.hpp>
 
 namespace Slic3r {
 
@@ -38,7 +39,9 @@ bool DarkmoonConfigApp::apply_dynamic_config(DynamicPrintConfig &config,
 
     // Use the dynamic darkmoon bed temps function which always applies calculated values
     // over any existing hardcoded values, ensuring the most up-to-date temperature calculations
+    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: Before apply_dynamic_darkmoon_bed_temps";
     apply_dynamic_darkmoon_bed_temps(config, extruder_count);
+    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: After apply_dynamic_darkmoon_bed_temps";
 
     return true;
 }

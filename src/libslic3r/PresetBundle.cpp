@@ -120,8 +120,11 @@ DynamicPrintConfig PresetBundle::construct_full_config(
         // BBS: update filament config related with variants
         DynamicPrintConfig filament_config = in_filament_presets[0].config;
         // Apply dynamic darkmoon configuration to ensure proper temperatures
+        BOOST_LOG_TRIVIAL(info) << "PresetBundle: Before DarkmoonConfigApp::apply_dynamic_config (single filament case)";
         DarkmoonConfigApp::apply_dynamic_config(filament_config, "", extruder_count, &in_printer_preset.config);
+        BOOST_LOG_TRIVIAL(info) << "PresetBundle: Before apply_dynamic_darkmoon_bed_temps (single filament case)";
         apply_dynamic_darkmoon_bed_temps(filament_config, extruder_count);
+        BOOST_LOG_TRIVIAL(info) << "PresetBundle: After apply_dynamic_darkmoon_bed_temps (single filament case)";
         if (apply_extruder) filament_config.update_values_to_printer_extruders(out, filament_options_with_variant, "", "filament_extruder_variant", 1, filament_maps[0]);
         out.apply(filament_config);
         compatible_printers_condition.emplace_back(in_filament_presets[0].compatible_printers_condition());
@@ -146,8 +149,10 @@ DynamicPrintConfig PresetBundle::construct_full_config(
         for (size_t i = 0; i < num_filaments; ++i) {
             filament_temp_configs[i] = *(filament_configs[i]);
             // Apply dynamic darkmoon configuration to ensure proper temperatures
+            BOOST_LOG_TRIVIAL(info) << "PresetBundle: Before apply_dynamic_darkmoon_bed_temps (multi-filament case, filament " << i << ")";
             DarkmoonConfigApp::apply_dynamic_config(filament_temp_configs[i], "", extruder_count, &in_printer_preset.config);
             apply_dynamic_darkmoon_bed_temps(filament_temp_configs[i], extruder_count);
+            BOOST_LOG_TRIVIAL(info) << "PresetBundle: After apply_dynamic_darkmoon_bed_temps (multi-filament case, filament " << i << ")";
             if (apply_extruder)
                 filament_temp_configs[i].update_values_to_printer_extruders(out, filament_options_with_variant, "", "filament_extruder_variant", 1, filament_maps[i]);
         }
