@@ -11,7 +11,13 @@ namespace Slic3r {
 
 bool DarkmoonConfigApp::apply_dynamic_config(DynamicPrintConfig &config, 
                                            const std::string &filament_type,
-                                           size_t extruder_count) {
+                                           size_t extruder_count,
+                                           const DynamicPrintConfig *printer_config) {
+    // Only apply darkmoon configuration to supported manufacturers
+    if (!is_darkmoon_supported_manufacturer(printer_config)) {
+        return false; // Skip darkmoon configuration for unsupported manufacturers
+    }
+
     // Determine filament type if not provided
     std::string actual_filament_type = filament_type.empty() ? 
         determine_filament_type(config) : filament_type;
@@ -170,6 +176,36 @@ void DarkmoonConfigApp::populate_darkmoon_key(DynamicPrintConfig &config,
     
     ConfigOptionInts *opt = config.option<ConfigOptionInts>(darkmoon_key, true);
     opt->values = values;
+}
+
+bool DarkmoonConfigApp::is_darkmoon_supported_manufacturer(const DynamicPrintConfig *printer_config) {
+    if (!printer_config) {
+        return false; // No printer config provided, cannot determine manufacturer
+    }
+
+    // Check for family field in printer config
+    const auto *family_opt = printer_config->opt<ConfigOptionString>("family");
+    if (family_opt && !family_opt->value.empty()) {
+        const std::string &family = family_opt->value;
+        // Only allow darkmoon configuration for supported manufacturers
+        return (family == "Creality" || family == "Prusa" || family == "Qidi" || 
+                family == "BBL" || family == "Bambu Lab");
+    }
+
+    // Fallback: check printer model name for manufacturer identification
+    const auto *printer_model_opt = printer_config->opt<ConfigOptionString>("printer_model");
+    if (printer_model_opt && !printer_model_opt->value.empty()) {
+        const std::string &model = printer_model_opt->value;
+        // Check if model contains supported manufacturer names
+        return (model.find("Creality") != std::string::npos ||
+                model.find("Prusa") != std::string::npos ||
+                model.find("Qidi") != std::string::npos ||
+                model.find("Bambu") != std::string::npos ||
+                model.find("BBL") != std::string::npos);
+    }
+
+    // If we can't determine the manufacturer, don't apply darkmoon configuration
+    return false;
 }
 
 } // namespace Slic3r

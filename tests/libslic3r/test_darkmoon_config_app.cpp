@@ -6,10 +6,18 @@
 
 using namespace Slic3r;
 
+// Helper function to create a printer config for supported manufacturers
+DynamicPrintConfig create_supported_printer_config(const std::string& manufacturer) {
+    DynamicPrintConfig printer_config;
+    printer_config.set_key_value("family", new ConfigOptionString{manufacturer});
+    return printer_config;
+}
+
 TEST_CASE("DarkmoonConfigApp basic functionality", "[DarkmoonConfigApp]") {
     
     SECTION("apply_dynamic_config with PLA filament") {
         DynamicPrintConfig config;
+        DynamicPrintConfig printer_config = create_supported_printer_config("BBL");
         
         // Set up a basic PLA filament type
         config.set_key_value("filament_type", new ConfigOptionStrings{"PLA"});
@@ -18,7 +26,7 @@ TEST_CASE("DarkmoonConfigApp basic functionality", "[DarkmoonConfigApp]") {
         REQUIRE(DarkmoonConfigApp::has_missing_darkmoon_temperatures(config));
         
         // Apply dynamic configuration
-        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "PLA", 1);
+        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "PLA", 1, &printer_config);
         REQUIRE(success);
         
         // Now darkmoon temperatures should be populated
@@ -38,12 +46,13 @@ TEST_CASE("DarkmoonConfigApp basic functionality", "[DarkmoonConfigApp]") {
     
     SECTION("apply_dynamic_config with PETG filament") {
         DynamicPrintConfig config;
+        DynamicPrintConfig printer_config = create_supported_printer_config("Creality");
         
         // Set up a PETG filament type
         config.set_key_value("filament_type", new ConfigOptionStrings{"PETG"});
         
         // Apply dynamic configuration
-        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "PETG", 1);
+        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "PETG", 1, &printer_config);
         REQUIRE(success);
         
         // Check that PETG temperatures were set (should NOT be 45°C placeholder)
@@ -89,6 +98,37 @@ TEST_CASE("DarkmoonConfigApp basic functionality", "[DarkmoonConfigApp]") {
         REQUIRE_FALSE(pla_temps.empty());
         REQUIRE(pla_temps.find("Darkmoon G10 Garolite") != pla_temps.end());
     }
+    
+    SECTION("unsupported manufacturer should be skipped") {
+        DynamicPrintConfig config;
+        DynamicPrintConfig printer_config = create_supported_printer_config("Anker"); // Unsupported manufacturer
+        
+        // Set up a basic PLA filament type
+        config.set_key_value("filament_type", new ConfigOptionStrings{"PLA"});
+        
+        // Apply dynamic configuration - should return false for unsupported manufacturer
+        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "PLA", 1, &printer_config);
+        REQUIRE_FALSE(success);
+        
+        // Darkmoon temperatures should still be missing since it was skipped
+        REQUIRE(DarkmoonConfigApp::has_missing_darkmoon_temperatures(config));
+    }
+    
+    SECTION("supported manufacturers") {
+        std::vector<std::string> supported_manufacturers = {"BBL", "Creality", "Prusa", "Qidi"};
+        
+        for (const auto& manufacturer : supported_manufacturers) {
+            DynamicPrintConfig config;
+            DynamicPrintConfig printer_config = create_supported_printer_config(manufacturer);
+            
+            config.set_key_value("filament_type", new ConfigOptionStrings{"PLA"});
+            
+            bool success = DarkmoonConfigApp::apply_dynamic_config(config, "PLA", 1, &printer_config);
+            REQUIRE(success);
+            
+            REQUIRE_FALSE(DarkmoonConfigApp::has_missing_darkmoon_temperatures(config));
+        }
+    }
 }
 
 TEST_CASE("DarkmoonConfigApp addresses 45°C fallback issue", "[DarkmoonConfigApp]") {
@@ -96,6 +136,7 @@ TEST_CASE("DarkmoonConfigApp addresses 45°C fallback issue", "[DarkmoonConfigAp
     SECTION("PETG Basic preset missing darkmoon temperatures") {
         // Simulate a PETG Basic preset that's missing darkmoon temperatures
         DynamicPrintConfig config;
+        DynamicPrintConfig printer_config = create_supported_printer_config("BBL");
         config.set_key_value("filament_type", new ConfigOptionStrings{"PETG"});
         
         // Set only the standard plate temperatures (like in actual PETG Basic preset)
@@ -108,7 +149,7 @@ TEST_CASE("DarkmoonConfigApp addresses 45°C fallback issue", "[DarkmoonConfigAp
         REQUIRE(DarkmoonConfigApp::has_missing_darkmoon_temperatures(config));
         
         // Apply the dynamic config to fix the missing temperatures
-        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "", 1);
+        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "", 1, &printer_config);
         REQUIRE(success);
         
         // Now darkmoon temperatures should be present and NOT be 45°C fallback
@@ -134,10 +175,11 @@ TEST_CASE("DarkmoonConfigApp addresses 45°C fallback issue", "[DarkmoonConfigAp
     SECTION("PLA Basic preset missing darkmoon temperatures") {
         // Simulate a PLA Basic preset
         DynamicPrintConfig config;
+        DynamicPrintConfig printer_config = create_supported_printer_config("Prusa");
         config.set_key_value("filament_type", new ConfigOptionStrings{"PLA"});
         
         // Apply the dynamic config
-        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "", 1);
+        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "", 1, &printer_config);
         REQUIRE(success);
         
         // Verify PLA gets different temperatures than the 45°C placeholder

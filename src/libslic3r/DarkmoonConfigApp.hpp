@@ -24,10 +24,12 @@ public:
      * Apply dynamic darkmoon configuration to a filament config
      * This ensures that all darkmoon plate temperatures are properly populated
      * based on the filament type instead of falling back to placeholder values.
+     * Only applies to supported manufacturers: Creality, Prusa, Qidi, and BBL.
      */
     static bool apply_dynamic_config(DynamicPrintConfig &config, 
                                    const std::string &filament_type = "",
-                                   size_t extruder_count = 1);
+                                   size_t extruder_count = 1,
+                                   const DynamicPrintConfig *printer_config = nullptr);
 
     /**
      * Generate darkmoon temperature configuration for a specific filament type
@@ -61,6 +63,11 @@ public:
     static std::map<std::string, std::map<std::string, int>> get_recommended_temperatures();
 
 private:
+    /**
+     * Check if printer manufacturer supports darkmoon plates
+     */
+    static bool is_darkmoon_supported_manufacturer(const DynamicPrintConfig *printer_config);
+
     /**
      * Internal helper to determine filament type from config if not provided
      */
