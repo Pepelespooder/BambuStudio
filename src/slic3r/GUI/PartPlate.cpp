@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <algorithm>
 #include <numeric>
+#include <cmath>
 #include <vector>
 #include <string>
 #include <future>
@@ -6236,6 +6237,68 @@ void PartPlateList::BedTextureInfo::TexturePart::update_buffer()
 	}
 }
 
+void PartPlateList::BedTextureInfo::TexturePart::adjust_to_texture_ratio(float tex_width, float tex_height)
+{
+    if (!preserve_aspect_ratio || aspect_adjusted)
+        return;
+
+    if (tex_width <= 0.f || tex_height <= 0.f)
+        return;
+
+    float original_w = w;
+    float original_h = h;
+
+    float ratio = tex_width / tex_height;
+    if (!std::isfinite(ratio) || ratio <= 0.f)
+        return;
+
+    float scale = 1.0f;
+    switch (aspect_mode) {
+    case AspectMode::FitInside:
+        scale = std::min(original_w / tex_width, original_h / tex_height);
+        break;
+    case AspectMode::MatchWidth:
+        scale = original_w / tex_width;
+        break;
+    case AspectMode::MatchHeight:
+        scale = original_h / tex_height;
+        break;
+    }
+
+    if (!std::isfinite(scale) || scale <= 0.f)
+        return;
+
+    float new_w = tex_width * scale;
+    float new_h = tex_height * scale;
+
+    switch (horizontal_anchor) {
+    case HorizontalAnchor::Left:
+        break;
+    case HorizontalAnchor::Center:
+        x += (original_w - new_w) * 0.5f;
+        break;
+    case HorizontalAnchor::Right:
+        x += (original_w - new_w);
+        break;
+    }
+
+    switch (vertical_anchor) {
+    case VerticalAnchor::Bottom:
+        break;
+    case VerticalAnchor::Center:
+        y += (original_h - new_h) * 0.5f;
+        break;
+    case VerticalAnchor::Top:
+        y += (original_h - new_h);
+        break;
+    }
+
+    w = new_w;
+    h = new_h;
+    aspect_adjusted = true;
+    update_buffer();
+}
+
 void PartPlateList::BedTextureInfo::TexturePart::reset()
 {
     if (texture) {
@@ -6344,12 +6407,22 @@ void PartPlateList::init_bed_type_info()
         // Get texture parts for this Darkmoon plate type
         auto texture_parts = get_darkmoon_texture_parts(plate.bed_type);
         
+        using HorizontalAnchor = BedTextureInfo::TexturePart::HorizontalAnchor;
+        using VerticalAnchor   = BedTextureInfo::TexturePart::VerticalAnchor;
+        using AspectMode       = BedTextureInfo::TexturePart::AspectMode;
+
         BedTextureInfo::TexturePart darkmoon_part1(texture_parts.first.x, texture_parts.first.y, 
                                                     texture_parts.first.w, texture_parts.first.h, 
-                                                    texture_parts.first.filename);
+                                                    texture_parts.first.filename, true,
+                                                    HorizontalAnchor::Left,
+                                                    VerticalAnchor::Top,
+                                                    AspectMode::FitInside);
         BedTextureInfo::TexturePart darkmoon_part2(texture_parts.second.x, texture_parts.second.y, 
                                                     texture_parts.second.w, texture_parts.second.h, 
-                                                    texture_parts.second.filename);
+                                                    texture_parts.second.filename, true,
+                                                    HorizontalAnchor::Center,
+                                                    VerticalAnchor::Bottom,
+                                                    AspectMode::MatchWidth);
         
         bed_texture_info[plate.bed_type].parts.push_back(darkmoon_part1);
         bed_texture_info[plate.bed_type].parts.push_back(darkmoon_part2);
@@ -6477,9 +6550,13 @@ void PartPlateList::load_bedtype_textures()
 		for (int j = 0; j < bed_texture_info[i].parts.size(); j++) {
 			std::string filename = resources_dir() + "/images/" + bed_texture_info[i].parts[j].filename;
 			if (boost::filesystem::exists(filename)) {
-				PartPlateList::bed_texture_info[i].parts[j].texture = new GLTexture();
-				if (!PartPlateList::bed_texture_info[i].parts[j].texture->load_from_svg_file(filename, true, false, false, logo_tex_size)) {
+				auto &part = PartPlateList::bed_texture_info[i].parts[j];
+				part.texture = new GLTexture();
+				if (!part.texture->load_from_svg_file(filename, true, false, false, logo_tex_size)) {
 					BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(": load logo texture from %1% failed!") % filename;
+				} else if (part.preserve_aspect_ratio) {
+					part.adjust_to_texture_ratio(static_cast<float>(part.texture->get_width()),
+						static_cast<float>(part.texture->get_height()));
 				}
 			} else {
 				BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(": load logo texture from %1% failed!") % filename;

@@ -447,17 +447,6 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
     if (filament_types.size() < extruder_count)
         filament_types.resize(extruder_count, filament_types.back());
 
-    auto resize_to_extruders = [extruder_count](ConfigOptionInts *opt) {
-        if (opt == nullptr)
-            return;
-        if (opt->values.empty())
-            opt->values.assign(extruder_count, 0);
-        else if (opt->values.size() < extruder_count)
-            opt->values.resize(extruder_count, opt->values.back());
-        else if (opt->values.size() > extruder_count)
-            opt->values.resize(extruder_count);
-    };
-
     auto is_placeholder = [](const ConfigOptionInts *opt) {
         return opt != nullptr && !opt->values.empty() &&
                std::all_of(opt->values.begin(), opt->values.end(), [](int v) {
@@ -466,47 +455,38 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
     };
 
     for (const DarkmoonMapping &mapping : mappings) {
-        ConfigOptionInts *dm_opt = config.opt<ConfigOptionInts>(mapping.darkmoon_key);
-        const std::string key(mapping.darkmoon_key);
-        bool need_fallback = (dm_opt == nullptr || dm_opt->values.empty() || is_placeholder(dm_opt));
-        bool is_cfx   = key.find("darkmoon_cfx")   != std::string::npos;
-        bool is_satin = key.find("darkmoon_satin") != std::string::npos;
-        bool is_g10   = key.find("darkmoon_g10")   != std::string::npos;
-        bool is_ice   = key.find("darkmoon_ice")   != std::string::npos;
-        bool is_lux   = key.find("darkmoon_lux")   != std::string::npos;
-        if (need_fallback || dm_opt->values.size() < extruder_count) {
-            std::vector<int> values;
-            bool filled = false;
-            if (is_cfx || is_satin || is_g10 || is_ice || is_lux) {
-                values.resize(extruder_count);
-                filled = true;
-                for (size_t idx = 0; idx < extruder_count; ++idx) {
-                    int v = is_cfx ? default_cfx_temperature(filament_types[idx])
-                                    : is_satin ? default_satin_temperature(filament_types[idx])
-                                               : is_ice   ? default_ice_temperature(filament_types[idx])
-                                               : is_lux   ? default_lux_temperature(filament_types[idx])
-                                                          : default_g10_temperature(filament_types[idx]);
-                    if (v < 0) {
-                        filled = false;
-                        break;
-                    }
-                    values[idx] = v;
-                }
-            }
+        ConfigOptionInts *dm_opt = config.option<ConfigOptionInts>(mapping.darkmoon_key, true);
 
-            if (!filled) {
-                values.clear();
-                if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty())
-                    values.assign(fallback->values.begin(), fallback->values.end());
-                else
-                    values.assign(extruder_count, 0);
-            }
+        std::vector<int> values;
+        bool have_chart_values = false;
 
-            dm_opt = config.option<ConfigOptionInts>(mapping.darkmoon_key, true);
-            dm_opt->values = std::move(values);
+        if (const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(mapping.darkmoon_key)) {
+            if (auto chart_values = default_darkmoon_temperatures(*plate, filament_types)) {
+                values = std::move(*chart_values);
+                have_chart_values = true;
+            }
         }
 
-        resize_to_extruders(dm_opt);
+        if (!have_chart_values) {
+            bool need_fallback = dm_opt->values.empty() || is_placeholder(dm_opt) || dm_opt->values.size() < extruder_count;
+            if (!need_fallback) {
+                values = dm_opt->values;
+            } else if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty()) {
+                values.assign(fallback->values.begin(), fallback->values.end());
+            } else {
+                values.assign(extruder_count, 0);
+            }
+        }
+
+        if (values.empty())
+            values.assign(extruder_count, 0);
+
+        if (values.size() < extruder_count)
+            values.resize(extruder_count, values.back());
+        else if (values.size() > extruder_count)
+            values.resize(extruder_count);
+
+        dm_opt->values = std::move(values);
     }
 }
 

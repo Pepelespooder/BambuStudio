@@ -665,6 +665,24 @@ public:
     public:
         class TexturePart {
         public:
+            enum class HorizontalAnchor {
+                Left,
+                Center,
+                Right
+            };
+
+            enum class VerticalAnchor {
+                Bottom,
+                Center,
+                Top
+            };
+
+            enum class AspectMode {
+                FitInside,
+                MatchWidth,
+                MatchHeight
+            };
+
             // position
             float x;
             float y;
@@ -675,7 +693,18 @@ public:
             GLTexture* texture { nullptr };
             Vec2d offset;
             GLModel*    buffer{nullptr};
-            TexturePart(float xx, float yy, float ww, float hh, std::string file){
+            bool preserve_aspect_ratio { false };
+            HorizontalAnchor horizontal_anchor { HorizontalAnchor::Left };
+            VerticalAnchor   vertical_anchor   { VerticalAnchor::Bottom };
+            AspectMode       aspect_mode       { AspectMode::FitInside };
+            bool aspect_adjusted { false };
+
+            TexturePart(float xx, float yy, float ww, float hh, std::string file,
+                        bool preserve = false,
+                        HorizontalAnchor h_anchor = HorizontalAnchor::Left,
+                        VerticalAnchor v_anchor = VerticalAnchor::Bottom,
+                        AspectMode mode = AspectMode::FitInside)
+            {
                 x = xx; y = yy;
                 w = ww; h = hh;
                 filename = file;
@@ -683,9 +712,15 @@ public:
                 buffer = nullptr;
                 vbo_id = 0;
                 offset = Vec2d(0, 0);
+                preserve_aspect_ratio = preserve;
+                horizontal_anchor = h_anchor;
+                vertical_anchor   = v_anchor;
+                aspect_mode       = mode;
+                aspect_adjusted   = false;
             }
 
-            TexturePart(const TexturePart& part) {
+            TexturePart(const TexturePart& part)
+            {
                 this->x = part.x;
                 this->y = part.y;
                 this->w = part.w;
@@ -695,9 +730,15 @@ public:
                 this->filename  = part.filename;
                 this->texture   = part.texture;
                 this->vbo_id    = part.vbo_id;
+                this->preserve_aspect_ratio = part.preserve_aspect_ratio;
+                this->horizontal_anchor     = part.horizontal_anchor;
+                this->vertical_anchor       = part.vertical_anchor;
+                this->aspect_mode           = part.aspect_mode;
+                this->aspect_adjusted       = part.aspect_adjusted;
             }
 
             void update_buffer();
+            void adjust_to_texture_ratio(float tex_width, float tex_height);
             void reset();
         private:
             void release_vbo();
