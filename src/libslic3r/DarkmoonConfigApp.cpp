@@ -46,6 +46,17 @@ bool DarkmoonConfigApp::apply_dynamic_config(DynamicPrintConfig &config,
     return true;
 }
 
+bool DarkmoonConfigApp::apply_dynamic_config_if_missing(DynamicPrintConfig &config,
+                                                        const std::string &filament_type,
+                                                        size_t extruder_count,
+                                                        const DynamicPrintConfig *printer_config)
+{
+    if (!has_missing_darkmoon_temperatures(config))
+        return false;
+
+    return apply_dynamic_config(config, filament_type, extruder_count, printer_config);
+}
+
 std::map<std::string, std::vector<int>> DarkmoonConfigApp::generate_darkmoon_temperatures(
     const std::string &filament_type, 
     size_t extruder_count) {

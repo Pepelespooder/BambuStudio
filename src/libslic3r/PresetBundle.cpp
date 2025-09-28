@@ -119,12 +119,12 @@ DynamicPrintConfig PresetBundle::construct_full_config(
     if (num_filaments <= 1) {
         // BBS: update filament config related with variants
         DynamicPrintConfig filament_config = in_filament_presets[0].config;
-        // Apply dynamic darkmoon configuration to ensure proper temperatures
-        BOOST_LOG_TRIVIAL(info) << "PresetBundle: Before DarkmoonConfigApp::apply_dynamic_config (single filament case)";
-        DarkmoonConfigApp::apply_dynamic_config(filament_config, "", extruder_count, &in_printer_preset.config);
-        BOOST_LOG_TRIVIAL(info) << "PresetBundle: Before apply_dynamic_darkmoon_bed_temps (single filament case)";
-        apply_dynamic_darkmoon_bed_temps(filament_config, extruder_count);
-        BOOST_LOG_TRIVIAL(info) << "PresetBundle: After apply_dynamic_darkmoon_bed_temps (single filament case)";
+        BOOST_LOG_TRIVIAL(info) << "PresetBundle: Applying Darkmoon dynamic config (single filament case)";
+        bool darkmoon_applied = DarkmoonConfigApp::apply_dynamic_config(filament_config, "", extruder_count, &in_printer_preset.config);
+        if (!darkmoon_applied) {
+            BOOST_LOG_TRIVIAL(info) << "PresetBundle: Darkmoon dynamic config skipped; running fallback apply_dynamic_darkmoon_bed_temps (single filament case)";
+            apply_dynamic_darkmoon_bed_temps(filament_config, extruder_count);
+        }
         if (apply_extruder) filament_config.update_values_to_printer_extruders(out, filament_options_with_variant, "", "filament_extruder_variant", 1, filament_maps[0]);
         out.apply(filament_config);
         compatible_printers_condition.emplace_back(in_filament_presets[0].compatible_printers_condition());
@@ -148,11 +148,12 @@ DynamicPrintConfig PresetBundle::construct_full_config(
         filament_temp_configs.resize(num_filaments);
         for (size_t i = 0; i < num_filaments; ++i) {
             filament_temp_configs[i] = *(filament_configs[i]);
-            // Apply dynamic darkmoon configuration to ensure proper temperatures
-            BOOST_LOG_TRIVIAL(info) << "PresetBundle: Before apply_dynamic_darkmoon_bed_temps (multi-filament case, filament " << i << ")";
-            DarkmoonConfigApp::apply_dynamic_config(filament_temp_configs[i], "", extruder_count, &in_printer_preset.config);
-            apply_dynamic_darkmoon_bed_temps(filament_temp_configs[i], extruder_count);
-            BOOST_LOG_TRIVIAL(info) << "PresetBundle: After apply_dynamic_darkmoon_bed_temps (multi-filament case, filament " << i << ")";
+            BOOST_LOG_TRIVIAL(info) << "PresetBundle: Applying Darkmoon dynamic config (multi-filament case, filament " << i << ")";
+            bool darkmoon_applied = DarkmoonConfigApp::apply_dynamic_config(filament_temp_configs[i], "", extruder_count, &in_printer_preset.config);
+            if (!darkmoon_applied) {
+                BOOST_LOG_TRIVIAL(info) << "PresetBundle: Darkmoon dynamic config skipped; running fallback apply_dynamic_darkmoon_bed_temps (multi-filament case, filament " << i << ")";
+                apply_dynamic_darkmoon_bed_temps(filament_temp_configs[i], extruder_count);
+            }
             if (apply_extruder)
                 filament_temp_configs[i].update_values_to_printer_extruders(out, filament_options_with_variant, "", "filament_extruder_variant", 1, filament_maps[i]);
         }
@@ -220,9 +221,12 @@ DynamicPrintConfig PresetBundle::construct_full_config(
         opt->value = boost::algorithm::clamp<int>(opt->value, 0, int(num_filaments));
     }
 
-    // Apply dynamic darkmoon configuration to ensure proper temperatures  
-    DarkmoonConfigApp::apply_dynamic_config(out, "", extruder_count, &in_printer_preset.config);
-    apply_dynamic_darkmoon_bed_temps(out, extruder_count);
+    BOOST_LOG_TRIVIAL(info) << "PresetBundle: Applying Darkmoon dynamic config (aggregated filament config)";
+    bool darkmoon_applied_out = DarkmoonConfigApp::apply_dynamic_config(out, "", extruder_count, &in_printer_preset.config);
+    if (!darkmoon_applied_out) {
+        BOOST_LOG_TRIVIAL(info) << "PresetBundle: Darkmoon dynamic config skipped; running fallback apply_dynamic_darkmoon_bed_temps (aggregated filament config)";
+        apply_dynamic_darkmoon_bed_temps(out, extruder_count);
+    }
 
     std::vector<std::string> filamnet_preset_names;
     for (auto preset : in_filament_presets) {
@@ -2953,9 +2957,12 @@ DynamicPrintConfig PresetBundle::full_fff_config(bool apply_extruder, std::optio
 
     const auto *nozzle_opt = dynamic_cast<const ConfigOptionFloatsNullable*>(out.option("nozzle_diameter", false));
     size_t extruder_count = nozzle_opt != nullptr ? nozzle_opt->values.size() : 1;
-    // Apply dynamic darkmoon configuration to ensure proper temperatures
-    DarkmoonConfigApp::apply_dynamic_config(out, "", extruder_count, &this->printers.get_edited_preset().config);
-    apply_dynamic_darkmoon_bed_temps(out, extruder_count);
+    BOOST_LOG_TRIVIAL(info) << "PresetBundle: Applying Darkmoon dynamic config (assembled config)";
+    bool darkmoon_applied_out = DarkmoonConfigApp::apply_dynamic_config(out, "", extruder_count, &this->printers.get_edited_preset().config);
+    if (!darkmoon_applied_out) {
+        BOOST_LOG_TRIVIAL(info) << "PresetBundle: Darkmoon dynamic config skipped; running fallback apply_dynamic_darkmoon_bed_temps (assembled config)";
+        apply_dynamic_darkmoon_bed_temps(out, extruder_count);
+    }
 
     out.option<ConfigOptionString >("print_settings_id",    true)->value  = this->prints.get_selected_preset_name();
     out.option<ConfigOptionStrings>("filament_settings_id", true)->values = this->filament_presets;
