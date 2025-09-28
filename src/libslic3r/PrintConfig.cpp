@@ -379,7 +379,7 @@ static const t_config_enum_values s_keys_map_BedType = [] {
         { "Supertack Plate",        btSuperTack }
     };
     for (const DarkmoonPlateInfo &plate : darkmoon_plates())
-        values.emplace_back(plate.display_name, plate.bed_type);
+    values.insert(std::make_pair(plate.display_name, plate.bed_type));
     return values;
 }();
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(BedType)
