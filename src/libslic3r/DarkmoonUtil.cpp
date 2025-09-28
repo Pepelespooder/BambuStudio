@@ -188,7 +188,7 @@ const DarkmoonPlateInfo *find_darkmoon_plate(BedType type)
     return it != kDarkmoonPlates.end() ? &(*it) : nullptr;
 }
 
-const DarkmoonPlateInfo *find_darkmoon_plate(MachineBedType type)
+const DarkmoonPlateInfo *find_darkmoon_plate_by_machine_bed(MachineBedType type)
 {
     auto it = std::find_if(kDarkmoonPlates.begin(), kDarkmoonPlates.end(), [type](const DarkmoonPlateInfo &plate) {
         return plate.machine_bed_type == type;
@@ -219,7 +219,7 @@ bool is_darkmoon_bed(BedType type)
 
 bool is_darkmoon_machine_bed(MachineBedType type)
 {
-    return find_darkmoon_plate(type) != nullptr;
+    return find_darkmoon_plate_by_machine_bed(type) != nullptr;
 }
 
 bool is_darkmoon_temp_key(std::string_view key)

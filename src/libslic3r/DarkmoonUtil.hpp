@@ -56,7 +56,7 @@ bool is_darkmoon_bed_temp_key(std::string_view key);
 
 const std::array<DarkmoonPlateInfo, 5> &darkmoon_plates();
 const DarkmoonPlateInfo *find_darkmoon_plate(BedType type);
-const DarkmoonPlateInfo *find_darkmoon_plate(MachineBedType type);
+const DarkmoonPlateInfo *find_darkmoon_plate_by_machine_bed(MachineBedType type);
 const DarkmoonPlateInfo *find_darkmoon_plate_by_slug(std::string_view slug);
 const DarkmoonPlateInfo *find_darkmoon_plate_by_temp_key(std::string_view key);
 
