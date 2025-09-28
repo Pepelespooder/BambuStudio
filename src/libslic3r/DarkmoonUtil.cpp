@@ -247,9 +247,22 @@ void append_darkmoon_bed_thumbnails(std::map<BedType, std::string> &thumbnails)
 std::string get_darkmoon_bed_thumbnail_by_name(const std::string &plate_name)
 {
     for (const DarkmoonPlateInfo &plate : kDarkmoonPlates) {
+        // Try exact matches first
         if (plate_name == plate.display_name || 
-            plate_name == plate.slug ||
-            plate_name.find(plate.display_name) != std::string::npos) {
+            plate_name == plate.slug) {
+            return plate.thumbnail_key;
+        }
+        
+        // Try partial matches (case insensitive)
+        std::string lower_plate_name = plate_name;
+        std::transform(lower_plate_name.begin(), lower_plate_name.end(), lower_plate_name.begin(), ::tolower);
+        std::string lower_display_name = plate.display_name;
+        std::transform(lower_display_name.begin(), lower_display_name.end(), lower_display_name.begin(), ::tolower);
+        std::string lower_slug = plate.slug;
+        std::transform(lower_slug.begin(), lower_slug.end(), lower_slug.begin(), ::tolower);
+        
+        if (lower_plate_name.find(lower_display_name) != std::string::npos ||
+            lower_plate_name.find(lower_slug) != std::string::npos) {
             return plate.thumbnail_key;
         }
     }
