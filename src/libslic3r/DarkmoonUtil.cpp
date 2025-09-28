@@ -122,26 +122,7 @@ bool is_token_pp(const std::vector<std::string> &tokens)
     return has_token(tokens, "POLYPROPYLENE") || has_token(tokens, "PP", false);
 }
 
-int default_lux_temperature(const std::string &filament_type_raw)
-{
-    auto tokens = tokenize_filament(filament_type_raw);
 
-    if (has_token(tokens, "TPU"))
-        return 1;
-    if (has_token(tokens, "PLA"))
-        return 60;
-    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
-        return 80;
-    if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
-        return 110;
-    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC"))
-        return 100;
-    if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA"))
-        return 110;
-
-    // Materials not listed are not recommended on Lux; use 0°C to flag unsupported.
-    return 0;
-}
 
 } // namespace
 
@@ -313,6 +294,27 @@ int default_g10_temperature(const std::string &filament_type_raw)
     return 0;
 }
 
+int default_lux_temperature(const std::string &filament_type_raw)
+{
+    auto tokens = tokenize_filament(filament_type_raw);
+
+    if (has_token(tokens, "TPU"))
+        return 1;
+    if (has_token(tokens, "PLA"))
+        return 60;
+    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
+        return 80;
+    if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
+        return 110;
+    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC"))
+        return 100;
+    if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA"))
+        return 110;
+
+    // Materials not listed are not recommended on Lux; use 0°C to flag unsupported.
+    return 0;
+}
+
 int default_ice_temperature(const std::string &filament_type_raw)
 {
     auto tokens = tokenize_filament(filament_type_raw);
@@ -391,7 +393,7 @@ std::optional<int> default_darkmoon_temperature(const DarkmoonPlateInfo &plate, 
     case DarkmoonPlateKind::Ice:
         return default_ice_temperature(filament_type_raw);
     case DarkmoonPlateKind::Lux:
-        return default_lux_temperature(std::string(filament_type_raw));
+        return default_lux_temperature(filament_type_raw);
     case DarkmoonPlateKind::CFX:
         return default_cfx_temperature(filament_type_raw);
     case DarkmoonPlateKind::Satin:
@@ -482,7 +484,7 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
                     int v = is_cfx ? default_cfx_temperature(filament_types[idx])
                                     : is_satin ? default_satin_temperature(filament_types[idx])
                                                : is_ice   ? default_ice_temperature(filament_types[idx])
-                                               : is_lux   ? default_lux_temperature(std::string(filament_types[idx]))
+                                               : is_lux   ? default_lux_temperature(filament_types[idx])
                                                           : default_g10_temperature(filament_types[idx]);
                     if (v < 0) {
                         filled = false;
