@@ -128,7 +128,7 @@ int default_lux_temperature(const std::string &filament_type_raw)
     auto tokens = tokenize_filament(filament_type_raw);
 
     if (has_token(tokens, "TPU"))
-        return 0;
+        return 1;
     if (has_token(tokens, "PLA"))
         return 60;
     if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
