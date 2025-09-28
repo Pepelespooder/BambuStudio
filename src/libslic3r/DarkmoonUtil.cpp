@@ -11,7 +11,6 @@
 #include <optional>
 #include <string_view>
 #include <vector>
-
 namespace Slic3r {
 namespace {
 
