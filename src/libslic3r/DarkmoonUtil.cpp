@@ -265,40 +265,31 @@ void append_darkmoon_bed_thumbnails(std::map<BedType, std::string> &thumbnails)
 
 std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture_parts(BedType bed_type)
 {
-    // Default fallback parts (Cool Plate style)
-    DarkmoonTexturePartInfo darkmoon_part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
-    DarkmoonTexturePartInfo darkmoon_part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+    // Universal Darkmoon part1: Moon logo with "Darkmoon" text (same for all Darkmoon plates)
+    DarkmoonTexturePartInfo darkmoon_part1 = {10, 52, 8.393f, 192, "darkmoon_part1.svg"};
+    
+    // Plate-specific part2: Contains the actual plate type name
+    DarkmoonTexturePartInfo darkmoon_part2;
     
     switch (bed_type) {
         case BedType::btDarkmoonG10:
-            // G10 uses Cool Plate style for now
-            darkmoon_part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
-            darkmoon_part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_g10_part2.svg"};
             break;
         case BedType::btDarkmoonIce:
-            // Ice uses Cool Plate style for now
-            darkmoon_part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
-            darkmoon_part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_ice_part2.svg"};
             break;
         case BedType::btDarkmoonLux:
-            // Lux uses Cool Plate style for now
-            darkmoon_part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
-            darkmoon_part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_lux_part2.svg"};
             break;
         case BedType::btDarkmoonCFX:
-            // CFX uses Cool Plate style for now
-            darkmoon_part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
-            darkmoon_part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_cfx_part2.svg"};
             break;
         case BedType::btDarkmoonSatin:
-            // Satin uses the bed_satin.svg file
-            darkmoon_part1 = {10, 52, 8.393f, 192, "bed_satin.svg"};
-            darkmoon_part2 = {74, -10, 148, 12, "bed_satin.svg"};
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_satin_part2.svg"};
             break;
         default:
-            // Fallback to Cool Plate parts
-            darkmoon_part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
-            darkmoon_part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+            // Fallback to generic Darkmoon part2
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_part2.svg"};
             break;
     }
     
