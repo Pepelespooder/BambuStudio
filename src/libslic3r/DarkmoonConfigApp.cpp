@@ -26,8 +26,7 @@ bool DarkmoonConfigApp::apply_dynamic_config(DynamicPrintConfig &config,
         return false; // Cannot determine filament type
     }
 
-    // Use the existing ensure_darkmoon_bed_temps function which already handles
-    // the logic properly, but make sure we have the correct filament type set
+    // Ensure the correct filament type is set for dynamic temperature calculation
     if (filament_type.empty()) {
         // Set the filament type in the config if it wasn't provided
         auto filament_types = config.option<ConfigOptionStrings>("filament_type", true);
@@ -37,9 +36,9 @@ bool DarkmoonConfigApp::apply_dynamic_config(DynamicPrintConfig &config,
         }
     }
 
-    // The ensure_darkmoon_bed_temps function in DarkmoonUtil.cpp already does
-    // the heavy lifting of calculating appropriate temperatures based on filament types
-    ensure_darkmoon_bed_temps(config, extruder_count);
+    // Use the dynamic darkmoon bed temps function which always applies calculated values
+    // over any existing hardcoded values, ensuring the most up-to-date temperature calculations
+    apply_dynamic_darkmoon_bed_temps(config, extruder_count);
 
     return true;
 }
