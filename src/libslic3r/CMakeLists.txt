@@ -71,6 +71,8 @@ set(lisbslic3r_sources
     CutUtils.hpp
     DarkmoonUtil.cpp
     DarkmoonUtil.hpp
+    DarkmoonConfigApp.cpp
+    DarkmoonConfigApp.hpp
     EdgeGrid.cpp
     EdgeGrid.hpp
     ElephantFootCompensation.cpp
