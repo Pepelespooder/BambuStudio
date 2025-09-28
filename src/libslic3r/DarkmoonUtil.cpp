@@ -299,11 +299,11 @@ int default_cfx_temperature(const std::string &filament_type_raw)
     auto tokens = tokenize_filament(filament_type_raw);
 
     if (has_token(tokens, "TPU"))
-        return 0;
+        return 1;
     if (has_token(tokens, "PLA"))
         return 65;
     if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
-        return 105;
+        return 80;
     if (has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF"))
         return 105;
     if (has_token(tokens, "PPS"))
@@ -325,16 +325,16 @@ int default_satin_temperature(const std::string &filament_type_raw)
     auto tokens = tokenize_filament(filament_type_raw);
 
     if (has_token(tokens, "TPU"))
-        return 0;
+        return 1;
     if (has_token(tokens, "PLA"))
         return 60;
     if (has_token(tokens, "PCTG") || has_token(tokens, "PETG") ||
         has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF"))
-        return 105;
+        return 80;
     if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
-        return 105;
+        return 110;
     if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC"))
-        return 115;
+        return 120;
     if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA"))
         return 105;
     if (is_token_pp(tokens))
