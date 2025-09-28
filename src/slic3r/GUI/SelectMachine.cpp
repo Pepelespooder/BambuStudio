@@ -5088,6 +5088,26 @@ void PrinterInfoBox::UpdatePlate(const std::string& plate_name)
             name = _L("Cool(Supertack)");
             m_bed_image->SetBitmap(create_scaled_bitmap("bed_cool_supertack", this, 32));
         }
+        else if (plate_name == "Darkmoon G10 Garolite") {
+            name = _L("G10 Garolite");
+            m_bed_image->SetBitmap(create_scaled_bitmap("bed_cool", this, 32));
+        }
+        else if (plate_name == "Darkmoon Ice") {
+            name = _L("Ice");
+            m_bed_image->SetBitmap(create_scaled_bitmap("bed_cool", this, 32));
+        }
+        else if (plate_name == "Darkmoon Lux") {
+            name = _L("Lux");
+            m_bed_image->SetBitmap(create_scaled_bitmap("bed_high_templ", this, 32));
+        }
+        else if (plate_name == "Darkmoon CFX") {
+            name = _L("CFX");
+            m_bed_image->SetBitmap(create_scaled_bitmap("bed_high_templ", this, 32));
+        }
+        else if (plate_name == "Darkmoon Satin") {
+            name = _L("Satin");
+            m_bed_image->SetBitmap(create_scaled_bitmap("bed_high_templ", this, 32));
+        }
 
         if (name.length() > 8) {
             m_text_bed_type->SetFont(Label::Body_9);
