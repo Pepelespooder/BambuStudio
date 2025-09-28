@@ -41,6 +41,7 @@ constexpr int kDarkmoonPlaceholderTemp = 45;
 
 int default_g10_temperature(const std::string &filament_type_raw);
 int default_ice_temperature(const std::string &filament_type_raw);
+int default_lux_temperature(const std::string &filament_type_raw);
 int default_cfx_temperature(const std::string &filament_type_raw);
 int default_satin_temperature(const std::string &filament_type_raw);
 

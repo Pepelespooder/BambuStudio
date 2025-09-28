@@ -450,16 +450,18 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
         bool is_satin = key.find("darkmoon_satin") != std::string::npos;
         bool is_g10   = key.find("darkmoon_g10")   != std::string::npos;
         bool is_ice   = key.find("darkmoon_ice")   != std::string::npos;
+        bool is_lux   = key.find("darkmoon_lux")   != std::string::npos;
         if (need_fallback || dm_opt->values.size() < extruder_count) {
             std::vector<int> values;
             bool filled = false;
-            if (is_cfx || is_satin || is_g10 || is_ice) {
+            if (is_cfx || is_satin || is_g10 || is_ice || is_lux) {
                 values.resize(extruder_count);
                 filled = true;
                 for (size_t idx = 0; idx < extruder_count; ++idx) {
                     int v = is_cfx ? default_cfx_temperature(filament_types[idx])
                                     : is_satin ? default_satin_temperature(filament_types[idx])
                                                : is_ice   ? default_ice_temperature(filament_types[idx])
+                                               : is_lux   ? default_lux_temperature(filament_types[idx])
                                                           : default_g10_temperature(filament_types[idx]);
                     if (v < 0) {
                         filled = false;
