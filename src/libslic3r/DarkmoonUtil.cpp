@@ -139,7 +139,8 @@ int default_lux_temperature(const std::string &filament_type_raw)
     if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA"))
         return 110;
 
-    return -1;
+    // Materials not listed are not recommended on Lux; use 0°C to flag unsupported.
+    return 0;
 }
 
 } // namespace
@@ -262,6 +263,39 @@ void append_darkmoon_bed_thumbnails(std::map<BedType, std::string> &thumbnails)
         thumbnails.emplace(plate.bed_type, plate.thumbnail_key);
 }
 
+std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture_parts(BedType bed_type)
+{
+    // Universal Darkmoon part1: Moon logo with "Darkmoon" text (same for all Darkmoon plates)
+    DarkmoonTexturePartInfo darkmoon_part1 = {10, 52, 8.393f, 192, "darkmoon_part1.svg"};
+    
+    // Plate-specific part2: Contains the actual plate type name
+    DarkmoonTexturePartInfo darkmoon_part2;
+    
+    switch (bed_type) {
+        case BedType::btDarkmoonG10:
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_g10_part2.svg"};
+            break;
+        case BedType::btDarkmoonIce:
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_ice_part2.svg"};
+            break;
+        case BedType::btDarkmoonLux:
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_lux_part2.svg"};
+            break;
+        case BedType::btDarkmoonCFX:
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_cfx_part2.svg"};
+            break;
+        case BedType::btDarkmoonSatin:
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_satin_part2.svg"};
+            break;
+        default:
+            // Fallback to generic Darkmoon part2
+            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_part2.svg"};
+            break;
+    }
+    
+    return std::make_pair(darkmoon_part1, darkmoon_part2);
+}
+
 int default_g10_temperature(const std::string &filament_type_raw)
 {
     auto tokens = tokenize_filament(filament_type_raw);
@@ -290,7 +324,8 @@ int default_ice_temperature(const std::string &filament_type_raw)
     if (has_token(tokens, "PETG") || has_token(tokens, "PCTG"))
         return 45;
 
-    return -1;
+    // Materials not listed are not recommended on Ice; use 0°C to flag unsupported.
+    return 0;
 }
 
 int default_cfx_temperature(const std::string &filament_type_raw)
@@ -316,7 +351,8 @@ int default_cfx_temperature(const std::string &filament_type_raw)
     if (is_token_pp(tokens))
         return 85;
 
-    return -1;
+    // Materials not listed are not recommended on CFX; use 0°C to flag unsupported.
+    return 0;
 }
 
 int default_satin_temperature(const std::string &filament_type_raw)
@@ -343,7 +379,8 @@ int default_satin_temperature(const std::string &filament_type_raw)
     if (has_token(tokens, "PPS"))
         return 105;
 
-    return -1;
+    // Materials not listed are not recommended on Satin; use 0°C to flag unsupported.
+    return 0;
 }
 
 std::optional<int> default_darkmoon_temperature(const DarkmoonPlateInfo &plate, const std::string &filament_type_raw)
@@ -351,30 +388,14 @@ std::optional<int> default_darkmoon_temperature(const DarkmoonPlateInfo &plate, 
     switch (plate.kind) {
     case DarkmoonPlateKind::G10:
         return default_g10_temperature(filament_type_raw);
-    case DarkmoonPlateKind::Ice: {
-        int value = default_ice_temperature(filament_type_raw);
-        if (value < 0)
-            return std::nullopt;
-        return value;
-    }
-    case DarkmoonPlateKind::Lux: {
-        int value = default_lux_temperature(filament_type_raw);
-        if (value < 0)
-            return std::nullopt;
-        return value;
-    }
-    case DarkmoonPlateKind::CFX: {
-        int value = default_cfx_temperature(filament_type_raw);
-        if (value < 0)
-            return std::nullopt;
-        return value;
-    }
-    case DarkmoonPlateKind::Satin: {
-        int value = default_satin_temperature(filament_type_raw);
-        if (value < 0)
-            return std::nullopt;
-        return value;
-    }
+    case DarkmoonPlateKind::Ice:
+        return default_ice_temperature(filament_type_raw);
+    case DarkmoonPlateKind::Lux:
+        return default_lux_temperature(filament_type_raw);
+    case DarkmoonPlateKind::CFX:
+        return default_cfx_temperature(filament_type_raw);
+    case DarkmoonPlateKind::Satin:
+        return default_satin_temperature(filament_type_raw);
     default:
         return std::nullopt;
     }
@@ -450,16 +471,18 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
         bool is_satin = key.find("darkmoon_satin") != std::string::npos;
         bool is_g10   = key.find("darkmoon_g10")   != std::string::npos;
         bool is_ice   = key.find("darkmoon_ice")   != std::string::npos;
+        bool is_lux   = key.find("darkmoon_lux")   != std::string::npos;
         if (need_fallback || dm_opt->values.size() < extruder_count) {
             std::vector<int> values;
             bool filled = false;
-            if (is_cfx || is_satin || is_g10 || is_ice) {
+            if (is_cfx || is_satin || is_g10 || is_ice || is_lux) {
                 values.resize(extruder_count);
                 filled = true;
                 for (size_t idx = 0; idx < extruder_count; ++idx) {
                     int v = is_cfx ? default_cfx_temperature(filament_types[idx])
                                     : is_satin ? default_satin_temperature(filament_types[idx])
                                                : is_ice   ? default_ice_temperature(filament_types[idx])
+                                               : is_lux   ? default_lux_temperature(filament_types[idx])
                                                           : default_g10_temperature(filament_types[idx]);
                     if (v < 0) {
                         filled = false;
