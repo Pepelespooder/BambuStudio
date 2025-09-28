@@ -12,8 +12,8 @@
 namespace Slic3r {
 
 class DynamicPrintConfig;
-enum BedType;
-enum MachineBedType;
+enum BedType : int;
+enum MachineBedType : int;
 
 enum class DarkmoonPlateKind {
     G10,
