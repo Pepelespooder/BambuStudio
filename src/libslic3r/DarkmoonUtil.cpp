@@ -75,7 +75,7 @@ constexpr std::array<DarkmoonPlateInfo, 5> kDarkmoonPlates = {{
      "Bed temperature when the Darkmoon Satin plate is installed. Value 0 means the filament does not support this plate",
      "darkmoon_satin_plate_temp", "darkmoon_satin_plate_temp_initial_layer",
      "hot_plate_temp", "hot_plate_temp_initial_layer",
-     "bed_satin"}
+     "bed_hot"}
 }};
 
 std::vector<std::string> tokenize_filament(const std::string &input)
@@ -273,31 +273,31 @@ std::string get_darkmoon_bed_thumbnail_by_name(const std::string &plate_name)
 
 std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture_parts(BedType bed_type)
 {
-    // Universal Darkmoon part1: Moon logo with "Darkmoon" text (positioned to the left of the plate)
-    DarkmoonTexturePartInfo darkmoon_part1 = {10, 52, 8.393f, 192, "darkmoon_part1.svg"};
+    // Universal Darkmoon part1: Moon logo with "Darkmoon" text (positioned to the left of the plate, normal size)
+    DarkmoonTexturePartInfo darkmoon_part1 = {10, 52, 60, 60, "darkmoon_part1.svg"};
     
-    // Plate-specific part2: Contains the actual plate type name (positioned to the left below part1)
+    // Plate-specific part2: Contains the actual plate type name (positioned next to part1 horizontally, same size)
     DarkmoonTexturePartInfo darkmoon_part2;
     
     switch (bed_type) {
         case BedType::btDarkmoonG10:
-            darkmoon_part2 = {10, 250, 148, 12, "darkmoon_g10_part2.svg"};
+            darkmoon_part2 = {80, 52, 60, 60, "darkmoon_g10_part2.svg"};
             break;
         case BedType::btDarkmoonIce:
-            darkmoon_part2 = {10, 250, 148, 12, "darkmoon_ice_part2.svg"};
+            darkmoon_part2 = {80, 52, 60, 60, "darkmoon_ice_part2.svg"};
             break;
         case BedType::btDarkmoonLux:
-            darkmoon_part2 = {10, 250, 148, 12, "darkmoon_lux_part2.svg"};
+            darkmoon_part2 = {80, 52, 60, 60, "darkmoon_lux_part2.svg"};
             break;
         case BedType::btDarkmoonCFX:
-            darkmoon_part2 = {10, 250, 148, 12, "darkmoon_cfx_part2.svg"};
+            darkmoon_part2 = {80, 52, 60, 60, "darkmoon_cfx_part2.svg"};
             break;
         case BedType::btDarkmoonSatin:
-            darkmoon_part2 = {10, 250, 148, 12, "darkmoon_satin_part2.svg"};
+            darkmoon_part2 = {80, 52, 60, 60, "darkmoon_satin_part2.svg"};
             break;
         default:
             // Fallback to generic Darkmoon part2
-            darkmoon_part2 = {10, 250, 148, 12, "darkmoon_part2.svg"};
+            darkmoon_part2 = {80, 52, 60, 60, "darkmoon_part2.svg"};
             break;
     }
     
