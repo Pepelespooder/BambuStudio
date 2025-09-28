@@ -3,8 +3,8 @@
 #include "Exception.hpp"
 #include "Preset.hpp"
 #include "PresetBundle.hpp"
+#include "DarkmoonUtil.hpp"
 #include "AppConfig.hpp"
-#include "DarkmoonUtils.hpp"
 
 #ifdef _MSC_VER
     #define WIN32_LEAN_AND_MEAN
@@ -985,7 +985,8 @@ static std::vector<std::string> s_Preset_filament_options = [] {
         "supertack_plate_temp_initial_layer", "supertack_plate_temp"
     };
 
-    append_darkmoon_temperature_keys(options);
+    for (std::string_view key : darkmoon_all_temp_keys())
+        options.emplace_back(key);
 
     options.insert(options.end(), {
         "circle_compensation_speed", "counter_coef_1", "counter_coef_2", "counter_coef_3", "hole_coef_1", "hole_coef_2", "hole_coef_3",

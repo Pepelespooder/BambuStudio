@@ -4,9 +4,9 @@
 #include "libslic3r.h"
 #include "I18N.hpp"
 #include "Utils.hpp"
+#include "DarkmoonUtil.hpp"
 #include "Model.hpp"
 #include "format.hpp"
-#include "DarkmoonUtils.hpp"
 
 #include <algorithm>
 #include <set>
@@ -58,8 +58,6 @@ const char *PresetBundle::BBL_BUNDLE = "BBL";
 const char *PresetBundle::BBL_DEFAULT_PRINTER_MODEL = "Bambu Lab X1 Carbon";
 const char *PresetBundle::BBL_DEFAULT_PRINTER_VARIANT = "0.4";
 const char *PresetBundle::BBL_DEFAULT_FILAMENT = "Generic PLA";
-
-static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
 
 DynamicPrintConfig PresetBundle::construct_full_config(
     Preset& in_printer_preset,
@@ -2694,62 +2692,6 @@ DynamicPrintConfig PresetBundle::full_config_secure(std::optional<std::vector<in
     config.erase("printhost_password");
     config.erase("printhost_port");
     return config;
-}
-
-static void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
-{
-    extruder_count = std::max<size_t>(1, extruder_count);
-
-    std::vector<std::string> filament_types;
-    if (const auto *types_opt = config.opt<ConfigOptionStrings>("filament_type"))
-        filament_types = types_opt->values;
-    if (filament_types.empty())
-        filament_types.assign(extruder_count, "PLA");
-    if (filament_types.size() < extruder_count)
-        filament_types.resize(extruder_count, filament_types.back());
-
-    auto resize_to_extruders = [extruder_count](ConfigOptionInts *opt) {
-        if (opt == nullptr)
-            return;
-        if (opt->values.empty())
-            opt->values.assign(extruder_count, 0);
-        else if (opt->values.size() < extruder_count)
-            opt->values.resize(extruder_count, opt->values.back());
-        else if (opt->values.size() > extruder_count)
-            opt->values.resize(extruder_count);
-    };
-
-    struct KeyPair {
-        const char *dm_key;
-        const char *fallback_key;
-    };
-
-    for (const DarkmoonPlateInfo &plate : darkmoon_plates()) {
-        const KeyPair key_pairs[] = {
-            {plate.bed_temp_key, plate.fallback_temp_key},
-            {plate.bed_temp_initial_layer_key, plate.fallback_temp_initial_layer_key}
-        };
-
-        for (const KeyPair &pair : key_pairs) {
-            ConfigOptionInts *dm_opt = config.opt<ConfigOptionInts>(pair.dm_key);
-            const bool needs_values = (dm_opt == nullptr || dm_opt->values.empty() || dm_opt->values.size() < extruder_count);
-            if (needs_values) {
-                std::vector<int> values;
-                if (auto defaults = default_darkmoon_temperatures(plate, filament_types)) {
-                    values = std::move(*defaults);
-                } else if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(pair.fallback_key); fallback && !fallback->values.empty()) {
-                    values.assign(fallback->values.begin(), fallback->values.end());
-                } else {
-                    values.assign(extruder_count, 0);
-                }
-
-                dm_opt = config.option<ConfigOptionInts>(pair.dm_key, true);
-                dm_opt->values = std::move(values);
-            }
-
-            resize_to_extruders(dm_opt);
-        }
-    }
 }
 
 const std::set<std::string> ignore_settings_list ={

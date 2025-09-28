@@ -18,7 +18,7 @@
 
 #include "libslic3r.h"
 #include "CommonDefs.hpp"
-#include "DarkmoonUtils.hpp"
+#include "DarkmoonUtil.hpp"
 #include "Config.hpp"
 #include "Polygon.hpp"
 #include <boost/preprocessor/facilities/empty.hpp>

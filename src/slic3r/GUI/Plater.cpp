@@ -49,7 +49,7 @@
 #include "libslic3r/Format/bbs_3mf.hpp"
 #include "libslic3r/GCode/ThumbnailData.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/DarkmoonUtils.hpp"
+#include "libslic3r/DarkmoonUtil.hpp"
 #include "libslic3r/SLA/Hollowing.hpp"
 #include "libslic3r/SLA/SupportPoint.hpp"
 #include "libslic3r/SLA/ReprojectPointsOnMesh.hpp"
@@ -272,8 +272,7 @@ static std::map<BedType, std::string> bed_type_thumbnails = [] {
         {BedType::btPTE, "bed_pei"},
         {BedType::btSuperTack, "bed_cool_supertack"}
     };
-    for (const DarkmoonPlateInfo &plate : darkmoon_plates())
-        thumbnails.emplace(plate.bed_type, plate.thumbnail_key);
+    append_darkmoon_bed_thumbnails(thumbnails);
     return thumbnails;
 }();
 

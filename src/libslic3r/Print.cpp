@@ -15,7 +15,7 @@
 #include "GCode/WipeTower.hpp"
 #include "Utils.hpp"
 #include "PrintConfig.hpp"
-#include "DarkmoonUtils.hpp"
+#include "DarkmoonUtil.hpp"
 #include "Model.hpp"
 #include <float.h>
 
@@ -211,9 +211,8 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
         "printer_notes",
         "filament_velocity_adaptation_factor"
         };
-        std::vector<std::string> darkmoon_initial;
-        append_darkmoon_initial_temperature_keys(darkmoon_initial);
-        keys.insert(darkmoon_initial.begin(), darkmoon_initial.end());
+        for (std::string_view key : darkmoon_initial_layer_plate_temp_keys())
+            keys.emplace(std::string(key));
         return keys;
     }();
 
@@ -280,7 +279,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
             || opt_key == "filament_ramming_travel_time"
             // BBS
             || opt_key == "supertack_plate_temp"
-            || is_darkmoon_temp_key(opt_key)
+            || is_darkmoon_bed_temp_key(opt_key)
             || opt_key == "cool_plate_temp"
             || opt_key == "eng_plate_temp"
             || opt_key == "hot_plate_temp"

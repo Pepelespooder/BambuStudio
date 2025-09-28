@@ -2,7 +2,7 @@
 #include "I18N.hpp"
 
 #include "libslic3r/Utils.hpp"
-#include "libslic3r/DarkmoonUtils.hpp"
+#include "libslic3r/DarkmoonUtil.hpp"
 #include "libslic3r/Thread.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
@@ -69,7 +69,7 @@ std::string get_nozzle_volume_type_cloud_string(NozzleVolumeType nozzle_volume_t
 }
 
 std::vector<wxString> SelectMachineDialog::MACHINE_BED_TYPE_STRING;
-std::vector<string> SelectMachineDialog::MachineBedTypeString;
+std::vector<std::string> SelectMachineDialog::MachineBedTypeString;
 void                SelectMachineDialog::init_machine_bed_types()
 {
     if (MACHINE_BED_TYPE_STRING.size() == 0) {
@@ -82,10 +82,12 @@ void                SelectMachineDialog::init_machine_bed_types()
         };
         MachineBedTypeString    = {//"auto",
                                    "pc", "pe", "pei", "pte", "suprtack"};
-        for (const DarkmoonPlateInfo &plate : darkmoon_plates()) {
-            MACHINE_BED_TYPE_STRING.emplace_back(_L(plate.display_name));
-            MachineBedTypeString.emplace_back(plate.slug);
-        }
+        append_darkmoon_plate_slugs(MachineBedTypeString);
+
+        std::vector<std::string> darkmoon_names;
+        append_darkmoon_plate_display_names(darkmoon_names);
+        for (const std::string &name : darkmoon_names)
+            MACHINE_BED_TYPE_STRING.emplace_back(_L(name));
     }
 }
 SelectMachineDialog::SelectMachineDialog(Plater *plater)

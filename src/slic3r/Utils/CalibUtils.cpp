@@ -10,7 +10,7 @@
 
 #include "libslic3r/Model.hpp"
 #include "libslic3r/PrintConfig.hpp"
-#include "libslic3r/DarkmoonUtils.hpp"
+#include "libslic3r/DarkmoonUtil.hpp"
 #include "../GUI/MsgDialog.hpp"
 #include "BBLUtil.hpp"
 #include "libslic3r/FlushVolCalc.hpp"
@@ -44,8 +44,7 @@ static std::array<std::string, btCount> MachineBedTypeString = [] {
     values[btPEI]       = "pei";
     values[btPTE]       = "pte";
     values[btSuperTack] = "suprtack";
-    for (const DarkmoonPlateInfo &plate : darkmoon_plates())
-        values[static_cast<size_t>(plate.bed_type)] = plate.slug;
+    apply_darkmoon_bed_slugs(values);
     return values;
 }();
 

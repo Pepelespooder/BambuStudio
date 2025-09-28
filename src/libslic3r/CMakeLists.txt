@@ -69,6 +69,8 @@ set(lisbslic3r_sources
     CurveAnalyzer.hpp
     CutUtils.cpp
     CutUtils.hpp
+    DarkmoonUtil.cpp
+    DarkmoonUtil.hpp
     EdgeGrid.cpp
     EdgeGrid.hpp
     ElephantFootCompensation.cpp
@@ -275,8 +277,6 @@ set(lisbslic3r_sources
     PolygonTrimmer.hpp
     Polyline.cpp
     Polyline.hpp
-    DarkmoonUtils.cpp
-    DarkmoonUtils.hpp
     Preset.cpp
     Preset.hpp
     PresetBundle.cpp
