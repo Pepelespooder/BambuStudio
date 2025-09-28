@@ -5089,6 +5089,27 @@ void PrinterInfoBox::UpdatePlate(const std::string& plate_name)
             name = _L("Cool(Supertack)");
             m_bed_image->SetBitmap(create_scaled_bitmap("bed_cool_supertack", this, 32));
         }
+        // Darkmoon plate types
+        else if (plate_name == "Darkmoon G10 Garolite" || plate_name == "Darkmoon G10") {
+            name = _L("G10");
+            m_bed_image->SetBitmap(create_scaled_bitmap("bed_cool", this, 32)); // Use cool plate icon for G10
+        }
+        else if (plate_name == "Darkmoon Ice" || plate_name == "Ice Plate") {
+            name = _L("Ice");
+            m_bed_image->SetBitmap(create_scaled_bitmap("bed_cool", this, 32)); // Use cool plate icon for Ice
+        }
+        else if (plate_name == "Darkmoon Lux" || plate_name == "Lux Plate") {
+            name = _L("Lux");
+            m_bed_image->SetBitmap(create_scaled_bitmap("bed_high_templ", this, 32)); // Use high temp plate icon for Lux
+        }
+        else if (plate_name == "Darkmoon CFX" || plate_name == "CFX Plate") {
+            name = _L("CFX");
+            m_bed_image->SetBitmap(create_scaled_bitmap("bed_high_templ", this, 32)); // Use high temp plate icon for CFX
+        }
+        else if (plate_name == "Darkmoon Satin" || plate_name == "Satin Plate") {
+            name = _L("Satin");
+            m_bed_image->SetBitmap(create_scaled_bitmap("bed_satin", this, 32)); // Use bed_satin PNG
+        }
 
         if (name.length() > 8) {
             m_text_bed_type->SetFont(Label::Body_9);
