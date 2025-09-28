@@ -2767,7 +2767,7 @@ static int default_cfx_temperature(const std::string &filament_type_raw)
     if (has_token(tokens, "TPU"))
         return 0;
     if (has_token(tokens, "PLA"))
-        return 63;
+        return 65;
     if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
         return 105;
     if (has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF"))
@@ -2793,7 +2793,7 @@ static int default_satin_temperature(const std::string &filament_type_raw)
     if (has_token(tokens, "TPU"))
         return 0;
     if (has_token(tokens, "PLA"))
-        return 58;
+        return 60;
     if (has_token(tokens, "PCTG") || has_token(tokens, "PETG") ||
         has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF"))
         return 105;
