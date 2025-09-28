@@ -1189,6 +1189,13 @@ void PrintConfigDef::init_fff_params()
     def->nullable = true;
     def->set_default_value(new ConfigOptionBoolsNullable{ true });
 
+    def = this->add("slowdown_for_curled_perimeters", coBool);
+    def->label = L("Slow down for curled perimeters");
+    def->category = L("Speed");
+    def->tooltip = L("Enable this option to slow printing in areas where curled perimeters are detected");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("overhang_1_4_speed", coFloats);
     def->label = "10%";
     def->category = L("Speed");

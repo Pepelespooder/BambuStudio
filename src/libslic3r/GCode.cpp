@@ -7,6 +7,7 @@
 #include "Geometry/ConvexHull.hpp"
 #include "GCode/PrintExtents.hpp"
 #include "GCode/WipeTower.hpp"
+#include "GCode/ExtrusionProcessor.hpp"
 #include "ShortestPath.hpp"
 #include "Print.hpp"
 #include "Utils.hpp"
@@ -3921,6 +3922,23 @@ GCode::LayerResult GCode::process_layer(
         Skirt::make_skirt_loops_per_extruder_1st_layer(print, layer_tools, m_skirt_done) :
         Skirt::make_skirt_loops_per_extruder_other_layers(print, layer_tools, m_skirt_done);
 
+    if (m_config.slowdown_for_curled_perimeters) {
+        bool overhang_speed_enabled = false;
+        for (size_t idx = 0; idx < m_config.enable_overhang_speed.size(); ++idx) {
+            if (m_config.enable_overhang_speed.get_at(idx)) {
+                overhang_speed_enabled = true;
+                break;
+            }
+        }
+
+        if (overhang_speed_enabled) {
+            for (const auto &layer_to_print : layers) {
+                m_extrusion_quality_estimator.prepare_for_new_layer(layer_to_print.original_object,
+                                                                    layer_to_print.object_layer);
+            }
+        }
+    }
+
     // BBS: get next extruder according to flush and soluble
     auto get_next_extruder = [&](int current_extruder,const std::vector<unsigned int>&extruders) {
         std::vector<float> flush_matrix(cast<float>(get_flush_volumes_matrix(m_config.flush_volumes_matrix.values, 0, m_config.nozzle_diameter.values.size())));
@@ -4393,6 +4411,7 @@ GCode::LayerResult GCode::process_layer(
                 bool object_layer_over_raft = layer_to_print.object_layer && layer_to_print.object_layer->id() > 0 &&
                     instance_to_print.print_object.slicing_parameters().raft_layers() == layer_to_print.object_layer->id();
                 m_config.apply(instance_to_print.print_object.config(), true);
+                m_extrusion_quality_estimator.set_current_object(&instance_to_print.print_object);
                 m_layer = layer_to_print.layer();
                 m_object_layer_over_raft = object_layer_over_raft;
                 if (m_config.reduce_crossing_wall)

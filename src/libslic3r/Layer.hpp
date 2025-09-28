@@ -7,6 +7,7 @@
 #include "SurfaceCollection.hpp"
 #include "ExtrusionEntityCollection.hpp"
 #include "RegionExpansion.hpp"
+#include "Line.hpp"
 #include <libslic3r/Print.hpp>
 
 namespace Slic3r {
@@ -142,6 +143,9 @@ public:
     coordf_t            print_z;       // Z used for printing in unscaled coordinates
     coordf_t            height;        // layer height in unscaled coordinates
     coordf_t            bottom_z() const { return this->print_z - this->height; }
+
+    // Extrusions estimated to curl significantly; populated when slowdown for curled perimeters is active.
+    CurledLines         curled_lines;
 
     // BBS
     mutable ExPolygons          sharp_tails;

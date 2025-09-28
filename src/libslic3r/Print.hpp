@@ -96,7 +96,7 @@ enum PrintStep {
 };
 
 enum PrintObjectStep {
-    posSlice, posPerimeters, posPrepareInfill,
+    posSlice, posPerimeters, posEstimateCurledExtrusions, posPrepareInfill,
     posInfill, posIroning, posSupportMaterial,
     // BBS
     posDetectOverhangsForLift,
@@ -565,6 +565,7 @@ private:
     // BBS
     void detect_overhangs_for_lift();
     void clear_overhangs_for_lift();
+    void estimate_curled_extrusions();
 
     // Has any support (not counting the raft).
     void detect_surfaces_type();

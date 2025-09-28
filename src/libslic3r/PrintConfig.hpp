@@ -986,6 +986,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionInt, bottom_color_penetration_layers))
     //BBS
     ((ConfigOptionBoolsNullable, enable_overhang_speed))
+    ((ConfigOptionBool, slowdown_for_curled_perimeters))
     ((ConfigOptionFloatsNullable, overhang_1_4_speed))
     ((ConfigOptionFloatsNullable, overhang_2_4_speed))
     ((ConfigOptionFloatsNullable, overhang_3_4_speed))

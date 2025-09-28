@@ -14,6 +14,7 @@
 #include "GCode/SpiralVase.hpp"
 #include "GCode/ToolOrdering.hpp"
 #include "GCode/WipeTower.hpp"
+#include "GCode/ExtrusionProcessor.hpp"
 #include "GCode/SeamPlacer.hpp"
 #include "GCode/GCodeProcessor.hpp"
 #include "EdgeGrid.hpp"
@@ -574,6 +575,7 @@ private:
 
     // Processor
     GCodeProcessor m_processor;
+    ExtrusionQualityEstimator            m_extrusion_quality_estimator;
 
     // BBS
     Print* m_curr_print = nullptr;
