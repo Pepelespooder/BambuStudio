@@ -41,6 +41,7 @@ constexpr int kDarkmoonPlaceholderTemp = 45;
 
 int default_g10_temperature(const std::string &filament_type_raw);
 int default_ice_temperature(const std::string &filament_type_raw);
+int default_lux_temperature(const std::string &filament_type_raw);
 int default_cfx_temperature(const std::string &filament_type_raw);
 int default_satin_temperature(const std::string &filament_type_raw);
 
@@ -70,9 +71,17 @@ void append_darkmoon_initial_temperature_keys(std::vector<std::string> &target);
 std::optional<int> default_darkmoon_temperature(const DarkmoonPlateInfo &plate, const std::string &filament_type_raw);
 std::optional<std::vector<int>> default_darkmoon_temperatures(const DarkmoonPlateInfo &plate, const std::vector<std::string> &filament_types);
 
+struct DarkmoonTexturePartInfo {
+    float x, y, w, h;
+    std::string filename;
+};
+
 void append_darkmoon_plate_slugs(std::vector<std::string> &slugs);
 void append_darkmoon_plate_display_names(std::vector<std::string> &display_names);
 void append_darkmoon_bed_thumbnails(std::map<BedType, std::string> &thumbnails);
+
+// Get texture part information for a specific Darkmoon plate type
+std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture_parts(BedType bed_type);
 
 template <class Container>
 void apply_darkmoon_bed_slugs(Container &targets)

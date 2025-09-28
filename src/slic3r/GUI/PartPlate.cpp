@@ -6341,8 +6341,18 @@ void PartPlateList::init_bed_type_info()
 	bed_texture_info[btPTE].parts.push_back(pte_part1);
 	bed_texture_info[btPTE].parts.push_back(pte_part2);
     for (const DarkmoonPlateInfo &plate : darkmoon_plates()) {
-        bed_texture_info[plate.bed_type].parts.push_back(pc_part1);
-        bed_texture_info[plate.bed_type].parts.push_back(pc_part2);
+        // Get texture parts for this Darkmoon plate type
+        auto texture_parts = get_darkmoon_texture_parts(plate.bed_type);
+        
+        BedTextureInfo::TexturePart darkmoon_part1(texture_parts.first.x, texture_parts.first.y, 
+                                                    texture_parts.first.w, texture_parts.first.h, 
+                                                    texture_parts.first.filename);
+        BedTextureInfo::TexturePart darkmoon_part2(texture_parts.second.x, texture_parts.second.y, 
+                                                    texture_parts.second.w, texture_parts.second.h, 
+                                                    texture_parts.second.filename);
+        
+        bed_texture_info[plate.bed_type].parts.push_back(darkmoon_part1);
+        bed_texture_info[plate.bed_type].parts.push_back(darkmoon_part2);
     }
 
 	auto  bed_ext     = get_extents(m_shape);
