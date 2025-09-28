@@ -3151,6 +3151,21 @@ def = this->add("filament_loading_speed", coFloats);
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("filament_map_mode", coEnum);
+    def->label = L("Filament map mode");
+    def->tooltip = L("Select how filaments map to extruders when slicing multi-material prints.");
+    def->enum_keys_map = &ConfigOptionEnum<FilamentMapMode>::get_enum_values();
+    def->enum_values.emplace_back("default");
+    def->enum_values.emplace_back("auto_flush");
+    def->enum_values.emplace_back("auto_match");
+    def->enum_values.emplace_back("manual");
+    def->enum_labels.emplace_back(L("Use global setting"));
+    def->enum_labels.emplace_back(L("Auto (flush)"));
+    def->enum_labels.emplace_back(L("Auto (match)"));
+    def->enum_labels.emplace_back(L("Manual"));
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionEnum<FilamentMapMode>(fmmAutoForFlush));
+
     def = this->add("timelapse_type", coEnum);
     def->label = L("Timelapse");
     def->tooltip = L("If smooth or traditional mode is selected, a timelapse video will be generated for each print. "

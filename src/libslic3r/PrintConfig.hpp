@@ -1100,6 +1100,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionInts,                support_material_interface_fan_speed))
     // Orca: notes for profiles from PrusaSlicer
     ((ConfigOptionStrings,            filament_notes))
+    ((ConfigOptionEnum<FilamentMapMode>, filament_map_mode))
     ((ConfigOptionString,             notes))
     ((ConfigOptionString,             printer_notes))
 
