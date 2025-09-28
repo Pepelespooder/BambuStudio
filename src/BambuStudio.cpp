@@ -4917,11 +4917,11 @@ int CLI::run(int argc, char **argv)
                     //prepare the wipe tower
                     int plate_count = partplate_list.get_plate_count();
 
-                    auto printer_structure_opt = m_print_config.option<ConfigOptionEnum<PrinterStructure>>("printer_structure");
+                    auto printer_structure_opt = m_print_config.option<ConfigOptionEnumGeneric>("printer_structure");
                     // set the default position, the same with print config(left top)
                     float x = WIPE_TOWER_DEFAULT_X_POS;
                     float y = WIPE_TOWER_DEFAULT_Y_POS;
-                    if (printer_structure_opt && printer_structure_opt->value == PrinterStructure::psI3) {
+                    if (printer_structure_opt && printer_structure_opt->getInt() == int(PrinterStructure::psI3)) {
                         x = I3_WIPE_TOWER_DEFAULT_X_POS;
                         y = I3_WIPE_TOWER_DEFAULT_Y_POS;
                     }
@@ -4982,8 +4982,8 @@ int CLI::run(int argc, char **argv)
                     arrange_cfg.bed_shrink_x = BED_SHRINK_SEQ_PRINT;
                     arrange_cfg.bed_shrink_y = BED_SHRINK_SEQ_PRINT;
                 }
-                if (auto printer_structure_opt = m_print_config.option<ConfigOptionEnum<PrinterStructure>>("printer_structure")) {
-                    arrange_cfg.align_to_y_axis = (printer_structure_opt->value == PrinterStructure::psI3);
+                if (auto printer_structure_opt = m_print_config.option<ConfigOptionEnumGeneric>("printer_structure")) {
+                    arrange_cfg.align_to_y_axis = (printer_structure_opt->getInt() == int(PrinterStructure::psI3));
                 }
 
                 arrangement::update_arrange_params(arrange_cfg, m_print_config, selected);
@@ -5057,11 +5057,11 @@ int CLI::run(int argc, char **argv)
                 if (!is_seq_print && assemble_plate.filaments_count > 1)
                 {
                     //prepare the wipe tower
-                    auto printer_structure_opt = m_print_config.option<ConfigOptionEnum<PrinterStructure>>("printer_structure");
+                    auto printer_structure_opt = m_print_config.option<ConfigOptionEnumGeneric>("printer_structure");
                     // set the default position, the same with print config(left top)
                     float x = WIPE_TOWER_DEFAULT_X_POS;
                     float y = WIPE_TOWER_DEFAULT_Y_POS;
-                    if (printer_structure_opt && printer_structure_opt->value == PrinterStructure::psI3) {
+                    if (printer_structure_opt && printer_structure_opt->getInt() == int(PrinterStructure::psI3)) {
                         x = I3_WIPE_TOWER_DEFAULT_X_POS;
                         y = I3_WIPE_TOWER_DEFAULT_Y_POS;
                     }
@@ -5209,11 +5209,11 @@ int CLI::run(int argc, char **argv)
                         int plate_count = partplate_list.get_plate_count();
                         int extruder_size = used_filament_set.size();
 
-                        auto printer_structure_opt = m_print_config.option<ConfigOptionEnum<PrinterStructure>>("printer_structure");
+                        auto printer_structure_opt = m_print_config.option<ConfigOptionEnumGeneric>("printer_structure");
                         // set the default position, the same with print config(left top)
                         float x = WIPE_TOWER_DEFAULT_X_POS;
                         float y = WIPE_TOWER_DEFAULT_Y_POS;
-                        if (printer_structure_opt && printer_structure_opt->value == PrinterStructure::psI3) {
+                        if (printer_structure_opt && printer_structure_opt->getInt() == int(PrinterStructure::psI3)) {
                             x = I3_WIPE_TOWER_DEFAULT_X_POS;
                             y = I3_WIPE_TOWER_DEFAULT_Y_POS;
                         }
@@ -5309,10 +5309,10 @@ int CLI::run(int argc, char **argv)
                         float x;
                         float y;
                         if (duplicate_count > 0) {
-                            auto printer_structure_opt = m_print_config.option<ConfigOptionEnum<PrinterStructure>>("printer_structure");
+                            auto printer_structure_opt = m_print_config.option<ConfigOptionEnumGeneric>("printer_structure");
                             x = WIPE_TOWER_DEFAULT_X_POS;
                             y = WIPE_TOWER_DEFAULT_Y_POS;
-                            if (printer_structure_opt && printer_structure_opt->value == PrinterStructure::psI3) {
+                            if (printer_structure_opt && printer_structure_opt->getInt() == int(PrinterStructure::psI3)) {
                                 x = I3_WIPE_TOWER_DEFAULT_X_POS;
                                 y = I3_WIPE_TOWER_DEFAULT_Y_POS;
                             }
@@ -5430,8 +5430,8 @@ int CLI::run(int argc, char **argv)
                     arrange_cfg.bed_shrink_x = BED_SHRINK_SEQ_PRINT;
                     arrange_cfg.bed_shrink_y = BED_SHRINK_SEQ_PRINT;
                 }
-                if (auto printer_structure_opt = m_print_config.option<ConfigOptionEnum<PrinterStructure>>("printer_structure")) {
-                    arrange_cfg.align_to_y_axis = (printer_structure_opt->value == PrinterStructure::psI3);
+                if (auto printer_structure_opt = m_print_config.option<ConfigOptionEnumGeneric>("printer_structure")) {
+                    arrange_cfg.align_to_y_axis = (printer_structure_opt->getInt() == int(PrinterStructure::psI3));
                 }
 
                 arrangement::update_arrange_params(arrange_cfg, m_print_config, selected);

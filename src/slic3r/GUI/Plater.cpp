@@ -2366,8 +2366,8 @@ void Sidebar::update_presets(Preset::Type preset_type)
 
        wxGetApp().mainframe->update_calibration_button_status();
 
-        if (auto printer_structure_opt = printer_preset.config.option<ConfigOptionEnum<PrinterStructure>>("printer_structure")) {
-            wxGetApp().plater()->get_current_canvas3D()->get_arrange_settings().align_to_y_axis = (printer_structure_opt->value == PrinterStructure::psI3);
+        if (auto printer_structure_opt = printer_preset.config.option<ConfigOptionEnumGeneric>("printer_structure")) {
+            wxGetApp().plater()->get_current_canvas3D()->get_arrange_settings().align_to_y_axis = (printer_structure_opt->getInt() == int(PrinterStructure::psI3));
         }
         else
             wxGetApp().plater()->get_current_canvas3D()->get_arrange_settings().align_to_y_axis = false;

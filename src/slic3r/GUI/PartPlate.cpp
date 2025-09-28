@@ -3824,11 +3824,11 @@ void PartPlateList::set_default_wipe_tower_pos_for_plate(int plate_idx, bool ini
     wipe_tower_x->values.resize(m_plate_list.size(), wipe_tower_x->values.front());
     wipe_tower_y->values.resize(m_plate_list.size(), wipe_tower_y->values.front());
 
-    auto printer_structure_opt = wxGetApp().preset_bundle->printers.get_edited_preset().config.option<ConfigOptionEnum<PrinterStructure>>("printer_structure");
+    auto printer_structure_opt = wxGetApp().preset_bundle->printers.get_edited_preset().config.option<ConfigOptionEnumGeneric>("printer_structure");
     // set the default position, the same with print config(left top)
     float x = WIPE_TOWER_DEFAULT_X_POS;
     float y = WIPE_TOWER_DEFAULT_Y_POS;
-    if (printer_structure_opt && printer_structure_opt->value == PrinterStructure::psI3) {
+    if (printer_structure_opt && printer_structure_opt->getInt() == int(PrinterStructure::psI3)) {
         x = I3_WIPE_TOWER_DEFAULT_X_POS;
         y = I3_WIPE_TOWER_DEFAULT_Y_POS;
     }

@@ -6402,8 +6402,8 @@ bool GLCanvas3D::_render_arrange_menu(float left, float toolbar_height)
         //BBS: add specific arrange settings
         if (seq_print) settings_out.is_seq_print = true;
 
-        if (auto printer_structure_opt = wxGetApp().preset_bundle->printers.get_edited_preset().config.option<ConfigOptionEnum<PrinterStructure>>("printer_structure")) {
-            settings_out.align_to_y_axis = (printer_structure_opt->value == PrinterStructure::psI3);
+        if (auto printer_structure_opt = wxGetApp().preset_bundle->printers.get_edited_preset().config.option<ConfigOptionEnumGeneric>("printer_structure")) {
+            settings_out.align_to_y_axis = (printer_structure_opt->getInt() == int(PrinterStructure::psI3));
         }
         else
             settings_out.align_to_y_axis = false;
