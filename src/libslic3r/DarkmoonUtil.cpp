@@ -391,7 +391,7 @@ std::optional<int> default_darkmoon_temperature(const DarkmoonPlateInfo &plate, 
     case DarkmoonPlateKind::Ice:
         return default_ice_temperature(filament_type_raw);
     case DarkmoonPlateKind::Lux:
-        return default_lux_temperature(filament_type_raw);
+        return default_lux_temperature(std::string(filament_type_raw));
     case DarkmoonPlateKind::CFX:
         return default_cfx_temperature(filament_type_raw);
     case DarkmoonPlateKind::Satin:
@@ -482,7 +482,7 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
                     int v = is_cfx ? default_cfx_temperature(filament_types[idx])
                                     : is_satin ? default_satin_temperature(filament_types[idx])
                                                : is_ice   ? default_ice_temperature(filament_types[idx])
-                                               : is_lux   ? default_lux_temperature(filament_types[idx])
+                                               : is_lux   ? default_lux_temperature(std::string(filament_types[idx]))
                                                           : default_g10_temperature(filament_types[idx]);
                     if (v < 0) {
                         filled = false;
