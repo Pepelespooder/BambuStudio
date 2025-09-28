@@ -5089,26 +5089,29 @@ void PrinterInfoBox::UpdatePlate(const std::string& plate_name)
             name = _L("Cool(Supertack)");
             m_bed_image->SetBitmap(create_scaled_bitmap("bed_cool_supertack", this, 32));
         }
-        // Darkmoon plate types
-        else if (plate_name == "Darkmoon G10 Garolite" || plate_name == "Darkmoon G10") {
-            name = _L("G10");
-            m_bed_image->SetBitmap(create_scaled_bitmap("bed_cool", this, 32)); // Use cool plate icon for G10
-        }
-        else if (plate_name == "Darkmoon Ice" || plate_name == "Ice Plate") {
-            name = _L("Ice");
-            m_bed_image->SetBitmap(create_scaled_bitmap("bed_cool", this, 32)); // Use cool plate icon for Ice
-        }
-        else if (plate_name == "Darkmoon Lux" || plate_name == "Lux Plate") {
-            name = _L("Lux");
-            m_bed_image->SetBitmap(create_scaled_bitmap("bed_high_templ", this, 32)); // Use high temp plate icon for Lux
-        }
-        else if (plate_name == "Darkmoon CFX" || plate_name == "CFX Plate") {
-            name = _L("CFX");
-            m_bed_image->SetBitmap(create_scaled_bitmap("bed_high_templ", this, 32)); // Use high temp plate icon for CFX
-        }
-        else if (plate_name == "Darkmoon Satin" || plate_name == "Satin Plate") {
-            name = _L("Satin");
-            m_bed_image->SetBitmap(create_scaled_bitmap("bed_satin", this, 32)); // Use bed_satin PNG
+        else {
+            // Try to match Darkmoon plate types using DarkmoonUtil
+            std::string thumbnail_key = get_darkmoon_bed_thumbnail_by_name(plate_name);
+            if (!thumbnail_key.empty()) {
+                // Extract display name from plate_name for Darkmoon plates
+                if (plate_name.find("Darkmoon") != std::string::npos) {
+                    std::string plate_type = plate_name;
+                    // Remove "Darkmoon " prefix if present
+                    size_t pos = plate_type.find("Darkmoon ");
+                    if (pos == 0) {
+                        plate_type = plate_type.substr(9); // Length of "Darkmoon "
+                    }
+                    // Remove " Garolite" suffix for G10
+                    pos = plate_type.find(" Garolite");
+                    if (pos != std::string::npos) {
+                        plate_type = plate_type.substr(0, pos);
+                    }
+                    name = _L(plate_type);
+                } else {
+                    name = _L(plate_name);
+                }
+                m_bed_image->SetBitmap(create_scaled_bitmap(thumbnail_key, this, 32));
+            }
         }
 
         if (name.length() > 8) {

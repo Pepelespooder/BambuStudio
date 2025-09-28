@@ -244,6 +244,18 @@ void append_darkmoon_bed_thumbnails(std::map<BedType, std::string> &thumbnails)
         thumbnails.emplace(plate.bed_type, plate.thumbnail_key);
 }
 
+std::string get_darkmoon_bed_thumbnail_by_name(const std::string &plate_name)
+{
+    for (const DarkmoonPlateInfo &plate : kDarkmoonPlates) {
+        if (plate_name == plate.display_name || 
+            plate_name == plate.slug ||
+            plate_name.find(plate.display_name) != std::string::npos) {
+            return plate.thumbnail_key;
+        }
+    }
+    return ""; // Return empty string if no match found
+}
+
 std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture_parts(BedType bed_type)
 {
     // Universal Darkmoon part1: Moon logo with "Darkmoon" text (same for all Darkmoon plates)
@@ -468,10 +480,73 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
         }
 
         if (!have_chart_values) {
+            // Only fall back to existing values if dynamic calculation failed
             bool need_fallback = dm_opt->values.empty() || is_placeholder(dm_opt) || dm_opt->values.size() < extruder_count;
             if (!need_fallback) {
                 values = dm_opt->values;
             } else if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty()) {
+                values.assign(fallback->values.begin(), fallback->values.end());
+            } else {
+                values.assign(extruder_count, 0);
+            }
+        }
+        // If have_chart_values is true, we already set values from dynamic calculation above
+
+        if (values.empty())
+            values.assign(extruder_count, 0);
+
+        if (values.size() < extruder_count)
+            values.resize(extruder_count, values.back());
+        else if (values.size() > extruder_count)
+            values.resize(extruder_count);
+
+        dm_opt->values = std::move(values);
+    }
+}
+
+void apply_dynamic_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
+{
+    static const DarkmoonMapping mappings[] = {
+        {"darkmoon_g10_plate_temp",                 "cool_plate_temp"},
+        {"darkmoon_g10_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
+        {"darkmoon_ice_plate_temp",                 "cool_plate_temp"},
+        {"darkmoon_ice_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
+        {"darkmoon_lux_plate_temp",                 "hot_plate_temp"},
+        {"darkmoon_lux_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
+        {"darkmoon_cfx_plate_temp",                 "hot_plate_temp"},
+        {"darkmoon_cfx_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
+        {"darkmoon_satin_plate_temp",               "hot_plate_temp"},
+        {"darkmoon_satin_plate_temp_initial_layer", "hot_plate_temp_initial_layer"}
+    };
+
+    extruder_count = std::max<size_t>(1, extruder_count);
+
+    std::vector<std::string> filament_types;
+    if (const auto *types_opt = config.opt<ConfigOptionStrings>("filament_type")) {
+        filament_types = types_opt->values;
+    }
+    if (filament_types.empty())
+        filament_types.assign(extruder_count, "PLA");
+    if (filament_types.size() < extruder_count)
+        filament_types.resize(extruder_count, filament_types.back());
+
+    for (const DarkmoonMapping &mapping : mappings) {
+        ConfigOptionInts *dm_opt = config.option<ConfigOptionInts>(mapping.darkmoon_key, true);
+
+        std::vector<int> values;
+        bool have_dynamic_values = false;
+
+        // Always try dynamic calculation first
+        if (const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(mapping.darkmoon_key)) {
+            if (auto chart_values = default_darkmoon_temperatures(*plate, filament_types)) {
+                values = std::move(*chart_values);
+                have_dynamic_values = true;
+            }
+        }
+
+        // Only use fallback if dynamic calculation completely failed
+        if (!have_dynamic_values) {
+            if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty()) {
                 values.assign(fallback->values.begin(), fallback->values.end());
             } else {
                 values.assign(extruder_count, 0);
