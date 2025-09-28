@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Satin bed surface with smooth gradient -->
+  <rect width="32" height="32" fill="url(#satinGradient)"/>
+  
+  <!-- Subtle texture lines to represent satin finish -->
+  <g opacity="0.3">
+    <line x1="0" y1="8" x2="32" y2="8" stroke="#E6E6FA" stroke-width="0.5"/>
+    <line x1="0" y1="16" x2="32" y2="16" stroke="#E6E6FA" stroke-width="0.5"/>
+    <line x1="0" y1="24" x2="32" y2="24" stroke="#E6E6FA" stroke-width="0.5"/>
+  </g>
+  
+  <defs>
+    <!-- Gradient to simulate satin finish -->
+    <linearGradient id="satinGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F8F8FF;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#E6E6FA;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#DDA0DD;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+</svg>
