@@ -116,6 +116,14 @@ static t_config_enum_values s_keys_map_FuzzySkinType {
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(FuzzySkinType)
 
+static t_config_enum_values s_keys_map_FilamentMapMode {
+    { "default",        fmmDefault },
+    { "auto_flush",     fmmAutoForFlush },
+    { "auto_match",     fmmAutoForMatch },
+    { "manual",         fmmManual }
+};
+CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(FilamentMapMode)
+
 static t_config_enum_values s_keys_map_InfillPattern {
     { "concentric",         ipConcentric },
     { "zig-zag",            ipRectilinear },

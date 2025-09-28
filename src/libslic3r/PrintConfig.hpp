@@ -43,6 +43,22 @@ enum class FuzzySkinType {
     AllWalls,
 };
 
+enum FilamentMapMode : int {
+    fmmDefault = 0,
+    fmmAutoForFlush,
+    fmmAutoForMatch,
+    fmmManual
+};
+
+enum class NozzleVolumeType : int {
+    nvtStandard = 0,
+    nvtHighFlow,
+    nvtCount
+};
+
+constexpr int nvtStandard = static_cast<int>(NozzleVolumeType::nvtStandard);
+constexpr int nvtHighFlow = static_cast<int>(NozzleVolumeType::nvtHighFlow);
+
 enum PrintHostType {
     htPrusaLink, htPrusaConnect, htOctoPrint, htDuet, htFlashAir, htAstroBox, htRepetier, htMKS
 };
