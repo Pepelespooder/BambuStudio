@@ -506,6 +506,11 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
 
 void apply_dynamic_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
 {
+    struct DarkmoonMapping {
+        const char *darkmoon_key;
+        const char *fallback_key;
+    };
+
     static const DarkmoonMapping mappings[] = {
         {"darkmoon_g10_plate_temp",                 "cool_plate_temp"},
         {"darkmoon_g10_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
