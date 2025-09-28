@@ -782,6 +782,14 @@ public:
     Print() = default;
 	virtual ~Print() { this->clear(); }
 
+	void set_extruder_filament_info(std::vector<std::vector<DynamicPrintConfig>> info);
+	const std::vector<std::vector<DynamicPrintConfig>>& get_extruder_filament_info() const;
+
+	void set_check_multi_filaments_compatibility(bool enabled) { m_check_multi_filaments_compatibility = enabled; }
+	bool check_multi_filaments_compatibility_enabled() const { return m_check_multi_filaments_compatibility; }
+
+	void set_BBL_Printer(bool value) { m_isBBLPrinter = value; }
+
 	PrinterTechnology	technology() const noexcept override { return ptFFF; }
 
     // Methods, which change the state of Print / PrintObject / PrintRegion.
@@ -948,6 +956,10 @@ private:
     
     //SoftFever
     bool m_isBBLPrinter;
+
+    std::vector<std::vector<DynamicPrintConfig>>          m_extruder_filament_info;
+    mutable std::vector<std::vector<DynamicPrintConfig>>  m_extruder_filament_info_cache;
+    bool                                                  m_check_multi_filaments_compatibility { true };
 
     // Ordered collections of extrusion paths to build skirt loops and brim.
     ExtrusionEntityCollection               m_skirt;

@@ -61,6 +61,23 @@ void Print::clear()
     m_model.clear_objects();
 }
 
+void Print::set_extruder_filament_info(std::vector<std::vector<DynamicPrintConfig>> info)
+{
+    m_extruder_filament_info = std::move(info);
+    m_extruder_filament_info_cache.clear();
+}
+
+const std::vector<std::vector<DynamicPrintConfig>>& Print::get_extruder_filament_info() const
+{
+    if (!m_extruder_filament_info.empty())
+        return m_extruder_filament_info;
+
+    const size_t extruder_count = static_cast<size_t>(m_config.nozzle_diameter.values.size());
+    if (m_extruder_filament_info_cache.size() != extruder_count)
+        m_extruder_filament_info_cache.assign(extruder_count, std::vector<DynamicPrintConfig>{});
+    return m_extruder_filament_info_cache;
+}
+
 // Called by Print::apply().
 // This method only accepts PrintConfig option keys.
 bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* new_config */, const std::vector<t_config_option_key> &opt_keys)
@@ -993,7 +1010,7 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
     if (extruders.empty())
         return { L("No extrusions under current settings.") };
 
-    if (extruders.size() > 1 && m_config.print_sequence != PrintSequence::ByObject) {
+    if (m_check_multi_filaments_compatibility && extruders.size() > 1 && m_config.print_sequence != PrintSequence::ByObject) {
         auto ret = check_multi_filament_valid(*this);
         if (!ret.string.empty())
         {

@@ -95,6 +95,11 @@ using namespace nlohmann;
 
 using namespace Slic3r;
 
+static constexpr char TIME_USING_CACHE[]         = "time_using_cache";
+static constexpr char TIME_MAKE_PERIMETERS[]     = "time_make_perimeters";
+static constexpr char TIME_INFILL[]              = "time_infill";
+static constexpr char TIME_GENERATE_SUPPORT[]    = "time_generate_support";
+
 /*typedef struct _error_message{
     int code;
     std::string message;
