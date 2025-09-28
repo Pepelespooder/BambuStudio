@@ -6341,43 +6341,15 @@ void PartPlateList::init_bed_type_info()
 	bed_texture_info[btPTE].parts.push_back(pte_part1);
 	bed_texture_info[btPTE].parts.push_back(pte_part2);
     for (const DarkmoonPlateInfo &plate : darkmoon_plates()) {
-        // Create specific texture parts for each Darkmoon plate type
-        BedTextureInfo::TexturePart darkmoon_part1(10, 52, 8.393f, 192, "bed_satin.svg"); // Default fallback
-        BedTextureInfo::TexturePart darkmoon_part2(74, -10, 148, 12, "bed_satin.svg");   // Default fallback
+        // Get texture parts for this Darkmoon plate type
+        auto texture_parts = get_darkmoon_texture_parts(plate.bed_type);
         
-        // Assign the correct SVG file based on plate type
-        switch (plate.bed_type) {
-            case BedType::btDarkmoonG10:
-                // G10 uses a different pattern, keep cool plate for now
-                darkmoon_part1 = BedTextureInfo::TexturePart(10, 52, 8.393f, 192, "bbl_bed_pc_left.svg");
-                darkmoon_part2 = BedTextureInfo::TexturePart(74, -10, 148, 12, "bbl_bed_pc_bottom.svg");
-                break;
-            case BedType::btDarkmoonIce:
-                // Ice uses a different pattern, keep cool plate for now  
-                darkmoon_part1 = BedTextureInfo::TexturePart(10, 52, 8.393f, 192, "bbl_bed_pc_left.svg");
-                darkmoon_part2 = BedTextureInfo::TexturePart(74, -10, 148, 12, "bbl_bed_pc_bottom.svg");
-                break;
-            case BedType::btDarkmoonLux:
-                // Lux uses a different pattern, keep cool plate for now
-                darkmoon_part1 = BedTextureInfo::TexturePart(10, 52, 8.393f, 192, "bbl_bed_pc_left.svg");
-                darkmoon_part2 = BedTextureInfo::TexturePart(74, -10, 148, 12, "bbl_bed_pc_bottom.svg");
-                break;
-            case BedType::btDarkmoonCFX:
-                // CFX uses a different pattern, keep cool plate for now
-                darkmoon_part1 = BedTextureInfo::TexturePart(10, 52, 8.393f, 192, "bbl_bed_pc_left.svg");
-                darkmoon_part2 = BedTextureInfo::TexturePart(74, -10, 148, 12, "bbl_bed_pc_bottom.svg");
-                break;
-            case BedType::btDarkmoonSatin:
-                // Satin uses the bed_satin.svg file
-                darkmoon_part1 = BedTextureInfo::TexturePart(10, 52, 8.393f, 192, "bed_satin.svg");
-                darkmoon_part2 = BedTextureInfo::TexturePart(74, -10, 148, 12, "bed_satin.svg");
-                break;
-            default:
-                // Fallback to cool plate parts
-                darkmoon_part1 = pc_part1;
-                darkmoon_part2 = pc_part2;
-                break;
-        }
+        BedTextureInfo::TexturePart darkmoon_part1(texture_parts.first.x, texture_parts.first.y, 
+                                                    texture_parts.first.w, texture_parts.first.h, 
+                                                    texture_parts.first.filename);
+        BedTextureInfo::TexturePart darkmoon_part2(texture_parts.second.x, texture_parts.second.y, 
+                                                    texture_parts.second.w, texture_parts.second.h, 
+                                                    texture_parts.second.filename);
         
         bed_texture_info[plate.bed_type].parts.push_back(darkmoon_part1);
         bed_texture_info[plate.bed_type].parts.push_back(darkmoon_part2);

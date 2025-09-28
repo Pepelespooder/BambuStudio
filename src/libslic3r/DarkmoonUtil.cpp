@@ -263,6 +263,48 @@ void append_darkmoon_bed_thumbnails(std::map<BedType, std::string> &thumbnails)
         thumbnails.emplace(plate.bed_type, plate.thumbnail_key);
 }
 
+std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture_parts(BedType bed_type)
+{
+    // Default fallback parts (Cool Plate style)
+    DarkmoonTexturePartInfo part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
+    DarkmoonTexturePartInfo part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+    
+    switch (bed_type) {
+        case BedType::btDarkmoonG10:
+            // G10 uses Cool Plate style for now
+            part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
+            part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+            break;
+        case BedType::btDarkmoonIce:
+            // Ice uses Cool Plate style for now
+            part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
+            part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+            break;
+        case BedType::btDarkmoonLux:
+            // Lux uses Cool Plate style for now
+            part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
+            part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+            break;
+        case BedType::btDarkmoonCFX:
+            // CFX uses Cool Plate style for now
+            part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
+            part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+            break;
+        case BedType::btDarkmoonSatin:
+            // Satin uses the bed_satin.svg file
+            part1 = {10, 52, 8.393f, 192, "bed_satin.svg"};
+            part2 = {74, -10, 148, 12, "bed_satin.svg"};
+            break;
+        default:
+            // Fallback to Cool Plate parts
+            part1 = {10, 52, 8.393f, 192, "bbl_bed_pc_left.svg"};
+            part2 = {74, -10, 148, 12, "bbl_bed_pc_bottom.svg"};
+            break;
+    }
+    
+    return std::make_pair(part1, part2);
+}
+
 int default_g10_temperature(const std::string &filament_type_raw)
 {
     auto tokens = tokenize_filament(filament_type_raw);
