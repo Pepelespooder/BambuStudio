@@ -139,7 +139,8 @@ int default_lux_temperature(const std::string &filament_type_raw)
     if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA"))
         return 110;
 
-    return -1;
+    // Materials not listed are not recommended on Lux; use 0°C to flag unsupported.
+    return 0;
 }
 
 } // namespace
@@ -290,7 +291,8 @@ int default_ice_temperature(const std::string &filament_type_raw)
     if (has_token(tokens, "PETG") || has_token(tokens, "PCTG"))
         return 45;
 
-    return -1;
+    // Materials not listed are not recommended on Ice; use 0°C to flag unsupported.
+    return 0;
 }
 
 int default_cfx_temperature(const std::string &filament_type_raw)
@@ -316,7 +318,8 @@ int default_cfx_temperature(const std::string &filament_type_raw)
     if (is_token_pp(tokens))
         return 85;
 
-    return -1;
+    // Materials not listed are not recommended on CFX; use 0°C to flag unsupported.
+    return 0;
 }
 
 int default_satin_temperature(const std::string &filament_type_raw)
@@ -343,7 +346,8 @@ int default_satin_temperature(const std::string &filament_type_raw)
     if (has_token(tokens, "PPS"))
         return 105;
 
-    return -1;
+    // Materials not listed are not recommended on Satin; use 0°C to flag unsupported.
+    return 0;
 }
 
 std::optional<int> default_darkmoon_temperature(const DarkmoonPlateInfo &plate, const std::string &filament_type_raw)
@@ -351,30 +355,14 @@ std::optional<int> default_darkmoon_temperature(const DarkmoonPlateInfo &plate, 
     switch (plate.kind) {
     case DarkmoonPlateKind::G10:
         return default_g10_temperature(filament_type_raw);
-    case DarkmoonPlateKind::Ice: {
-        int value = default_ice_temperature(filament_type_raw);
-        if (value < 0)
-            return std::nullopt;
-        return value;
-    }
-    case DarkmoonPlateKind::Lux: {
-        int value = default_lux_temperature(filament_type_raw);
-        if (value < 0)
-            return std::nullopt;
-        return value;
-    }
-    case DarkmoonPlateKind::CFX: {
-        int value = default_cfx_temperature(filament_type_raw);
-        if (value < 0)
-            return std::nullopt;
-        return value;
-    }
-    case DarkmoonPlateKind::Satin: {
-        int value = default_satin_temperature(filament_type_raw);
-        if (value < 0)
-            return std::nullopt;
-        return value;
-    }
+    case DarkmoonPlateKind::Ice:
+        return default_ice_temperature(filament_type_raw);
+    case DarkmoonPlateKind::Lux:
+        return default_lux_temperature(filament_type_raw);
+    case DarkmoonPlateKind::CFX:
+        return default_cfx_temperature(filament_type_raw);
+    case DarkmoonPlateKind::Satin:
+        return default_satin_temperature(filament_type_raw);
     default:
         return std::nullopt;
     }
