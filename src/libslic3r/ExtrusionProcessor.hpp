@@ -13,8 +13,8 @@
 #include "BoundingBox.hpp"
 #include "Polygon.hpp"
 #include "ClipperUtils.hpp"
-#include "../Flow.hpp"
-#include "../Config.hpp"
+#include "Flow.hpp"
+#include "Config.hpp"
 
 #include <algorithm>
 #include <cmath>
