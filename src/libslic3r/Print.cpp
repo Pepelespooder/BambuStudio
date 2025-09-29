@@ -12,7 +12,6 @@
 #include "Thread.hpp"
 #include "GCode.hpp"
 #include "GCode/WipeTower.hpp"
-#include "GCode/WipeTower2.hpp"
 #include "Utils.hpp"
 #include "PrintConfig.hpp"
 #include "Model.hpp"
