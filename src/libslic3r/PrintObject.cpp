@@ -766,6 +766,25 @@ void PrintObject::generate_support_material()
     }
 }
 
+void PrintObject::estimate_curled_extrusions()
+{
+    if (this->set_started(posEstimateCurledExtrusions)) {
+        if (std::any_of(this->print()->m_print_regions.begin(), this->print()->m_print_regions.end(),
+                        [](const PrintRegion *region) { return region->config().enable_overhang_speed.getBool(); })) {
+
+            // Estimate curling of support material and add it to the malformaition lines of each layer
+            float support_flow_width = support_material_flow(this, this->config().layer_height).width();
+            SupportSpotsGenerator::Params params{this->print()->m_config.filament_type.values,
+                                                 float(this->print()->m_config.inner_wall_acceleration.getFloat()),
+                                                 this->config().raft_layers.getInt(), this->config().brim_type.value,
+                                                 float(this->config().brim_width.getFloat())};
+            SupportSpotsGenerator::estimate_malformations(this->layers(), params);
+            m_print->throw_if_canceled();
+        }
+        this->set_done(posEstimateCurledExtrusions);
+    }
+}
+
 void PrintObject::simplify_extrusion_path()
 {
     if (this->set_started(posSimplifyWall)) {
@@ -1158,6 +1177,7 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "precise_outer_wall") {
             steps.emplace_back(posPerimeters);
             steps.emplace_back(posSupportMaterial);
+            steps.emplace_back(posEstimateCurledExtrusions);
         } else if (opt_key == "bridge_flow") {
             if (m_config.support_top_z_distance > 0.) {
             	// Only invalidate due to bridging if bridging is enabled.
@@ -1237,19 +1257,21 @@ bool PrintObject::invalidate_step(PrintObjectStep step)
 
     // propagate to dependent steps
     if (step == posPerimeters) {
-		invalidated |= this->invalidate_steps({ posPrepareInfill, posInfill, posIroning, posSimplifyWall, posSimplifyInfill });
+		invalidated |= this->invalidate_steps({ posEstimateCurledExtrusions, posPrepareInfill, posInfill, posIroning, posSimplifyWall, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
+    } else if (step == posEstimateCurledExtrusions) {
+        invalidated |= this->invalidate_steps({ posPrepareInfill, posInfill, posIroning, posSimplifyWall, posSimplifyInfill });
     } else if (step == posPrepareInfill) {
         invalidated |= this->invalidate_steps({ posInfill, posIroning, posSimplifyWall, posSimplifyInfill });
     } else if (step == posInfill) {
         invalidated |= this->invalidate_steps({ posIroning, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
     } else if (step == posSlice) {
-		invalidated |= this->invalidate_steps({ posPerimeters, posPrepareInfill, posInfill, posIroning, posSupportMaterial, posSimplifyWall, posSimplifyInfill });
+		invalidated |= this->invalidate_steps({ posPerimeters, posEstimateCurledExtrusions, posPrepareInfill, posInfill, posIroning, posSupportMaterial, posSimplifyWall, posSimplifyInfill });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
         m_slicing_params.valid = false;
     } else if (step == posSupportMaterial) {
-        invalidated |= this->invalidate_steps({ posSimplifySupportPath });
+        invalidated |= this->invalidate_steps({ posEstimateCurledExtrusions, posSimplifySupportPath });
         invalidated |= m_print->invalidate_steps({ psSkirtBrim });
         m_slicing_params.valid = false;
     }

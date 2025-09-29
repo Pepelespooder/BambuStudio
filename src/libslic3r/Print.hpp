@@ -96,7 +96,7 @@ enum PrintStep {
 };
 
 enum PrintObjectStep {
-    posSlice, posPerimeters, posPrepareInfill,
+    posSlice, posPerimeters, posEstimateCurledExtrusions, posPrepareInfill,
     posInfill, posIroning, posSupportMaterial,
     // BBS
     posDetectOverhangsForLift,
@@ -546,6 +546,7 @@ private:
     void infill();
     void ironing();
     void generate_support_material();
+    void estimate_curled_extrusions();
     void simplify_extrusion_path();
 
     /**
