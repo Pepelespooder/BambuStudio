@@ -5089,6 +5089,34 @@ void PrinterInfoBox::UpdatePlate(const std::string& plate_name)
             name = _L("Cool(Supertack)");
             m_bed_image->SetBitmap(create_scaled_bitmap("bed_cool_supertack", this, 32));
         }
+        else {
+            // Try to match Darkmoon plate types using DarkmoonUtil
+            std::string thumbnail_key = get_darkmoon_bed_thumbnail_by_name(plate_name);
+            if (!thumbnail_key.empty()) {
+                // Extract display name from plate_name for Darkmoon plates
+                if (plate_name.find("Darkmoon") != std::string::npos) {
+                    std::string plate_type = plate_name;
+                    // Remove "Darkmoon " prefix if present
+                    size_t pos = plate_type.find("Darkmoon ");
+                    if (pos == 0) {
+                        plate_type = plate_type.substr(9); // Length of "Darkmoon "
+                    }
+                    // Remove " Garolite" suffix for G10
+                    pos = plate_type.find(" Garolite");
+                    if (pos != std::string::npos) {
+                        plate_type = plate_type.substr(0, pos);
+                    }
+                    name = _L(plate_type);
+                } else {
+                    name = _L(plate_name);
+                }
+                m_bed_image->SetBitmap(create_scaled_bitmap(thumbnail_key, this, 32));
+            } else {
+                // No Darkmoon match found, set a default name and fallback image to avoid crash
+                name = _L(plate_name);
+                m_bed_image->SetBitmap(create_scaled_bitmap("bed_high_templ", this, 32));
+            }
+        }
 
         if (name.length() > 8) {
             m_text_bed_type->SetFont(Label::Body_9);

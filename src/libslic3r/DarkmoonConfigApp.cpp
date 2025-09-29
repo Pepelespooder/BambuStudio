@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <fstream>
 #include <sstream>
+#include <boost/log/trivial.hpp>
 
 namespace Slic3r {
 
@@ -26,8 +27,7 @@ bool DarkmoonConfigApp::apply_dynamic_config(DynamicPrintConfig &config,
         return false; // Cannot determine filament type
     }
 
-    // Use the existing ensure_darkmoon_bed_temps function which already handles
-    // the logic properly, but make sure we have the correct filament type set
+    // Ensure the correct filament type is set for dynamic temperature calculation
     if (filament_type.empty()) {
         // Set the filament type in the config if it wasn't provided
         auto filament_types = config.option<ConfigOptionStrings>("filament_type", true);
@@ -37,11 +37,24 @@ bool DarkmoonConfigApp::apply_dynamic_config(DynamicPrintConfig &config,
         }
     }
 
-    // The ensure_darkmoon_bed_temps function in DarkmoonUtil.cpp already does
-    // the heavy lifting of calculating appropriate temperatures based on filament types
-    ensure_darkmoon_bed_temps(config, extruder_count);
+    // Use the dynamic darkmoon bed temps function which always applies calculated values
+    // over any existing hardcoded values, ensuring the most up-to-date temperature calculations
+    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: Before apply_dynamic_darkmoon_bed_temps";
+    apply_dynamic_darkmoon_bed_temps(config, extruder_count);
+    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: After apply_dynamic_darkmoon_bed_temps";
 
     return true;
+}
+
+bool DarkmoonConfigApp::apply_dynamic_config_if_missing(DynamicPrintConfig &config,
+                                                        const std::string &filament_type,
+                                                        size_t extruder_count,
+                                                        const DynamicPrintConfig *printer_config)
+{
+    if (!has_missing_darkmoon_temperatures(config))
+        return false;
+
+    return apply_dynamic_config(config, filament_type, extruder_count, printer_config);
 }
 
 std::map<std::string, std::vector<int>> DarkmoonConfigApp::generate_darkmoon_temperatures(

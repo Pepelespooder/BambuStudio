@@ -7,6 +7,7 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "libslic3r/DarkmoonUtil.hpp"
+#include "libslic3r/DarkmoonConfigApp.hpp"
 
 #include "Search.hpp"
 #include "OG_CustomCtrl.hpp"
@@ -603,6 +604,18 @@ void Tab::load_initial_data()
     m_bmp_non_system = has_parent ? &m_bmp_value_unlock : &m_bmp_white_bullet;
     m_ttg_non_system = has_parent ? &m_ttg_value_unlock : &m_ttg_white_bullet_ns;
     m_tt_non_system  = has_parent ? &m_tt_value_unlock  : &m_ttg_white_bullet_ns;
+
+    if (dynamic_cast<TabFilament *>(this) != nullptr && m_preset_bundle != nullptr && m_presets != nullptr && m_config != nullptr) {
+        const DynamicPrintConfig &printer_config = m_preset_bundle->printers.get_edited_preset().config;
+        size_t extruder_count = 1;
+        if (const auto *nozzle_opt = printer_config.opt<ConfigOptionFloatsNullable>("nozzle_diameter")) {
+            if (!nozzle_opt->values.empty())
+                extruder_count = nozzle_opt->values.size();
+        }
+
+        if (DarkmoonConfigApp::apply_dynamic_config_if_missing(*m_config, "", extruder_count, &printer_config))
+            m_presets->update_saved_preset_from_current_preset();
+    }
 }
 
 Slic3r::GUI::PageShp Tab::add_options_page(const wxString& title, const std::string& icon, bool is_extruder_pages /*= false*/)

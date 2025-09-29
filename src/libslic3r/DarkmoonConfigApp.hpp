@@ -32,6 +32,15 @@ public:
                                    const DynamicPrintConfig *printer_config = nullptr);
 
     /**
+     * Apply dynamic configuration only if darkmoon temperatures are missing or placeholders
+     * Returns true when an update was performed.
+     */
+    static bool apply_dynamic_config_if_missing(DynamicPrintConfig &config,
+                                                const std::string &filament_type = "",
+                                                size_t extruder_count = 1,
+                                                const DynamicPrintConfig *printer_config = nullptr);
+
+    /**
      * Generate darkmoon temperature configuration for a specific filament type
      * Returns a map of darkmoon temperature keys to their appropriate values
      */
