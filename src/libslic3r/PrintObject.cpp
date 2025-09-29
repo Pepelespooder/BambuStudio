@@ -7,9 +7,10 @@
 #include "I18N.hpp"
 #include "Layer.hpp"
 #include "MutablePolygon.hpp"
-#include "Support/SupportMaterial.hpp"
-#include "Support/TreeSupport.hpp"
+#include "PrintConfig.hpp"
+#include "SupportMaterial.hpp"
 #include "SupportSpotsGenerator.hpp"
+#include "Support/TreeSupport.hpp"
 #include "Surface.hpp"
 #include "Slicing.hpp"
 #include "Tesselate.hpp"
@@ -19,7 +20,7 @@
 #include "Fill/FillLightning.hpp"
 #include "Format/STL.hpp"
 #include "InternalBridgeDetector.hpp"
-#include "AABBTreeLines.hpp"
+#include "TreeSupport.hpp"
 
 #include <float.h>
 #include <string_view>
