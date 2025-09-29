@@ -5,16 +5,16 @@
 
 #include "AABBTreeLines.hpp"
 //#include "../SupportSpotsGenerator.hpp"
-#include "../libslic3r.h"
-#include "../ExtrusionEntity.hpp"
-#include "../Layer.hpp"
-#include "../Point.hpp"
-#include "../SVG.hpp"
-#include "../BoundingBox.hpp"
-#include "../Polygon.hpp"
-#include "../ClipperUtils.hpp"
-#include "../Flow.hpp"
-#include "../Config.hpp"
+#include "libslic3r.h"
+#include "ExtrusionEntity.hpp"
+#include "Layer.hpp"
+#include "Point.hpp"
+#include "SVG.hpp"
+#include "BoundingBox.hpp"
+#include "Polygon.hpp"
+#include "ClipperUtils.hpp"
+#include "Flow.hpp"
+#include "Config.hpp"
 
 #include <algorithm>
 #include <cmath>
