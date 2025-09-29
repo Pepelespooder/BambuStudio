@@ -7,6 +7,8 @@
 #include "ExtrusionEntityCollection.hpp"
 #include "BoundingBox.hpp"
 #include "Line.hpp"
+#include "PrintConfig.hpp"
+#include "RegionExpansion.hpp"
 
 namespace Slic3r {
 
