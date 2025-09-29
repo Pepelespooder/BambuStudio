@@ -4,7 +4,6 @@
 #include "Widgets/Label.hpp"
 #include "MsgDialog.hpp"
 #include "libslic3r/Print.hpp"
-#include "libslic3r/DarkmoonUtil.hpp"
 #include "BBLUtil.hpp"
 
 #include "DeviceCore/DevConfig.h"
@@ -1550,12 +1549,7 @@ bool CalibrationPresetPage::is_filaments_compatiable(const std::map<int, Preset*
 
         // update bed temperature
         BedType curr_bed_type = BedType(m_displayed_bed_types[m_comboBox_bed_type->GetSelection()]);
-        
-        // Create a mutable copy of the config to apply dynamic Darkmoon temperatures
-        DynamicPrintConfig temp_config = item_preset->config;
-        apply_dynamic_darkmoon_bed_temps(temp_config, 1);
-        
-        const ConfigOptionInts *opt_bed_temp_ints = temp_config.option<ConfigOptionInts>(get_bed_temp_key(curr_bed_type));
+        const ConfigOptionInts *opt_bed_temp_ints = item_preset->config.option<ConfigOptionInts>(get_bed_temp_key(curr_bed_type));
         int bed_temp_int = 0;
         if (opt_bed_temp_ints) {
             bed_temp_int = opt_bed_temp_ints->get_at(0);
