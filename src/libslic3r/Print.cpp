@@ -355,6 +355,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
             || opt_key == "seam_slope_gap"
             || opt_key == "seam_slope_min_length") {
             osteps.emplace_back(posPerimeters);
+            osteps.emplace_back(posEstimateCurledExtrusions);
             osteps.emplace_back(posInfill);
             osteps.emplace_back(posSupportMaterial);
             osteps.emplace_back(posSimplifyWall);
@@ -1903,6 +1904,15 @@ void Print::process(std::unordered_map<std::string, long long>* slice_time, bool
                     obj->set_done(posPerimeters);
             }
         }
+        for (PrintObject* obj : m_objects) {
+            if (need_slicing_objects.count(obj) != 0) {
+                obj->estimate_curled_extrusions();
+            }
+            else {
+                if (obj->set_started(posEstimateCurledExtrusions))
+                    obj->set_done(posEstimateCurledExtrusions);
+            }
+        }
 
         if (slice_time) {
             end_time = (long long)Slic3r::Utils::get_current_milliseconds_time_utc();
@@ -1978,6 +1988,8 @@ void Print::process(std::unordered_map<std::string, long long>* slice_time, bool
                     obj->set_done(posSlice);
                 if (obj->set_started(posPerimeters))
                     obj->set_done(posPerimeters);
+                if (obj->set_started(posEstimateCurledExtrusions))
+                    obj->set_done(posEstimateCurledExtrusions);
                 if (obj->set_started(posPrepareInfill))
                     obj->set_done(posPrepareInfill);
                 if (obj->set_started(posInfill))
@@ -1991,6 +2003,7 @@ void Print::process(std::unordered_map<std::string, long long>* slice_time, bool
             }
             else {
                 obj->make_perimeters();
+                obj->estimate_curled_extrusions();
                 obj->infill();
                 obj->ironing();
                 obj->generate_support_material();

@@ -1040,7 +1040,8 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "support_top_z_distance"
             || opt_key == "support_bottom_z_distance"
             || opt_key == "xy_hole_compensation"
-            || opt_key == "xy_contour_compensation") {
+            || opt_key == "xy_contour_compensation"
+            || opt_key == "slowdown_for_curled_perimeters") {
             steps.emplace_back(posSlice);
         } else if (opt_key == "enable_support") {
             steps.emplace_back(posSupportMaterial);
