@@ -10,6 +10,7 @@
 #include "ShortestPath.hpp"
 #include "Support/SupportMaterial.hpp"
 #include "Thread.hpp"
+#include "Time.hpp"
 #include "GCode.hpp"
 #include "GCode/WipeTower.hpp"
 #include "Utils.hpp"
