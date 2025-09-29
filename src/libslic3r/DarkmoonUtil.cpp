@@ -516,48 +516,40 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
     if (filament_types.size() < extruder_count)
         filament_types.resize(extruder_count, filament_types.back());
 
-    auto is_placeholder = [](const ConfigOptionInts *opt) {
-        return opt != nullptr && !opt->values.empty() &&
-               std::all_of(opt->values.begin(), opt->values.end(), [](int v) {
-                   return v == kDarkmoonPlaceholderTemp;
-               });
-    };
-
     for (const DarkmoonMapping &mapping : mappings) {
         ConfigOptionInts *dm_opt = config.option<ConfigOptionInts>(mapping.darkmoon_key, true);
 
-        std::vector<int> values;
-        bool have_chart_values = false;
+        // Only replace values if they are missing/empty or wrong size
+        // Don't treat any specific temperature value as a "placeholder"
+        bool need_replacement = dm_opt->values.empty() || dm_opt->values.size() < extruder_count;
+        
+        if (need_replacement) {
+            std::vector<int> values;
 
-        if (const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(mapping.darkmoon_key)) {
-            if (auto chart_values = default_darkmoon_temperatures(*plate, filament_types)) {
-                values = std::move(*chart_values);
-                have_chart_values = true;
+            // Try to get calculated values from temperature lookup table
+            if (const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(mapping.darkmoon_key)) {
+                if (auto chart_values = default_darkmoon_temperatures(*plate, filament_types)) {
+                    values = std::move(*chart_values);
+                }
             }
-        }
 
-        if (!have_chart_values) {
-            // Only fall back to existing values if dynamic calculation failed
-            bool need_fallback = dm_opt->values.empty() || is_placeholder(dm_opt) || dm_opt->values.size() < extruder_count;
-            if (!need_fallback) {
-                values = dm_opt->values;
-            } else if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty()) {
-                values.assign(fallback->values.begin(), fallback->values.end());
-            } else {
-                values.assign(extruder_count, 0);
+            // If lookup table calculation failed, fall back to standard plate temperatures
+            if (values.empty()) {
+                if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty()) {
+                    values.assign(fallback->values.begin(), fallback->values.end());
+                } else {
+                    values.assign(extruder_count, 0);
+                }
             }
+
+            // Ensure proper size
+            if (values.size() < extruder_count)
+                values.resize(extruder_count, values.back());
+            else if (values.size() > extruder_count)
+                values.resize(extruder_count);
+
+            dm_opt->values = std::move(values);
         }
-        // If have_chart_values is true, we already set values from dynamic calculation above
-
-        if (values.empty())
-            values.assign(extruder_count, 0);
-
-        if (values.size() < extruder_count)
-            values.resize(extruder_count, values.back());
-        else if (values.size() > extruder_count)
-            values.resize(extruder_count);
-
-        dm_opt->values = std::move(values);
     }
 }
 
@@ -565,224 +557,11 @@ void apply_dynamic_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extrude
 {
     BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: apply_dynamic_darkmoon_bed_temps called with extruder_count=" << extruder_count;
     
-    struct DarkmoonMapping {
-        const char *darkmoon_key;
-        const char *fallback_key;
-    };
-
-    static const DarkmoonMapping mappings[] = {
-        {"darkmoon_g10_plate_temp",                 "cool_plate_temp"},
-        {"darkmoon_g10_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
-        {"darkmoon_ice_plate_temp",                 "cool_plate_temp"},
-        {"darkmoon_ice_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
-        {"darkmoon_lux_plate_temp",                 "hot_plate_temp"},
-        {"darkmoon_lux_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
-        {"darkmoon_cfx_plate_temp",                 "hot_plate_temp"},
-        {"darkmoon_cfx_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
-        {"darkmoon_satin_plate_temp",               "hot_plate_temp"},
-        {"darkmoon_satin_plate_temp_initial_layer", "hot_plate_temp_initial_layer"}
-    };
-
-    extruder_count = std::max<size_t>(1, extruder_count);
-
-    std::vector<std::string> filament_types;
-    if (const auto *types_opt = config.opt<ConfigOptionStrings>("filament_type")) {
-        filament_types = types_opt->values;
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Found filament_type config with " << filament_types.size() << " entries";
-        for (size_t i = 0; i < filament_types.size(); ++i) {
-            BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: filament_type[" << i << "] = " << filament_types[i];
-        }
-    }
-    if (filament_types.empty()) {
-        filament_types.assign(extruder_count, "PLA");
-        BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: No filament_type found, defaulting to PLA for " << extruder_count << " extruders";
-    }
-    if (filament_types.size() < extruder_count)
-        filament_types.resize(extruder_count, filament_types.back());
-
-    for (const DarkmoonMapping &mapping : mappings) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Processing mapping for " << mapping.darkmoon_key;
-        
-        ConfigOptionInts *dm_opt = config.option<ConfigOptionInts>(mapping.darkmoon_key, true);
-
-        std::vector<int> values;
-        bool have_dynamic_values = false;
-
-        // Always try dynamic calculation first
-        if (const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(mapping.darkmoon_key)) {
-            BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Found plate info for " << mapping.darkmoon_key << ", plate: " << plate->display_name;
-            
-            if (auto chart_values = default_darkmoon_temperatures(*plate, filament_types)) {
-                values = std::move(*chart_values);
-                have_dynamic_values = true;
-                BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Dynamic calculation SUCCESS for " << mapping.darkmoon_key << ", calculated " << values.size() << " values";
-                for (size_t i = 0; i < values.size(); ++i) {
-                    BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: " << mapping.darkmoon_key << "[" << i << "] = " << values[i] << "°C";
-                }
-            } else {
-                BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: Dynamic calculation FAILED for " << mapping.darkmoon_key << " - default_darkmoon_temperatures returned nullopt";
-            }
-        } else {
-            BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: No plate info found for " << mapping.darkmoon_key;
-        }
-
-        // Only use fallback if dynamic calculation completely failed
-        if (!have_dynamic_values) {
-            BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: Using fallback values for " << mapping.darkmoon_key;
-            
-            if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty()) {
-                values.assign(fallback->values.begin(), fallback->values.end());
-                BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Using fallback from " << mapping.fallback_key << " with " << values.size() << " values";
-                for (size_t i = 0; i < values.size(); ++i) {
-                    BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: fallback " << mapping.darkmoon_key << "[" << i << "] = " << values[i] << "°C";
-                }
-            } else {
-                values.assign(extruder_count, 0);
-                BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: No fallback available for " << mapping.darkmoon_key << ", using 0°C for all " << extruder_count << " extruders";
-            }
-        }
-
-        if (values.empty())
-            values.assign(extruder_count, 0);
-
-        if (values.size() < extruder_count)
-            values.resize(extruder_count, values.back());
-        else if (values.size() > extruder_count)
-            values.resize(extruder_count);
-
-        // Log the final values being set
-        BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Setting " << mapping.darkmoon_key << " to " << values.size() << " values";
-        for (size_t i = 0; i < values.size(); ++i) {
-            BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: FINAL " << mapping.darkmoon_key << "[" << i << "] = " << values[i] << "°C";
-        }
-        
-        dm_opt->values = std::move(values);
-        
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Successfully applied values for " << mapping.darkmoon_key;
-    }
+    // Use the same conservative logic as ensure_darkmoon_bed_temps
+    // Only replace missing/empty values, not user-set values
+    ensure_darkmoon_bed_temps(config, extruder_count);
     
     BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: apply_dynamic_darkmoon_bed_temps completed for all mappings";
-}
-
-void apply_dynamic_darkmoon_bed_temps_if_not_user_modified(DynamicPrintConfig &config, size_t extruder_count)
-{
-    BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: apply_dynamic_darkmoon_bed_temps_if_not_user_modified called with extruder_count=" << extruder_count;
-    
-    struct DarkmoonMapping {
-        const char *darkmoon_key;
-        const char *fallback_key;
-    };
-
-    static const DarkmoonMapping mappings[] = {
-        {"darkmoon_g10_plate_temp",                 "cool_plate_temp"},
-        {"darkmoon_g10_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
-        {"darkmoon_ice_plate_temp",                 "cool_plate_temp"},
-        {"darkmoon_ice_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
-        {"darkmoon_lux_plate_temp",                 "hot_plate_temp"},
-        {"darkmoon_lux_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
-        {"darkmoon_cfx_plate_temp",                 "hot_plate_temp"},
-        {"darkmoon_cfx_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
-        {"darkmoon_satin_plate_temp",               "hot_plate_temp"},
-        {"darkmoon_satin_plate_temp_initial_layer", "hot_plate_temp_initial_layer"}
-    };
-
-    extruder_count = std::max<size_t>(1, extruder_count);
-
-    std::vector<std::string> filament_types;
-    if (const auto *types_opt = config.opt<ConfigOptionStrings>("filament_type")) {
-        filament_types = types_opt->values;
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Found filament_type config with " << filament_types.size() << " entries";
-    }
-    if (filament_types.empty()) {
-        filament_types.assign(extruder_count, "PLA");
-        BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: No filament_type found, defaulting to PLA for " << extruder_count << " extruders";
-    }
-    if (filament_types.size() < extruder_count)
-        filament_types.resize(extruder_count, filament_types.back());
-
-    auto is_placeholder = [](const ConfigOptionInts *opt) {
-        return opt != nullptr && !opt->values.empty() &&
-               std::all_of(opt->values.begin(), opt->values.end(), [](int v) {
-                   return v == kDarkmoonPlaceholderTemp;
-               });
-    };
-
-    auto is_missing_or_placeholder = [&is_placeholder](const ConfigOptionInts *opt, size_t expected_size) {
-        return opt == nullptr || opt->values.empty() || 
-               opt->values.size() < expected_size ||
-               is_placeholder(opt);
-    };
-
-    for (const DarkmoonMapping &mapping : mappings) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Processing mapping for " << mapping.darkmoon_key;
-        
-        ConfigOptionInts *dm_opt = config.option<ConfigOptionInts>(mapping.darkmoon_key, true);
-
-        // Only apply dynamic values if:
-        // 1. Values are missing or empty
-        // 2. Values are placeholder values (45°C)
-        // 3. Values don't match the expected extruder count
-        if (!is_missing_or_placeholder(dm_opt, extruder_count)) {
-            BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Skipping " << mapping.darkmoon_key 
-                                   << " - appears to be user-modified (has " << dm_opt->values.size() 
-                                   << " non-placeholder values)";
-            continue;
-        }
-
-        std::vector<int> values;
-        bool have_dynamic_values = false;
-
-        // Try dynamic calculation first
-        if (const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(mapping.darkmoon_key)) {
-            BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Found plate info for " << mapping.darkmoon_key << ", plate: " << plate->display_name;
-            
-            if (auto chart_values = default_darkmoon_temperatures(*plate, filament_types)) {
-                values = std::move(*chart_values);
-                have_dynamic_values = true;
-                BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Dynamic calculation SUCCESS for " << mapping.darkmoon_key << ", calculated " << values.size() << " values";
-                for (size_t i = 0; i < values.size(); ++i) {
-                    BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: " << mapping.darkmoon_key << "[" << i << "] = " << values[i] << "°C";
-                }
-            } else {
-                BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: Dynamic calculation FAILED for " << mapping.darkmoon_key << " - default_darkmoon_temperatures returned nullopt";
-            }
-        } else {
-            BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: No plate info found for " << mapping.darkmoon_key;
-        }
-
-        // Only use fallback if dynamic calculation completely failed
-        if (!have_dynamic_values) {
-            BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: Using fallback values for " << mapping.darkmoon_key;
-            
-            if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty()) {
-                values.assign(fallback->values.begin(), fallback->values.end());
-                BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Using fallback from " << mapping.fallback_key << " with " << values.size() << " values";
-            } else {
-                values.assign(extruder_count, 0);
-                BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: No fallback available for " << mapping.darkmoon_key << ", using 0°C for all " << extruder_count << " extruders";
-            }
-        }
-
-        if (values.empty())
-            values.assign(extruder_count, 0);
-
-        if (values.size() < extruder_count)
-            values.resize(extruder_count, values.back());
-        else if (values.size() > extruder_count)
-            values.resize(extruder_count);
-
-        // Log the final values being set
-        BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Setting " << mapping.darkmoon_key << " to " << values.size() << " values";
-        for (size_t i = 0; i < values.size(); ++i) {
-            BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: FINAL " << mapping.darkmoon_key << "[" << i << "] = " << values[i] << "°C";
-        }
-        
-        dm_opt->values = std::move(values);
-        
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Successfully applied values for " << mapping.darkmoon_key;
-    }
-    
-    BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: apply_dynamic_darkmoon_bed_temps_if_not_user_modified completed for all mappings";
 }
 
 } // namespace Slic3r
