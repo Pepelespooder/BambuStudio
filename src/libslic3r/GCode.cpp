@@ -3747,7 +3747,7 @@ GCode::LayerResult GCode::process_layer(
     m_config.apply(layer.object()->config(), true);
 
     // Prepare extrusion quality estimator for curled perimeter processing
-    if (m_config.enable_overhang_speed && !m_config.overhang_speed_classic) {
+    if (m_config.enable_overhang_speed && m_config.slowdown_for_curled_perimeters) {
         for (const auto &layer_to_print : layers) {
             m_extrusion_quality_estimator.prepare_for_new_layer(layer_to_print.original_object,
                                                                 layer_to_print.object_layer);
@@ -4514,7 +4514,7 @@ GCode::LayerResult GCode::process_layer(
                     this->set_origin(unscale(offset));
                     
                     // Set current object for extrusion quality estimator
-                    if (m_config.enable_overhang_speed && !m_config.overhang_speed_classic)
+                    if (m_config.enable_overhang_speed && m_config.slowdown_for_curled_perimeters)
                         m_extrusion_quality_estimator.set_current_object(&instance_to_print.print_object);
                         
                     //FIXME the following code prints regions in the order they are defined, the path is not optimized in any way.
@@ -5946,7 +5946,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     // Process path with extrusion quality estimator for overhang and curled perimeter slowdown
     std::vector<ProcessedPoint> new_points;
     bool variable_speed = false;
-    if (m_config.enable_overhang_speed && !m_config.overhang_speed_classic && !this->on_first_layer() &&
+    if (m_config.enable_overhang_speed && m_config.slowdown_for_curled_perimeters && !this->on_first_layer() &&
         (path.role() == erPerimeter || path.role() == erExternalPerimeter)) {
         
         double ref_speed = (path.role() == erExternalPerimeter) ? 
