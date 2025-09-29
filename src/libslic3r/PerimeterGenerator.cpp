@@ -8,6 +8,7 @@
 #include "Arachne/WallToolPaths.hpp"
 #include "Line.hpp"
 #include "Layer.hpp"
+#include "Print.hpp"
 #include <cmath>
 #include <cassert>
 #include <random>
