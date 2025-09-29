@@ -168,12 +168,6 @@
         "100000",
         "100000"
     ],
-    "slowdown_for_curled_perimeters": [
-        "0",
-        "0",
-        "0",
-        "0"
-    ],
     "small_perimeter_speed": [
         "50%",
         "50%",

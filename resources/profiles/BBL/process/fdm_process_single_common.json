@@ -73,9 +73,6 @@
     "slowdown_end_acc": [
         "100000"
     ],
-    "slowdown_for_curled_perimeters": [
-        "0"
-    ],
     "small_perimeter_speed": [
         "50%"
     ],
