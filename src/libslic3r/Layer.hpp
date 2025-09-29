@@ -21,14 +21,6 @@ class PrintObject;
 struct PerimeterRegion;
 using PerimeterRegions = std::vector<PerimeterRegion>;
 
-struct CurledLine
-{
-    Point a, b;
-    float curled_height;
-};
-
-using CurledLines = std::vector<CurledLine>;
-
 namespace FillAdaptive {
     struct Octree;
 };
