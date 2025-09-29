@@ -1018,6 +1018,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatsOrPercentsNullable, small_perimeter_speed))
     ((ConfigOptionFloatsNullable, small_perimeter_threshold))
     ((ConfigOptionFloatsOrPercentsNullable, vertical_shell_speed))
+    ((ConfigOptionBool, slowdown_for_curled_perimeters))
     ((ConfigOptionInt, top_color_penetration_layers))
     ((ConfigOptionInt, bottom_color_penetration_layers))
     //BBS

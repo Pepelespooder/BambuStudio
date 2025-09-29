@@ -34,7 +34,10 @@ static double random_value() {
 }
 
 // Detect if a polygon should be treated as a curled perimeter that needs slowdown
-static bool is_curled_perimeter(const Polygon &polygon, double perimeter_width) {
+static bool is_curled_perimeter(const Polygon &polygon, double perimeter_width, bool slowdown_enabled) {
+    // If the feature is disabled, don't detect curled perimeters
+    if (!slowdown_enabled) return false;
+    
     // Calculate basic metrics
     double perimeter_length = unscaled(polygon.length());
     double area = unscaled(unscaled(polygon.area()));
@@ -1275,12 +1278,12 @@ void PerimeterGenerator::process_classic()
                         // outer contour may overlap with itself.
                         //FIXME evaluate the overlaps, annotate each point with an overlap depth,
                         // compensate for the depth of intersection.
-                        bool is_curled = is_curled_perimeter(expolygon.contour, unscaled(ext_perimeter_width));
+                        bool is_curled = is_curled_perimeter(expolygon.contour, unscaled(ext_perimeter_width), this->config->slowdown_for_curled_perimeters);
                         contours[i].emplace_back(PerimeterGeneratorLoop(expolygon.contour, i, true, false, counter_circle_compensation, is_curled));
                         if (!expolygon.holes.empty()) {
                             holes[i].reserve(holes[i].size() + expolygon.holes.size());
                             for (const Polygon &hole : expolygon.holes) {
-                                bool hole_is_curled = is_curled_perimeter(hole, unscaled(ext_perimeter_width));
+                                bool hole_is_curled = is_curled_perimeter(hole, unscaled(ext_perimeter_width), this->config->slowdown_for_curled_perimeters);
                                 holes[i].emplace_back(PerimeterGeneratorLoop(hole, i, false, false, is_compensation_hole(hole), hole_is_curled));
                             }
                         }
@@ -1318,12 +1321,12 @@ void PerimeterGenerator::process_classic()
                         }
 
                         for (const ExPolygon& expolygon : offsets_with_smaller_width) {
-                            bool is_curled = is_curled_perimeter(expolygon.contour, unscaled(smaller_ext_perimeter_flow.scaled_width()));
+                            bool is_curled = is_curled_perimeter(expolygon.contour, unscaled(smaller_ext_perimeter_flow.scaled_width()), this->config->slowdown_for_curled_perimeters);
                             contours[i].emplace_back(PerimeterGeneratorLoop(expolygon.contour, i, true, true, counter_circle_compensation, is_curled));
                             if (!expolygon.holes.empty()) {
                                 holes[i].reserve(holes[i].size() + expolygon.holes.size());
                                 for (const Polygon& hole : expolygon.holes) {
-                                    bool hole_is_curled = is_curled_perimeter(hole, unscaled(smaller_ext_perimeter_flow.scaled_width()));
+                                    bool hole_is_curled = is_curled_perimeter(hole, unscaled(smaller_ext_perimeter_flow.scaled_width()), this->config->slowdown_for_curled_perimeters);
                                     holes[i].emplace_back(PerimeterGeneratorLoop(hole, i, false, true, is_compensation_hole(hole), hole_is_curled));
                                 }
                             }

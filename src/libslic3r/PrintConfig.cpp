@@ -1789,6 +1789,13 @@ void PrintConfigDef::init_fff_params()
     def->nullable = true;
     def->set_default_value(new ConfigOptionFloatsNullable{0});
 
+    def = this->add("slowdown_for_curled_perimeters", coBool);
+    def->label = L("Slowdown for curled perimeters");
+    def->category = L("Speed");
+    def->tooltip = L("Enable slow printing for small detailed features and complex shapes that are prone to curling and warping. This helps reduce warping on detailed features like text, logos, and intricate designs.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("wall_sequence", coEnum);
     def->label = L("Order of walls");
     def->category = L("Quality");
@@ -6269,6 +6276,7 @@ std::set<std::string> print_options_with_variant = {
     "inner_wall_speed",
     "small_perimeter_speed",  //coFloatsOrPercents
     "small_perimeter_threshold",
+    "slowdown_for_curled_perimeters",
     "sparse_infill_speed",
     "internal_solid_infill_speed",
     "vertical_shell_speed",
