@@ -20,7 +20,6 @@
 #include "Fill/FillLightning.hpp"
 #include "Format/STL.hpp"
 #include "InternalBridgeDetector.hpp"
-#include "TreeSupport.hpp"
 
 #include <float.h>
 #include <string_view>

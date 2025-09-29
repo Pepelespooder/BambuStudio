@@ -33,7 +33,7 @@ public:
     bool no_sort;
     std::pair<int, int> loop_node_range;
 
-    ExtrusionEntityCollection(): no_sort(false) {}
+    ExtrusionEntityCollection(): no_sort(false), loop_node_range(0, 0), is_reverse(true) {}
     ExtrusionEntityCollection(const ExtrusionEntityCollection &other) : no_sort(other.no_sort), is_reverse(other.is_reverse), loop_node_range(other.loop_node_range) { this->append(other.entities); }
     ExtrusionEntityCollection(ExtrusionEntityCollection &&other) : entities(std::move(other.entities)), no_sort(other.no_sort), is_reverse(other.is_reverse), loop_node_range(other.loop_node_range) {}
     explicit ExtrusionEntityCollection(const ExtrusionPaths &paths);
