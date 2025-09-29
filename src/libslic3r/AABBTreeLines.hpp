@@ -4,8 +4,8 @@
 #include "Point.hpp"
 #include "Utils.hpp"
 #include "libslic3r.h"
-#include "libslic3r/AABBTreeIndirect.hpp"
-#include "libslic3r/Line.hpp"
+#include "AABBTreeIndirect.hpp"
+#include "Line.hpp"
 #include <algorithm>
 #include <cmath>
 #include <type_traits>

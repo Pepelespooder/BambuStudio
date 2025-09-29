@@ -10,6 +10,10 @@
 
 namespace Slic3r {
 
+// Forward declarations  
+struct AutoContourHolesCompensationParams;
+namespace Algorithm { struct RegionExpansionParameters; }
+
 class ExPolygon;
 using ExPolygons = std::vector<ExPolygon>;
 class Layer;
