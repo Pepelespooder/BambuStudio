@@ -20,6 +20,7 @@
 #include "GCode/ThumbnailData.hpp"
 #include "libslic3r/ObjectID.hpp"
 #include "GCode/TimelapsePosPicker.hpp"
+#include "ExtrusionProcessor.hpp"
 
 #include <cfloat>
 #include <memory>
@@ -548,6 +549,9 @@ private:
 
     // Heights (print_z) at which the skirt has already been extruded.
     std::vector<coordf_t>               m_skirt_done;
+    
+    // Extrusion quality estimator for curled perimeter slowdown and overhang processing
+    ExtrusionQualityEstimator           m_extrusion_quality_estimator;
     // Has the brim been extruded already? Brim is being extruded only for the first object of a multi-object print.
     bool                                m_brim_done;
     // Flag indicating whether the nozzle temperature changes from 1st to 2nd layer were performed.
