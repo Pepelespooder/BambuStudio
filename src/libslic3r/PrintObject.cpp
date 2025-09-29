@@ -9,6 +9,7 @@
 #include "MutablePolygon.hpp"
 #include "Support/SupportMaterial.hpp"
 #include "Support/TreeSupport.hpp"
+#include "SupportSpotsGenerator.hpp"
 #include "Surface.hpp"
 #include "Slicing.hpp"
 #include "Tesselate.hpp"

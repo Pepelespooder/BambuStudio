@@ -88,6 +88,7 @@ set(lisbslic3r_sources
     ExtrusionEntity.hpp
     ExtrusionEntityCollection.cpp
     ExtrusionEntityCollection.hpp
+    ExtrusionProcessor.hpp
     ExtrusionSimulator.cpp
     ExtrusionSimulator.hpp
     FileParserError.hpp
@@ -318,6 +319,8 @@ set(lisbslic3r_sources
     Support/SupportCommon.hpp
     Support/SupportMaterial.cpp
     Support/SupportMaterial.hpp
+    SupportSpotsGenerator.cpp
+    SupportSpotsGenerator.hpp
     Support/TreeSupport.hpp
     Support/TreeSupport.cpp
     Support/TreeSupport3D.hpp
