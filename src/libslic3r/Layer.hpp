@@ -22,6 +22,14 @@ class PrintObject;
 struct PerimeterRegion;
 using PerimeterRegions = std::vector<PerimeterRegion>;
 
+struct CurledLine
+{
+    Point a, b;
+    float curled_height;
+};
+
+using CurledLines = std::vector<CurledLine>;
+
 namespace FillAdaptive {
     struct Octree;
 };
@@ -142,6 +150,9 @@ public:
     coordf_t            print_z;       // Z used for printing in unscaled coordinates
     coordf_t            height;        // layer height in unscaled coordinates
     coordf_t            bottom_z() const { return this->print_z - this->height; }
+
+    //Extrusions estimated to be seriously malformed, estimated during "Estimating curled extrusions" step. These lines should be avoided during fast travels.
+    CurledLines         curled_lines;
 
     // BBS
     mutable ExPolygons          sharp_tails;
