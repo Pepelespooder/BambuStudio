@@ -2,12 +2,11 @@
 #define slic3r_Layer_hpp_
 
 #include "libslic3r.h"
-#include "BoundingBox.hpp"
 #include "Flow.hpp"
 #include "SurfaceCollection.hpp"
 #include "ExtrusionEntityCollection.hpp"
-#include "RegionExpansion.hpp"
-#include <libslic3r/Print.hpp>
+#include "BoundingBox.hpp"
+#include "Line.hpp"
 
 namespace Slic3r {
 

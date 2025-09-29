@@ -1,3 +1,7 @@
+#include "BoundingBox.hpp"
+#include "Config.hpp"
+#include "Polygon.hpp"
+#include "PrintConfig.hpp"
 #include "libslic3r.h"
 #include "I18N.hpp"
 #include "GCode.hpp"
@@ -6,8 +10,8 @@
 #include "EdgeGrid.hpp"
 #include "Geometry/ConvexHull.hpp"
 #include "GCode/PrintExtents.hpp"
+#include "GCode/Thumbnails.hpp"
 #include "GCode/WipeTower.hpp"
-#include "PrintConfig.hpp"
 #include "ShortestPath.hpp"
 #include "Print.hpp"
 #include "Utils.hpp"
@@ -15,13 +19,21 @@
 #include "libslic3r.h"
 #include "LocalesUtils.hpp"
 #include "libslic3r/format.hpp"
+#include "Time.hpp"
+#include "ExtrusionProcessor.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <chrono>
+#include <iostream>
 #include <math.h>
+#include <stdlib.h>
+#include <string>
 #include <utility>
 #include <string_view>
+
+#include <regex>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/find.hpp>
@@ -37,6 +49,7 @@
 #include "SVG.hpp"
 
 #include <tbb/parallel_for.h>
+#include "Calib.hpp"
 
 // Intel redesigned some TBB interface considerably when merging TBB with their oneAPI set of libraries, see GH #7332.
 // We are using quite an old TBB 2017 U7. Before we update our build servers, let's use the old API, which is deprecated in up to date TBB.

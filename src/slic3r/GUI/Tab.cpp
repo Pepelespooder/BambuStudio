@@ -2348,6 +2348,7 @@ void TabPrint::build()
         line.append_option(optgroup->get_option("overhang_4_4_speed", 0));
         line.append_option(optgroup->get_option("overhang_totally_speed", 0));
         optgroup->append_line(line);
+        optgroup->append_single_option_line("slowdown_for_curled_perimeters");
         optgroup->append_single_option_line("enable_height_slowdown", "", 0);
         optgroup->append_single_option_line("slowdown_start_height", "", 0);
         optgroup->append_single_option_line("slowdown_start_speed", "", 0);
