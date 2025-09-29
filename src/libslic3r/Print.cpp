@@ -8,11 +8,11 @@
 #include "Geometry/ConvexHull.hpp"
 #include "I18N.hpp"
 #include "ShortestPath.hpp"
-#include "SupportMaterial.hpp"
+#include "Support/SupportMaterial.hpp"
 #include "Thread.hpp"
+#include "Time.hpp"
 #include "GCode.hpp"
 #include "GCode/WipeTower.hpp"
-#include "GCode/WipeTower2.hpp"
 #include "Utils.hpp"
 #include "PrintConfig.hpp"
 #include "Model.hpp"
@@ -24,12 +24,18 @@
 #include <boost/filesystem/path.hpp>
 #include <boost/format.hpp>
 #include <boost/log/trivial.hpp>
-#include <boost/regex.hpp>
+#include <boost/nowide/fstream.hpp>
+
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+
+#include "format.hpp"
 
 //BBS: add json support
 #include "nlohmann/json.hpp"
 
 #include "GCode/ConflictChecker.hpp"
+#include "ParameterUtils.hpp"
 
 #include <codecvt>
 

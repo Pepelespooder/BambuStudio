@@ -6,7 +6,6 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "MsgDialog.hpp"
-#include "libslic3r/PrintConfig.hpp"
 
 #include <wx/msgdlg.h>
 
@@ -787,8 +786,8 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, in
     for (auto el : { "overhang_1_4_speed", "overhang_2_4_speed", "overhang_3_4_speed", "overhang_4_4_speed"})
         toggle_line(el, has_overhang_speed, variant_index);
     
-    // Only show curled perimeter slowdown when overhang speed is enabled
-    toggle_line("slowdown_for_curled_perimeters", has_overhang_speed, variant_index);
+    bool has_overhang_speed_classic = config->opt_bool("enable_overhang_speed");
+    toggle_line("slowdown_for_curled_perimeters",!has_overhang_speed_classic && has_overhang_speed);
 
     bool has_height_slowdown = config->opt_bool("enable_height_slowdown", variant_index);
     for (auto el : { "slowdown_start_height", "slowdown_start_speed", "slowdown_start_acc", "slowdown_end_height", "slowdown_end_speed", "slowdown_end_acc" })
