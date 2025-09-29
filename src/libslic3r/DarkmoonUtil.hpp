@@ -50,6 +50,9 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
 // Apply dynamic Darkmoon temperatures, always overriding existing values
 void apply_dynamic_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
 
+// Apply dynamic Darkmoon temperatures only if values are missing, placeholder, or user hasn't modified them
+void apply_dynamic_darkmoon_bed_temps_if_not_user_modified(DynamicPrintConfig &config, size_t extruder_count);
+
 const std::array<std::string_view, 5> &darkmoon_plate_temp_keys();
 const std::array<std::string_view, 5> &darkmoon_initial_layer_plate_temp_keys();
 const std::array<std::string_view, 10> &darkmoon_all_temp_keys();
