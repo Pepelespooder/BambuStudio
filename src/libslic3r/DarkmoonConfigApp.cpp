@@ -37,11 +37,46 @@ bool DarkmoonConfigApp::apply_dynamic_config(DynamicPrintConfig &config,
         }
     }
 
-    // Use the dynamic darkmoon bed temps function which always applies calculated values
-    // over any existing hardcoded values, ensuring the most up-to-date temperature calculations
-    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: Before apply_dynamic_darkmoon_bed_temps";
+    // Use the user-respecting darkmoon bed temps function which respects user modifications
+    // while still providing calculated defaults for missing/placeholder values
+    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: Before apply_dynamic_darkmoon_bed_temps_if_not_user_modified";
+    apply_dynamic_darkmoon_bed_temps_if_not_user_modified(config, extruder_count);
+    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: After apply_dynamic_darkmoon_bed_temps_if_not_user_modified";
+
+    return true;
+}
+
+bool DarkmoonConfigApp::apply_dynamic_config_force_override(DynamicPrintConfig &config, 
+                                                           const std::string &filament_type,
+                                                           size_t extruder_count,
+                                                           const DynamicPrintConfig *printer_config) {
+    // Only apply darkmoon configuration to supported manufacturers
+    if (!is_darkmoon_supported_manufacturer(printer_config)) {
+        return false; // Skip darkmoon configuration for unsupported manufacturers
+    }
+
+    // Determine filament type if not provided
+    std::string actual_filament_type = filament_type.empty() ? 
+        determine_filament_type(config) : filament_type;
+    
+    if (actual_filament_type.empty()) {
+        return false; // Cannot determine filament type
+    }
+
+    // Ensure the correct filament type is set for dynamic temperature calculation
+    if (filament_type.empty()) {
+        // Set the filament type in the config if it wasn't provided
+        auto filament_types = config.option<ConfigOptionStrings>("filament_type", true);
+        if (filament_types->values.empty() || filament_types->values[0] != actual_filament_type) {
+            filament_types->values.clear();
+            filament_types->values.resize(std::max<size_t>(1, extruder_count), actual_filament_type);
+        }
+    }
+
+    // Use the aggressive function that always overrides
+    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: Before apply_dynamic_darkmoon_bed_temps (force override)";
     apply_dynamic_darkmoon_bed_temps(config, extruder_count);
-    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: After apply_dynamic_darkmoon_bed_temps";
+    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: After apply_dynamic_darkmoon_bed_temps (force override)";
 
     return true;
 }

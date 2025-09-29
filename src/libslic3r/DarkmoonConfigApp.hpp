@@ -23,13 +23,23 @@ public:
     /**
      * Apply dynamic darkmoon configuration to a filament config
      * This ensures that all darkmoon plate temperatures are properly populated
-     * based on the filament type instead of falling back to placeholder values.
+     * based on the filament type, respecting user modifications.
      * Only applies to supported manufacturers: Creality, Prusa, Qidi, and BBL.
      */
     static bool apply_dynamic_config(DynamicPrintConfig &config, 
                                    const std::string &filament_type = "",
                                    size_t extruder_count = 1,
                                    const DynamicPrintConfig *printer_config = nullptr);
+
+    /**
+     * Apply dynamic darkmoon configuration, force overriding existing values
+     * This version always applies calculated temperatures regardless of existing values.
+     * Use with caution - only when you want to force update to latest calculations.
+     */
+    static bool apply_dynamic_config_force_override(DynamicPrintConfig &config, 
+                                                  const std::string &filament_type = "",
+                                                  size_t extruder_count = 1,
+                                                  const DynamicPrintConfig *printer_config = nullptr);
 
     /**
      * Apply dynamic configuration only if darkmoon temperatures are missing or placeholders

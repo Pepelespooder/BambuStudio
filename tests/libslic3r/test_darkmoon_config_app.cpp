@@ -192,3 +192,90 @@ TEST_CASE("DarkmoonConfigApp addresses 45°C fallback issue", "[DarkmoonConfigAp
         REQUIRE(cfx_temp->values[0] == 65); // PLA on CFX should be 65°C, not 45°C
     }
 }
+
+TEST_CASE("DarkmoonConfigApp respects user-modified temperatures", "[DarkmoonConfigApp]") {
+    
+    SECTION("User-modified temperatures should be preserved") {
+        DynamicPrintConfig config;
+        DynamicPrintConfig printer_config = create_supported_printer_config("BBL");
+        config.set_key_value("filament_type", new ConfigOptionStrings{"PLA"});
+        
+        // Simulate user has manually set some darkmoon temperatures (non-placeholder values)
+        config.set_key_value("darkmoon_cfx_plate_temp", new ConfigOptionInts{75}); // User set to 75°C
+        config.set_key_value("darkmoon_g10_plate_temp", new ConfigOptionInts{55}); // User set to 55°C
+        
+        // Leave other temperatures missing to test mixed behavior
+        // darkmoon_ice_plate_temp is missing, should get dynamic value
+        // darkmoon_satin_plate_temp is missing, should get dynamic value
+        
+        // Apply the dynamic config - should respect user values
+        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "", 1, &printer_config);
+        REQUIRE(success);
+        
+        // User-modified temperatures should be PRESERVED
+        const auto *cfx_temp = config.opt<ConfigOptionInts>("darkmoon_cfx_plate_temp");
+        REQUIRE(cfx_temp != nullptr);
+        REQUIRE(cfx_temp->values[0] == 75); // Should preserve user's 75°C, not override with calculated 65°C
+        
+        const auto *g10_temp = config.opt<ConfigOptionInts>("darkmoon_g10_plate_temp");
+        REQUIRE(g10_temp != nullptr);
+        REQUIRE(g10_temp->values[0] == 55); // Should preserve user's 55°C
+        
+        // Missing temperatures should get dynamic values
+        const auto *ice_temp = config.opt<ConfigOptionInts>("darkmoon_ice_plate_temp");
+        REQUIRE(ice_temp != nullptr);
+        REQUIRE(ice_temp->values[0] == 45); // Should get calculated value for PLA on ice
+        
+        const auto *satin_temp = config.opt<ConfigOptionInts>("darkmoon_satin_plate_temp");
+        REQUIRE(satin_temp != nullptr);  
+        REQUIRE(satin_temp->values[0] == 60); // Should get calculated value for PLA on satin
+    }
+    
+    SECTION("Force override function should override user values") {
+        DynamicPrintConfig config;
+        DynamicPrintConfig printer_config = create_supported_printer_config("BBL");
+        config.set_key_value("filament_type", new ConfigOptionStrings{"PLA"});
+        
+        // Simulate user has manually set some darkmoon temperatures
+        config.set_key_value("darkmoon_cfx_plate_temp", new ConfigOptionInts{75}); // User set to 75°C
+        config.set_key_value("darkmoon_g10_plate_temp", new ConfigOptionInts{80}); // User set to 80°C
+        
+        // Apply the FORCE OVERRIDE dynamic config
+        bool success = DarkmoonConfigApp::apply_dynamic_config_force_override(config, "", 1, &printer_config);
+        REQUIRE(success);
+        
+        // User-modified temperatures should be OVERRIDDEN
+        const auto *cfx_temp = config.opt<ConfigOptionInts>("darkmoon_cfx_plate_temp");
+        REQUIRE(cfx_temp != nullptr);
+        REQUIRE(cfx_temp->values[0] == 65); // Should override user's 75°C with calculated 65°C
+        
+        const auto *g10_temp = config.opt<ConfigOptionInts>("darkmoon_g10_plate_temp");
+        REQUIRE(g10_temp != nullptr);
+        REQUIRE(g10_temp->values[0] == 55); // Should override user's 80°C with calculated 55°C
+    }
+    
+    SECTION("Placeholder temperatures should be replaced with calculated values") {
+        DynamicPrintConfig config;
+        DynamicPrintConfig printer_config = create_supported_printer_config("Creality");
+        config.set_key_value("filament_type", new ConfigOptionStrings{"PETG"});
+        
+        // Set some temperatures to placeholder values (should be replaced)
+        config.set_key_value("darkmoon_cfx_plate_temp", new ConfigOptionInts{45}); // Placeholder
+        config.set_key_value("darkmoon_g10_plate_temp", new ConfigOptionInts{45}); // Placeholder
+        
+        // Apply dynamic config
+        bool success = DarkmoonConfigApp::apply_dynamic_config(config, "", 1, &printer_config);
+        REQUIRE(success);
+        
+        // Placeholder values should be REPLACED with calculated values
+        const auto *cfx_temp = config.opt<ConfigOptionInts>("darkmoon_cfx_plate_temp");
+        REQUIRE(cfx_temp != nullptr);
+        REQUIRE(cfx_temp->values[0] != 45); // Should not be placeholder anymore
+        REQUIRE(cfx_temp->values[0] == 105); // Should be calculated PETG temp for CFX
+        
+        const auto *g10_temp = config.opt<ConfigOptionInts>("darkmoon_g10_plate_temp");
+        REQUIRE(g10_temp != nullptr); 
+        REQUIRE(g10_temp->values[0] != 45); // Should not be placeholder anymore
+        REQUIRE(g10_temp->values[0] == 70); // Should be calculated PETG temp for G10
+    }
+}
