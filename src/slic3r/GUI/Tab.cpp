@@ -3699,7 +3699,24 @@ void TabFilament::reload_config()
 {
     this->compatible_widget_reload(m_compatible_printers);
     this->compatible_widget_reload(m_compatible_prints);
+    
+    // Populate missing Darkmoon temperatures with calculated values
+    // This happens during preset loading, so these changes won't be marked as dirty
+    DynamicPrintConfig& filament_config = m_preset_bundle->filaments.get_edited_preset().config;
+    
+    // Get the current extruder count for proper array sizing
+    size_t extruder_count = 1;
+    if (auto* nozzle_opt = m_preset_bundle->printers.get_edited_preset().config.opt<ConfigOptionFloatsNullable>("nozzle_diameter")) {
+        extruder_count = nozzle_opt->values.size();
+    }
+    
+    // Apply Darkmoon temperature defaults to the preset config itself
+    apply_dynamic_darkmoon_bed_temps(filament_config, extruder_count);
+    
     Tab::reload_config();
+    
+    // Reset dirty state since the temperature population should not be considered a user change
+    m_presets->get_edited_preset().reset_dirty();
 }
 
 //void TabFilament::update_volumetric_flow_preset_hints()
