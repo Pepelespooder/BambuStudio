@@ -4,6 +4,7 @@
 #include "libslic3r.h"
 #include <vector>
 #include <string>
+#include <oneapi/tbb/scalable_allocator.h>
 #include "Line.hpp"
 #include "MultiPoint.hpp"
 #include "Polyline.hpp"
@@ -11,7 +12,7 @@
 namespace Slic3r {
 
 class Polygon;
-using Polygons          = std::vector<Polygon>;
+using Polygons          = std::vector<Polygon, tbb::scalable_allocator<Polygon>>;
 using PolygonPtrs       = std::vector<Polygon*>;
 using ConstPolygonPtrs  = std::vector<const Polygon*>;
 

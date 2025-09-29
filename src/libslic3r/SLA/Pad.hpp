@@ -5,6 +5,7 @@
 #include <functional>
 #include <cmath>
 #include <string>
+#include <oneapi/tbb/scalable_allocator.h>
 
 struct indexed_triangle_set;
 
@@ -12,8 +13,8 @@ namespace Slic3r {
 
 class ExPolygon;
 class Polygon;
-using ExPolygons = std::vector<ExPolygon>;
-using Polygons = std::vector<Polygon>;
+using ExPolygons = std::vector<ExPolygon, tbb::scalable_allocator<ExPolygon>>;
+using Polygons = std::vector<Polygon, tbb::scalable_allocator<Polygon>>;
 
 namespace sla {
 

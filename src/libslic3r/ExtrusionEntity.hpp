@@ -13,7 +13,7 @@
 namespace Slic3r {
 
 class ExPolygon;
-using ExPolygons = std::vector<ExPolygon>;
+using ExPolygons = std::vector<ExPolygon, tbb::scalable_allocator<ExPolygon>>;
 class ExtrusionEntityCollection;
 class Extruder;
 

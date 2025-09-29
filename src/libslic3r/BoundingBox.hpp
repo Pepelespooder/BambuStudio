@@ -5,6 +5,7 @@
 #include "Exception.hpp"
 #include "Point.hpp"
 #include "Polygon.hpp"
+#include <oneapi/tbb/scalable_allocator.h>
 #include <ostream>
 
 namespace Slic3r {
@@ -218,7 +219,7 @@ public:
     friend BoundingBox get_extents_rotated(const Points &points, double angle);
 };
 
-using BoundingBoxes = std::vector<BoundingBox>;
+using BoundingBoxes = std::vector<BoundingBox, tbb::scalable_allocator<BoundingBox>>;
 
 class BoundingBox3  : public BoundingBox3Base<Vec3crd>
 {

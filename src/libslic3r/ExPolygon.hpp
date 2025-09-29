@@ -6,11 +6,12 @@
 #include "Polygon.hpp"
 #include "Polyline.hpp"
 #include <vector>
+#include <oneapi/tbb/scalable_allocator.h>
 
 namespace Slic3r {
 
 class ExPolygon;
-using ExPolygons = std::vector<ExPolygon>;
+using ExPolygons = std::vector<ExPolygon, tbb::scalable_allocator<ExPolygon>>;
 
 class ExPolygon
 {

@@ -19,8 +19,8 @@ class ModelObject;
 class Polygon;
 class ExPolygon;
 
-using Polygons = std::vector<Polygon>;
-using ExPolygons = std::vector<ExPolygon>;
+using Polygons = std::vector<Polygon, tbb::scalable_allocator<Polygon>>;
+using ExPolygons = std::vector<ExPolygon, tbb::scalable_allocator<ExPolygon>>;
 
 namespace sla {
 
