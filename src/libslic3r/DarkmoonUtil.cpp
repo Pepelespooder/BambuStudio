@@ -75,7 +75,7 @@ constexpr std::array<DarkmoonPlateInfo, 5> kDarkmoonPlates = {{
      "Bed temperature when the Darkmoon Satin plate is installed. Value 0 means the filament does not support this plate",
      "darkmoon_satin_plate_temp", "darkmoon_satin_plate_temp_initial_layer",
      "hot_plate_temp", "hot_plate_temp_initial_layer",
-     "bed_hot"}
+     "bed_high_templ"}
 }};
 
 std::vector<std::string> tokenize_filament(const std::string &input)

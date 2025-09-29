@@ -5114,7 +5114,7 @@ void PrinterInfoBox::UpdatePlate(const std::string& plate_name)
             } else {
                 // No Darkmoon match found, set a default name and fallback image to avoid crash
                 name = _L(plate_name);
-                m_bed_image->SetBitmap(create_scaled_bitmap("bed_hot", this, 32));
+                m_bed_image->SetBitmap(create_scaled_bitmap("bed_high_templ", this, 32));
             }
         }
 
