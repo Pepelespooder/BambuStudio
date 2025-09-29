@@ -33,6 +33,7 @@ ExtrusionEntityCollection& ExtrusionEntityCollection::operator=(const ExtrusionE
     for (size_t i = 0; i < this->entities.size(); ++i)
         this->entities[i] = this->entities[i]->clone();
     this->no_sort       = other.no_sort;
+    this->loop_node_range = other.loop_node_range;
     return *this;
 }
 
