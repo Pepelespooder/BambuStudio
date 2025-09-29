@@ -4,7 +4,7 @@
 // This algorithm is copied from PrusaSlicer, original author is Pavel Mikus(pavel.mikus.mail@seznam.cz)
 
 #include "AABBTreeLines.hpp"
-//#include "../SupportSpotsGenerator.hpp"
+//#include "SupportSpotsGenerator.hpp"
 #include "libslic3r.h"
 #include "ExtrusionEntity.hpp"
 #include "Layer.hpp"
