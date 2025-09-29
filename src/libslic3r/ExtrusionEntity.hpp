@@ -71,6 +71,7 @@ enum ExtrusionRole : uint8_t {
 enum CustomizeFlag : uint8_t {
     cfNone,
     cfCircleCompensation,   // shaft hole tolerance compensation
+    cfCurledPerimeter,      // curled perimeter slowdown for warping prevention
     cfFloatingVerticalShell
 };
 
