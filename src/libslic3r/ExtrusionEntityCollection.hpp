@@ -32,12 +32,12 @@ public:
     ExtrusionEntitiesPtr entities;     // we own these entities
     bool no_sort;
     
-    // Transient member for runtime loop node tracking (not serialized)
-    mutable std::pair<int, int> loop_node_range{0, 0};
+    // Simple member for runtime loop node tracking  
+    std::pair<int, int> loop_node_range;
 
     ExtrusionEntityCollection(): no_sort(false) {}
-    ExtrusionEntityCollection(const ExtrusionEntityCollection &other) : no_sort(other.no_sort), loop_node_range(other.loop_node_range), is_reverse(other.is_reverse) { this->append(other.entities); }
-    ExtrusionEntityCollection(ExtrusionEntityCollection &&other) : entities(std::move(other.entities)), no_sort(other.no_sort), loop_node_range(other.loop_node_range), is_reverse(other.is_reverse) {}
+    ExtrusionEntityCollection(const ExtrusionEntityCollection &other) : no_sort(other.no_sort) { this->append(other.entities); }
+    ExtrusionEntityCollection(ExtrusionEntityCollection &&other) : entities(std::move(other.entities)), no_sort(other.no_sort) {}
     explicit ExtrusionEntityCollection(const ExtrusionPaths &paths);
     ExtrusionEntityCollection& operator=(const ExtrusionEntityCollection &other);
     ExtrusionEntityCollection& operator=(ExtrusionEntityCollection &&other)
@@ -154,7 +154,7 @@ public:
     }
 
 private:
-    bool is_reverse{true};
+    bool is_reverse;
 };
 
 } // namespace Slic3r

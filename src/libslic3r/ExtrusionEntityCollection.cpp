@@ -21,7 +21,7 @@ void filter_by_extrusion_role_in_place(ExtrusionEntitiesPtr &extrusion_entities,
 }
 
 ExtrusionEntityCollection::ExtrusionEntityCollection(const ExtrusionPaths &paths)
-    : no_sort(false), loop_node_range(0, 0)
+    : no_sort(false)
 {
     this->append(paths);
 }
@@ -33,7 +33,6 @@ ExtrusionEntityCollection& ExtrusionEntityCollection::operator=(const ExtrusionE
     for (size_t i = 0; i < this->entities.size(); ++i)
         this->entities[i] = this->entities[i]->clone();
     this->no_sort       = other.no_sort;
-    this->loop_node_range = other.loop_node_range;
     return *this;
 }
 
@@ -41,7 +40,6 @@ void ExtrusionEntityCollection::swap(ExtrusionEntityCollection &c)
 {
     std::swap(this->entities, c.entities);
     std::swap(this->no_sort, c.no_sort);
-    std::swap(this->loop_node_range, c.loop_node_range);
 }
 
 void ExtrusionEntityCollection::clear()
