@@ -6972,6 +6972,11 @@ int DynamicPrintConfig::update_values_from_single_to_multi(DynamicPrintConfig& m
 
                 break;
             }
+            case coBool:
+            {
+                // Single bool options don't need multi-variant processing, just skip them
+                break;
+            }
             default:
                 BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", Line %1%: unsupported option type for %2%")%__LINE__%key;
                 break;
@@ -7029,6 +7034,11 @@ int DynamicPrintConfig::update_values_from_single_to_multi(DynamicPrintConfig& m
                 if (src_opt &&!opt->is_nil(0))
                     opt->values.resize(src_opt->size(), opt->values[0]);
 
+                break;
+            }
+            case coBool:
+            {
+                // Single bool options don't need multi-variant processing, just skip them
                 break;
             }
             default:
@@ -7213,6 +7223,11 @@ int DynamicPrintConfig::update_values_from_multi_to_multi(DynamicPrintConfig& ne
                 }
             }
 
+            break;
+        }
+        case coBool:
+        {
+            // Single bool options don't need multi-variant processing, just skip them
             break;
         }
         default:
@@ -7421,6 +7436,11 @@ int DynamicPrintConfig::update_values_from_multi_to_multi_2(const std::vector<st
                 opt->values.erase(opt->values.begin() + 1, opt->values.end());
                 if (has_value)
                     opt->values[0] = min;
+                break;
+            }
+            case coBool:
+            {
+                // Single bool options don't need multi-to-single processing, just skip them
                 break;
             }
             default:
@@ -7768,6 +7788,11 @@ void DynamicPrintConfig::update_values_to_printer_extruders_for_multiple_filamen
                         new_values[f_index] = opt->get_at(variant_index[f_index]);
                     }
                     opt->values = new_values;
+                    break;
+                }
+                case coBool:
+                {
+                    // Single bool options don't need per-filament updating, just skip them
                     break;
                 }
                 case coEnums:
