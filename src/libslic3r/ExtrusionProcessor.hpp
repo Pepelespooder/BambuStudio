@@ -294,7 +294,7 @@ class ExtrusionQualityEstimator
     std::unordered_map<const PrintObject *, AABBTreeLines::LinesDistancer<Linef>> next_layer_boundaries;
     std::unordered_map<const PrintObject *, AABBTreeLines::LinesDistancer<CurledLine>> prev_curled_extrusions;
     std::unordered_map<const PrintObject *, AABBTreeLines::LinesDistancer<CurledLine>> next_curled_extrusions;
-    const PrintObject                                                            *current_object;
+    const PrintObject                                                            *current_object = nullptr;
 
 public:
     void set_current_object(const PrintObject *object) { current_object = object; }
