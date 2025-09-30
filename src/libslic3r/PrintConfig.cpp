@@ -7607,6 +7607,11 @@ std::vector<int> DynamicPrintConfig::update_values_to_printer_extruders(DynamicP
                     opt->values = new_values;
                     break;
                 }
+                case coBool:
+                {
+                    // Single bool options don't need per-extruder updating, just skip them
+                    break;
+                }
                 case coEnums:
                 {
                     ConfigOptionEnumsGeneric * opt = this->option<ConfigOptionEnumsGeneric>(key);
