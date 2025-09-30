@@ -1168,6 +1168,7 @@ public:
 
     static ConfigOptionType static_type() { return coPercent; }
     ConfigOptionType        type()  const override { return static_type(); }
+    double                  getFloat() const override { return this->value; }
     ConfigOption*           clone() const override { return new ConfigOptionPercent(*this); }
     ConfigOptionPercent&    operator= (const ConfigOption *opt) { this->set(opt); return *this; }
     bool                    operator==(const ConfigOptionPercent &rhs) const throw() { return this->value == rhs.value; }
@@ -1263,6 +1264,7 @@ public:
 
     static ConfigOptionType     static_type() { return coFloatOrPercent; }
     ConfigOptionType            type()  const override { return static_type(); }
+    double                      getFloat() const override { return this->value; }
     ConfigOption*               clone() const override { return new ConfigOptionFloatOrPercent(*this); }
     ConfigOptionFloatOrPercent& operator=(const ConfigOption *opt) { this->set(opt); return *this; }
     bool                        operator==(const ConfigOption &rhs) const override
@@ -2042,6 +2044,7 @@ public:
 
     static ConfigOptionType     static_type() { return coEnum; }
     ConfigOptionType            type()  const override { return static_type(); }
+    int                         getInt() const override { return this->value; }
     ConfigOption*               clone() const override { return new ConfigOptionEnumGeneric(*this); }
     ConfigOptionEnumGeneric&    operator= (const ConfigOption *opt) { this->set(opt); return *this; }
     bool                        operator==(const ConfigOptionEnumGeneric &rhs) const throw() { return this->value == rhs.value; }
