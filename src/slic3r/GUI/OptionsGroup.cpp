@@ -7,6 +7,7 @@
 #include "MsgDialog.hpp"
 #include "format.hpp"
 #include "Widgets/StaticLine.hpp"
+#include "libslic3r/DarkmoonConfigApp.hpp"
 
 #include <utility>
 #include <wx/bookctrl.h>
@@ -1087,9 +1088,13 @@ boost::any ConfigOptionsGroup::get_config_value(const DynamicPrintConfig& config
     case coInt:
         ret = config.opt_int(opt_key);
         break;
-    case coInts:
-        ret = config.opt_int(opt_key, idx);
+    case coInts: {
+        int temp_value = config.opt_int(opt_key, idx);
+        
+        // Use DarkmoonConfigApp to handle darkmoon temperature display logic
+        ret = DarkmoonConfigApp::get_display_temperature(config, opt_key, temp_value);
         break;
+    }
     case coEnum:
         if (!config.has("first_layer_sequence_choice") && opt_key == "first_layer_sequence_choice") {
             // reset to Auto value
@@ -1243,9 +1248,13 @@ boost::any ConfigOptionsGroup::get_config_value2(const DynamicPrintConfig& confi
     case coInt:
         ret = config.opt_int(opt_key);
         break;
-    case coInts:
-        ret = config.opt_int(opt_key, idx);
+    case coInts: {
+        int temp_value = config.opt_int(opt_key, idx);
+        
+        // Use DarkmoonConfigApp to handle darkmoon temperature display logic
+        ret = DarkmoonConfigApp::get_display_temperature(config, opt_key, temp_value);
         break;
+    }
     case coEnum:
         ret = config.option(opt_key)->getInt();
         break;

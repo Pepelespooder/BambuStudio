@@ -221,4 +221,37 @@ bool DarkmoonConfigApp::is_darkmoon_supported_manufacturer(const DynamicPrintCon
     return false;
 }
 
+int DarkmoonConfigApp::get_display_temperature(const DynamicPrintConfig &config, 
+                                             const std::string &darkmoon_temp_key, 
+                                             int stored_value) {
+    // Check if this is a darkmoon temperature key and the value is a placeholder
+    if (!is_darkmoon_bed_temp_key(darkmoon_temp_key) || stored_value != kDarkmoonPlaceholderTemp) {
+        return stored_value;
+    }
+    
+    // Try to get the filament type from the config to calculate actual temperature
+    const auto *filament_types = config.opt<ConfigOptionStrings>("filament_type");
+    if (!filament_types || filament_types->values.empty() || filament_types->values[0].empty()) {
+        return stored_value; // No filament type available, return placeholder
+    }
+    
+    // Find the darkmoon plate info for this temperature key
+    const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(darkmoon_temp_key);
+    if (!plate) {
+        return stored_value; // Not a valid darkmoon plate key
+    }
+    
+    // Calculate the actual temperature for this filament type and plate
+    if (auto calculated_temp = default_darkmoon_temperature(*plate, filament_types->values[0])) {
+        BOOST_LOG_TRIVIAL(debug) << "DarkmoonConfigApp: Displaying calculated temperature " 
+                                << *calculated_temp << "°C for " << darkmoon_temp_key 
+                                << " with filament " << filament_types->values[0] 
+                                << " (instead of placeholder " << stored_value << "°C)";
+        return *calculated_temp;
+    }
+    
+    // Calculation failed, return original value
+    return stored_value;
+}
+
 } // namespace Slic3r

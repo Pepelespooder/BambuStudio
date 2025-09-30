@@ -71,6 +71,15 @@ public:
      */
     static std::map<std::string, std::map<std::string, int>> get_recommended_temperatures();
 
+    /**
+     * Get display value for a darkmoon temperature configuration key
+     * If the stored value is a placeholder and filament type is available,
+     * returns the calculated temperature. Otherwise returns the stored value.
+     */
+    static int get_display_temperature(const DynamicPrintConfig &config, 
+                                     const std::string &darkmoon_temp_key, 
+                                     int stored_value);
+
 private:
     /**
      * Check if printer manufacturer supports darkmoon plates
