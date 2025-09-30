@@ -782,12 +782,20 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, in
     bool have_avoid_crossing_perimeters = config->opt_bool("reduce_crossing_wall");
     toggle_line("max_travel_detour_distance", have_avoid_crossing_perimeters);
 
-    bool has_overhang_speed = config->opt_bool_nullable("enable_overhang_speed", variant_index);
+    size_t overhang_variant_idx = variant_index >= 0 ? static_cast<size_t>(variant_index) : 0;
+    bool has_overhang_speed = false;
+    bool has_overhang_speed_classic = false;
+    if (const auto *overhang_opt = config->option<ConfigOptionBoolsNullable>("enable_overhang_speed")) {
+        if (!overhang_opt->is_nil(overhang_variant_idx))
+            has_overhang_speed = overhang_opt->get_at(overhang_variant_idx);
+        else
+            has_overhang_speed_classic = true;
+    }
+
     for (auto el : { "overhang_1_4_speed", "overhang_2_4_speed", "overhang_3_4_speed", "overhang_4_4_speed"})
         toggle_line(el, has_overhang_speed, variant_index);
-    
-    bool has_overhang_speed_classic = config->opt_bool("enable_overhang_speed");
-    toggle_line("slowdown_for_curled_perimeters",!has_overhang_speed_classic && has_overhang_speed);
+
+    toggle_line("slowdown_for_curled_perimeters", has_overhang_speed && !has_overhang_speed_classic);
 
     bool has_height_slowdown = config->opt_bool("enable_height_slowdown", variant_index);
     for (auto el : { "slowdown_start_height", "slowdown_start_speed", "slowdown_start_acc", "slowdown_end_height", "slowdown_end_speed", "slowdown_end_acc" })
