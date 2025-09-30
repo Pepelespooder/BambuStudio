@@ -1815,10 +1815,16 @@ bool DynamicConfig::opt_bool(const t_config_option_key &opt_key, unsigned int id
     if (const ConfigOptionBools *opts = dynamic_cast<const ConfigOptionBools *>(this->option(opt_key))) {
         return opts->get_at(idx) != 0;
     }
-    else {
-        const ConfigOptionBoolsNullable *opt_s = dynamic_cast<const ConfigOptionBoolsNullable *>(this->option(opt_key));
-        assert(opt_s != nullptr);
+    else if (const ConfigOptionBoolsNullable *opt_s = dynamic_cast<const ConfigOptionBoolsNullable *>(this->option(opt_key))) {
         return opt_s->get_at(idx) != 0;
+    }
+    else if (const ConfigOptionBool *opt_single = dynamic_cast<const ConfigOptionBool *>(this->option(opt_key))) {
+        // Single bool option - ignore index and return the single value
+        return opt_single->value != 0;
+    }
+    else {
+        // This should never happen if the option key exists and is a boolean type
+        throw BadOptionTypeException("DynamicConfig::opt_bool called on non-boolean option: " + opt_key);
     }
 }
 
