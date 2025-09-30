@@ -1793,10 +1793,13 @@ double& DynamicConfig::opt_float(const t_config_option_key &opt_key, unsigned in
 {
     if (ConfigOptionFloats *opt_floats = dynamic_cast<ConfigOptionFloats *>(this->option(opt_key))) {
         return opt_floats->get_at(idx);
-    } else {
-        ConfigOptionFloatsNullable *opt_floats_nullable = dynamic_cast<ConfigOptionFloatsNullable *>(this->option(opt_key));
-        assert(opt_floats_nullable != nullptr);
+    } else if (ConfigOptionFloatsNullable *opt_floats_nullable = dynamic_cast<ConfigOptionFloatsNullable *>(this->option(opt_key))) {
         return opt_floats_nullable->get_at(idx);
+    } else if (ConfigOptionFloat *opt_single = dynamic_cast<ConfigOptionFloat *>(this->option(opt_key))) {
+        // Single float option - ignore index and return reference to the single value
+        return opt_single->value;
+    } else {
+        throw BadOptionTypeException("DynamicConfig::opt_float called on non-float option: " + opt_key);
     }
 }
 const double& DynamicConfig::opt_float(const t_config_option_key &opt_key, unsigned int idx) const
@@ -1805,9 +1808,11 @@ const double& DynamicConfig::opt_float(const t_config_option_key &opt_key, unsig
         return opt_floats->get_at(idx);
     } else if (const ConfigOptionFloatsNullable *opt_floats_nullable = dynamic_cast<const ConfigOptionFloatsNullable *>(this->option(opt_key))) {
         return opt_floats_nullable->get_at(idx);
+    } else if (const ConfigOptionFloat *opt_single = dynamic_cast<const ConfigOptionFloat *>(this->option(opt_key))) {
+        // Single float option - ignore index and return reference to the single value
+        return opt_single->value;
     } else {
-        assert(false);
-        return 0;
+        throw BadOptionTypeException("DynamicConfig::opt_float called on non-float option: " + opt_key);
     }
 }
 
