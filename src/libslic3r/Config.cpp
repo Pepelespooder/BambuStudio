@@ -1833,6 +1833,162 @@ bool DynamicConfig::opt_bool(const t_config_option_key &opt_key, unsigned int id
     }
 }
 
+int& DynamicConfig::opt_int(const t_config_option_key &opt_key, unsigned int idx)
+{
+    if (ConfigOptionInts *opt_ints = dynamic_cast<ConfigOptionInts *>(this->option(opt_key))) {
+        return opt_ints->get_at(idx);
+    } else if (ConfigOptionIntsNullable *opt_ints_nullable = dynamic_cast<ConfigOptionIntsNullable *>(this->option(opt_key))) {
+        return opt_ints_nullable->get_at(idx);
+    } else if (ConfigOptionInt *opt_single = dynamic_cast<ConfigOptionInt *>(this->option(opt_key))) {
+        // Single int option - ignore index and return reference to the single value
+        return opt_single->value;
+    } else {
+        throw BadOptionTypeException("DynamicConfig::opt_int called on non-int option: " + opt_key);
+    }
+}
+
+int DynamicConfig::opt_int(const t_config_option_key &opt_key, unsigned int idx) const
+{
+    if (const ConfigOptionInts *opt_ints = dynamic_cast<const ConfigOptionInts *>(this->option(opt_key))) {
+        return opt_ints->get_at(idx);
+    } else if (const ConfigOptionIntsNullable *opt_ints_nullable = dynamic_cast<const ConfigOptionIntsNullable *>(this->option(opt_key))) {
+        return opt_ints_nullable->get_at(idx);
+    } else if (const ConfigOptionInt *opt_single = dynamic_cast<const ConfigOptionInt *>(this->option(opt_key))) {
+        // Single int option - ignore index and return the single value
+        return opt_single->value;
+    } else {
+        throw BadOptionTypeException("DynamicConfig::opt_int called on non-int option: " + opt_key);
+    }
+}
+
+std::string& DynamicConfig::opt_string(const t_config_option_key &opt_key, unsigned int idx)
+{
+    if (ConfigOptionStrings *opt_strings = dynamic_cast<ConfigOptionStrings *>(this->option(opt_key))) {
+        return opt_strings->get_at(idx);
+    } else if (ConfigOptionString *opt_single = dynamic_cast<ConfigOptionString *>(this->option(opt_key))) {
+        // Single string option - ignore index and return reference to the single value
+        return opt_single->value;
+    } else {
+        throw BadOptionTypeException("DynamicConfig::opt_string called on non-string option: " + opt_key);
+    }
+}
+
+const std::string& DynamicConfig::opt_string(const t_config_option_key &opt_key, unsigned int idx) const
+{
+    if (const ConfigOptionStrings *opt_strings = dynamic_cast<const ConfigOptionStrings *>(this->option(opt_key))) {
+        return opt_strings->get_at(idx);
+    } else if (const ConfigOptionString *opt_single = dynamic_cast<const ConfigOptionString *>(this->option(opt_key))) {
+        // Single string option - ignore index and return reference to the single value
+        return opt_single->value;
+    } else {
+        throw BadOptionTypeException("DynamicConfig::opt_string called on non-string option: " + opt_key);
+    }
+}
+
+int DynamicConfig::opt_enum(const t_config_option_key &opt_key, unsigned int idx) const
+{
+    if (const ConfigOptionEnumsGeneric *opt_enums = dynamic_cast<const ConfigOptionEnumsGeneric *>(this->option(opt_key))) {
+        return opt_enums->get_at(idx);
+    } else if (const ConfigOptionEnumsGenericNullable *opt_enums_nullable = dynamic_cast<const ConfigOptionEnumsGenericNullable *>(this->option(opt_key))) {
+        return opt_enums_nullable->get_at(idx);
+    } else {
+        // For single enum options, ignore index and use getInt() method
+        const ConfigOption *opt = this->option(opt_key);
+        if (opt) {
+            return opt->getInt();
+        } else {
+            throw BadOptionTypeException("DynamicConfig::opt_enum called on non-enum option: " + opt_key);
+        }
+    }
+}
+
+int& DynamicConfig::opt_int_nullable(const t_config_option_key &opt_key, unsigned int idx)
+{
+    if (ConfigOptionIntsNullable *opt_ints_nullable = dynamic_cast<ConfigOptionIntsNullable *>(this->option(opt_key))) {
+        return opt_ints_nullable->get_at(idx);
+    } else if (ConfigOptionInts *opt_ints = dynamic_cast<ConfigOptionInts *>(this->option(opt_key))) {
+        return opt_ints->get_at(idx);
+    } else if (ConfigOptionInt *opt_single = dynamic_cast<ConfigOptionInt *>(this->option(opt_key))) {
+        // Single int option - ignore index and return reference to the single value
+        return opt_single->value;
+    } else {
+        throw BadOptionTypeException("DynamicConfig::opt_int_nullable called on non-int option: " + opt_key);
+    }
+}
+
+const int& DynamicConfig::opt_int_nullable(const t_config_option_key &opt_key, unsigned int idx) const
+{
+    if (const ConfigOptionIntsNullable *opt_ints_nullable = dynamic_cast<const ConfigOptionIntsNullable *>(this->option(opt_key))) {
+        return opt_ints_nullable->get_at(idx);
+    } else if (const ConfigOptionInts *opt_ints = dynamic_cast<const ConfigOptionInts *>(this->option(opt_key))) {
+        return opt_ints->get_at(idx);
+    } else if (const ConfigOptionInt *opt_single = dynamic_cast<const ConfigOptionInt *>(this->option(opt_key))) {
+        // Single int option - ignore index and return reference to the single value
+        return opt_single->value;
+    } else {
+        throw BadOptionTypeException("DynamicConfig::opt_int_nullable called on non-int option: " + opt_key);
+    }
+}
+
+double& DynamicConfig::opt_float_nullable(const t_config_option_key &opt_key, unsigned int idx)
+{
+    if (ConfigOptionFloatsNullable *opt_floats_nullable = dynamic_cast<ConfigOptionFloatsNullable *>(this->option(opt_key))) {
+        return opt_floats_nullable->get_at(idx);
+    } else if (ConfigOptionFloats *opt_floats = dynamic_cast<ConfigOptionFloats *>(this->option(opt_key))) {
+        return opt_floats->get_at(idx);
+    } else if (ConfigOptionFloat *opt_single = dynamic_cast<ConfigOptionFloat *>(this->option(opt_key))) {
+        // Single float option - ignore index and return reference to the single value
+        return opt_single->value;
+    } else {
+        throw BadOptionTypeException("DynamicConfig::opt_float_nullable called on non-float option: " + opt_key);
+    }
+}
+
+const double& DynamicConfig::opt_float_nullable(const t_config_option_key &opt_key, unsigned int idx) const
+{
+    if (const ConfigOptionFloatsNullable *opt_floats_nullable = dynamic_cast<const ConfigOptionFloatsNullable *>(this->option(opt_key))) {
+        return opt_floats_nullable->get_at(idx);
+    } else if (const ConfigOptionFloats *opt_floats = dynamic_cast<const ConfigOptionFloats *>(this->option(opt_key))) {
+        return opt_floats->get_at(idx);
+    } else if (const ConfigOptionFloat *opt_single = dynamic_cast<const ConfigOptionFloat *>(this->option(opt_key))) {
+        // Single float option - ignore index and return reference to the single value
+        return opt_single->value;
+    } else {
+        throw BadOptionTypeException("DynamicConfig::opt_float_nullable called on non-float option: " + opt_key);
+    }
+}
+
+int DynamicConfig::opt_enum_nullable(const t_config_option_key &opt_key, unsigned int idx) const
+{
+    if (const ConfigOptionEnumsGenericNullable *opt_enums_nullable = dynamic_cast<const ConfigOptionEnumsGenericNullable *>(this->option(opt_key))) {
+        return opt_enums_nullable->get_at(idx);
+    } else if (const ConfigOptionEnumsGeneric *opt_enums = dynamic_cast<const ConfigOptionEnumsGeneric *>(this->option(opt_key))) {
+        return opt_enums->get_at(idx);
+    } else {
+        // For single enum options, ignore index and use getInt() method
+        const ConfigOption *opt = this->option(opt_key);
+        if (opt) {
+            return opt->getInt();
+        } else {
+            throw BadOptionTypeException("DynamicConfig::opt_enum_nullable called on non-enum option: " + opt_key);
+        }
+    }
+}
+
+bool DynamicConfig::opt_bool_nullable(const t_config_option_key &opt_key, unsigned int idx) const
+{
+    if (const ConfigOptionBoolsNullable *opt_bools_nullable = dynamic_cast<const ConfigOptionBoolsNullable *>(this->option(opt_key))) {
+        return opt_bools_nullable->get_at(idx) != 0;
+    } else if (const ConfigOptionBools *opt_bools = dynamic_cast<const ConfigOptionBools *>(this->option(opt_key))) {
+        return opt_bools->get_at(idx) != 0;
+    } else if (const ConfigOptionBool *opt_single = dynamic_cast<const ConfigOptionBool *>(this->option(opt_key))) {
+        // Single bool option - ignore index and return the single value
+        return opt_single->value != 0;
+    } else {
+        throw BadOptionTypeException("DynamicConfig::opt_bool_nullable called on non-boolean option: " + opt_key);
+    }
+}
+
 }
 
 #include <cereal/types/polymorphic.hpp>

@@ -4778,6 +4778,30 @@
             "sub_path": "filament/SUNLU/SUNLU PLA+ @BBL X1C 0.2 nozzle.json"
         },
         {
+            "name": "SUNLU PLA+ @BBL H2D",
+            "sub_path": "filament/SUNLU/SUNLU PLA+ @BBL H2D.json"
+        },
+        {
+            "name": "SUNLU PLA+ @BBL H2S",
+            "sub_path": "filament/SUNLU/SUNLU PLA+ @BBL H2S.json"
+        },
+        {
+            "name": "SUNLU PLA+ @BBL H2D 0.6 nozzle",
+            "sub_path": "filament/SUNLU/SUNLU PLA+ @BBL H2D 0.6 nozzle.json"
+        },
+        {
+            "name": "SUNLU PLA+ @BBL H2D 0.8 nozzle",
+            "sub_path": "filament/SUNLU/SUNLU PLA+ @BBL H2D 0.8 nozzle.json"
+        },
+        {
+            "name": "SUNLU PLA+ @BBL H2S 0.6 nozzle",
+            "sub_path": "filament/SUNLU/SUNLU PLA+ @BBL H2S 0.6 nozzle.json"
+        },
+        {
+            "name": "SUNLU PLA+ @BBL H2S 0.8 nozzle",
+            "sub_path": "filament/SUNLU/SUNLU PLA+ @BBL H2S 0.8 nozzle.json"
+        },
+        {
             "name": "SUNLU Silk PLA+ @base",
             "sub_path": "filament/SUNLU/SUNLU Silk PLA+ @base.json"
         },
