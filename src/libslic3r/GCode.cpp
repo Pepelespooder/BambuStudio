@@ -4925,8 +4925,14 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
 
     double small_peri_speed=-1;
     // apply the small perimeter speed
-    if (speed==-1 && loop.length() <= SMALL_PERIMETER_LENGTH(m_config.small_perimeter_threshold.get_at(cur_extruder_index())))
-        small_peri_speed = m_config.small_perimeter_speed.get_at(cur_extruder_index()).get_abs_value(m_config.outer_wall_speed.get_at(cur_extruder_index()));
+    if (speed==-1 && loop.length() <= SMALL_PERIMETER_LENGTH(m_config.small_perimeter_threshold.get_at(cur_extruder_index()))) {
+        // Safety check for extruder index before accessing config values
+        if (cur_extruder_index() >= m_config.nozzle_diameter.values.size()) {
+            small_peri_speed = m_config.outer_wall_speed.get_at(0) * 0.8; // Safe fallback
+        } else {
+            small_peri_speed = m_config.small_perimeter_speed.get_at(cur_extruder_index()).get_abs_value(m_config.outer_wall_speed.get_at(cur_extruder_index()));
+        }
+    }
 
     // extrude along the path
     std::string gcode;
@@ -5902,7 +5908,12 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                 speed = m_config.bridge_speed.get_at(cur_extruder_index());
             }
             else{
-                speed = m_config.vertical_shell_speed.get_at(cur_extruder_index()).get_abs_value(m_config.internal_solid_infill_speed.get_at(cur_extruder_index()));
+                // Safety check for extruder index before accessing config values
+                if (cur_extruder_index() >= m_config.nozzle_diameter.values.size()) {
+                    speed = m_config.internal_solid_infill_speed.get_at(0); // Safe fallback
+                } else {
+                    speed = m_config.vertical_shell_speed.get_at(cur_extruder_index()).get_abs_value(m_config.internal_solid_infill_speed.get_at(cur_extruder_index()));
+                }
             }
         }
          else if (path.role() == erTopSolidInfill) {
