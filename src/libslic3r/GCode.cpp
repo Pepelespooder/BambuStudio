@@ -3747,7 +3747,7 @@ GCode::LayerResult GCode::process_layer(
     m_config.apply(layer.object()->config(), true);
 
     // Prepare extrusion quality estimator for curled perimeter processing
-    if (m_config.enable_overhang_speed.get_at(cur_extruder_index()) && m_config.slowdown_for_curled_perimeters.value) {
+    if (m_config.enable_overhang_speed.get_at(cur_extruder_index()) && m_config.slowdown_for_curled_perimeters) {
         for (const auto &layer_to_print : layers) {
             m_extrusion_quality_estimator.prepare_for_new_layer(layer_to_print.original_object,
                                                                 layer_to_print.object_layer);
@@ -4514,7 +4514,7 @@ GCode::LayerResult GCode::process_layer(
                     this->set_origin(unscale(offset));
                     
                     // Set current object for extrusion quality estimator
-                    if (m_config.enable_overhang_speed.get_at(cur_extruder_index()) && m_config.slowdown_for_curled_perimeters.value)
+                    if (m_config.enable_overhang_speed.get_at(cur_extruder_index()) && m_config.slowdown_for_curled_perimeters)
                         m_extrusion_quality_estimator.set_current_object(&instance_to_print.print_object);
                         
                     //FIXME the following code prints regions in the order they are defined, the path is not optimized in any way.
@@ -4835,12 +4835,7 @@ double GCode::get_path_speed(const ExtrusionPath &path)
         }
     }
     else if (path.role() == erOverhangPerimeter && path.overhang_degree == 5) {
-        // Safety check for extruder index
-        if (cur_extruder_index() >= m_config.nozzle_diameter.values.size()) {
-            speed = m_config.bridge_speed.get_at(0); // Fallback: use bridge speed when config unavailable
-        } else {
-            speed = m_config.overhang_totally_speed.get_at(cur_extruder_index());
-        }
+        speed = m_config.overhang_totally_speed.get_at(cur_extruder_index());
     }
     else if (path.role() == erOverhangPerimeter || path.role() == erBridgeInfill || path.role() == erSupportTransition) {
         speed = m_config.bridge_speed.get_at(cur_extruder_index());
@@ -5826,8 +5821,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             acceleration = m_config.top_surface_acceleration.get_at(cur_extruder_index());
         } else if (m_config.inner_wall_acceleration.get_at(cur_extruder_index()) > 0 && path.role() == erPerimeter) {
             acceleration = m_config.inner_wall_acceleration.get_at(cur_extruder_index());
-        } else if (cur_extruder_index() < m_config.nozzle_diameter.values.size() && 
-                   m_config.get_abs_value_at("sparse_infill_acceleration", cur_extruder_index()) > 0 && (path.role() == erInternalInfill)) {
+        } else if (m_config.get_abs_value_at("sparse_infill_acceleration", cur_extruder_index()) > 0 && (path.role() == erInternalInfill)) {
             acceleration = m_config.get_abs_value_at("sparse_infill_acceleration", cur_extruder_index());
         }else {
             acceleration = m_config.default_acceleration.get_at(cur_extruder_index());
@@ -5891,12 +5885,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                 speed = new_speed == 0.0 ? speed : new_speed;
             }
         } else if (path.role() == erOverhangPerimeter && path.overhang_degree == 5) {
-            // Safety check for extruder index
-            if (cur_extruder_index() >= m_config.nozzle_diameter.values.size()) {
-                speed = m_config.bridge_speed.get_at(0); // Fallback: use bridge speed when config unavailable
-            } else {
-                speed = m_config.overhang_totally_speed.get_at(cur_extruder_index());
-            }
+            speed = m_config.overhang_totally_speed.get_at(cur_extruder_index());
         }else if (path.role() == erOverhangPerimeter || path.role() == erBridgeInfill || path.role() == erSupportTransition) {
             speed = m_config.bridge_speed.get_at(cur_extruder_index());
         } else if (path.role() == erInternalInfill) {
@@ -5908,12 +5897,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                 speed = m_config.bridge_speed.get_at(cur_extruder_index());
             }
             else{
-                // Safety check for extruder index before accessing config values
-                if (cur_extruder_index() >= m_config.nozzle_diameter.values.size()) {
-                    speed = m_config.internal_solid_infill_speed.get_at(0); // Fallback: use normal infill speed when config unavailable
-                } else {
-                    speed = m_config.vertical_shell_speed.get_at(cur_extruder_index()).get_abs_value(m_config.internal_solid_infill_speed.get_at(cur_extruder_index()));
-                }
+                speed = m_config.vertical_shell_speed.get_at(cur_extruder_index()).get_abs_value(m_config.internal_solid_infill_speed.get_at(cur_extruder_index()));
             }
         }
          else if (path.role() == erTopSolidInfill) {
@@ -5988,70 +5972,48 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
 
         ConfigOptionPercents overhang_overlap_levels({75, 50, 25, 13, 12.99, 0});
 
-        if (m_config.slowdown_for_curled_perimeters.value) {
-            // Safety check: ensure extruder index is valid and config options exist
-            size_t extruder_idx = cur_extruder_index();
-            if (extruder_idx >= m_config.nozzle_diameter.values.size()) {
-                // Fallback: when config is unavailable, use 100% speed for all levels (no slowdown)
-                // This matches the logic where overhang speeds < 0.5 default to 100%
-                ConfigOptionFloatsOrPercents dynamic_overhang_speeds({
-                    FloatOrPercent{100, true}, FloatOrPercent{100, true}, 
-                    FloatOrPercent{100, true}, FloatOrPercent{100, true}});
-                new_points = m_extrusion_quality_estimator.estimate_extrusion_quality(path,
-                    overhang_overlap_levels, dynamic_overhang_speeds,
-                    ref_speed, speed, m_config.slowdown_for_curled_perimeters.value);
-            }else {
-                ConfigOptionFloatsOrPercents dynamic_overhang_speeds(
-                    {(m_config.get_abs_value_at("overhang_1_4_speed", extruder_idx) < 0.5) ?
-                         FloatOrPercent{100, true} :
-                         FloatOrPercent{m_config.get_abs_value_at("overhang_1_4_speed", extruder_idx) * 100 / ref_speed, true},
-                     (m_config.get_abs_value_at("overhang_2_4_speed", extruder_idx) < 0.5) ?
-                         FloatOrPercent{100, true} :
-                         FloatOrPercent{m_config.get_abs_value_at("overhang_2_4_speed", extruder_idx) * 100 / ref_speed, true},
-                     (m_config.get_abs_value_at("overhang_3_4_speed", extruder_idx) < 0.5) ?
-                         FloatOrPercent{100, true} :
-                         FloatOrPercent{m_config.get_abs_value_at("overhang_3_4_speed", extruder_idx) * 100 / ref_speed, true},
-                     (m_config.get_abs_value_at("overhang_4_4_speed", extruder_idx) < 0.5) ?
-                         FloatOrPercent{100, true} :
-                         FloatOrPercent{m_config.get_abs_value_at("overhang_4_4_speed", extruder_idx) * 100 / ref_speed, true}});
+        if (m_config.slowdown_for_curled_perimeters){
+            ConfigOptionFloatsOrPercents dynamic_overhang_speeds(
+                {(m_config.get_abs_value("overhang_1_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{100, true} :
+                     FloatOrPercent{m_config.get_abs_value("overhang_1_4_speed", ref_speed) * 100 / ref_speed, true},
+                 (m_config.get_abs_value("overhang_2_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{100, true} :
+                     FloatOrPercent{m_config.get_abs_value("overhang_2_4_speed", ref_speed) * 100 / ref_speed, true},
+                 (m_config.get_abs_value("overhang_3_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{100, true} :
+                     FloatOrPercent{m_config.get_abs_value("overhang_3_4_speed", ref_speed) * 100 / ref_speed, true},
+                 (m_config.get_abs_value("overhang_4_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{100, true} :
+                     FloatOrPercent{m_config.get_abs_value("overhang_4_4_speed", ref_speed) * 100 / ref_speed, true},
+                 (m_config.get_abs_value("overhang_4_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{100, true} :
+                     FloatOrPercent{m_config.get_abs_value("overhang_4_4_speed", ref_speed) * 100 / ref_speed, true},
+                 (m_config.get_abs_value("overhang_4_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{100, true} :
+                     FloatOrPercent{m_config.get_abs_value("overhang_4_4_speed", ref_speed) * 100 / ref_speed, true}});
 
-                new_points = m_extrusion_quality_estimator.estimate_extrusion_quality(path, overhang_overlap_levels, dynamic_overhang_speeds,
-                                                                              ref_speed, speed, m_config.slowdown_for_curled_perimeters.value);
-            }
-        } else {
-            // Safety check: ensure extruder index is valid for else block too
-            size_t extruder_idx = cur_extruder_index();
-            if (extruder_idx >= m_config.nozzle_diameter.values.size()) {
-                // Fallback: when config is unavailable, use 100% speed for all levels (no slowdown)
-                // This matches the logic where overhang speeds < 0.5 default to 100%
-                ConfigOptionFloatsOrPercents dynamic_overhang_speeds({
-                    FloatOrPercent{100, true}, FloatOrPercent{100, true}, 
-                    FloatOrPercent{100, true}, FloatOrPercent{100, true},
-                    FloatOrPercent{m_config.bridge_speed.get_at(0) * 100 / ref_speed, true},
-                    FloatOrPercent{m_config.bridge_speed.get_at(0) * 100 / ref_speed, true}});
-                new_points = m_extrusion_quality_estimator.estimate_extrusion_quality(path,
-                    overhang_overlap_levels, dynamic_overhang_speeds,
-                    ref_speed, speed, m_config.slowdown_for_curled_perimeters.value);
-            } else {
-                ConfigOptionFloatsOrPercents dynamic_overhang_speeds(
-                    {(m_config.get_abs_value_at("overhang_1_4_speed", extruder_idx) < 0.5) ?
-                         FloatOrPercent{100, true} :
-                         FloatOrPercent{m_config.get_abs_value_at("overhang_1_4_speed", extruder_idx) * 100 / ref_speed, true},
-                     (m_config.get_abs_value_at("overhang_2_4_speed", extruder_idx) < 0.5) ?
-                         FloatOrPercent{100, true} :
-                         FloatOrPercent{m_config.get_abs_value_at("overhang_2_4_speed", extruder_idx) * 100 / ref_speed, true},
-                     (m_config.get_abs_value_at("overhang_3_4_speed", extruder_idx) < 0.5) ?
-                         FloatOrPercent{100, true} :
-                         FloatOrPercent{m_config.get_abs_value_at("overhang_3_4_speed", extruder_idx) * 100 / ref_speed, true},
-                     (m_config.get_abs_value_at("overhang_4_4_speed", extruder_idx) < 0.5) ?
-                         FloatOrPercent{100, true} :
-                         FloatOrPercent{m_config.get_abs_value_at("overhang_4_4_speed", extruder_idx) * 100 / ref_speed, true},
-                     FloatOrPercent{m_config.bridge_speed.get_at(extruder_idx) * 100 / ref_speed, true},
-                     FloatOrPercent{m_config.bridge_speed.get_at(extruder_idx) * 100 / ref_speed, true}});
+            new_points = m_extrusion_quality_estimator.estimate_extrusion_quality(path, overhang_overlap_levels, dynamic_overhang_speeds,
+                                                                          ref_speed, speed, m_config.slowdown_for_curled_perimeters);
+        }else{
+            ConfigOptionFloatsOrPercents dynamic_overhang_speeds(
+                {(m_config.get_abs_value("overhang_1_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{100, true} :
+                     FloatOrPercent{m_config.get_abs_value("overhang_1_4_speed", ref_speed) * 100 / ref_speed, true},
+                 (m_config.get_abs_value("overhang_2_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{100, true} :
+                     FloatOrPercent{m_config.get_abs_value("overhang_2_4_speed", ref_speed) * 100 / ref_speed, true},
+                 (m_config.get_abs_value("overhang_3_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{100, true} :
+                     FloatOrPercent{m_config.get_abs_value("overhang_3_4_speed", ref_speed) * 100 / ref_speed, true},
+                 (m_config.get_abs_value("overhang_4_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{100, true} :
+                     FloatOrPercent{m_config.get_abs_value("overhang_4_4_speed", ref_speed) * 100 / ref_speed, true},
+                 FloatOrPercent{m_config.get_abs_value("bridge_speed") * 100 / ref_speed, true},
+                 FloatOrPercent{m_config.get_abs_value("bridge_speed") * 100 / ref_speed, true}});
 
-                new_points = m_extrusion_quality_estimator.estimate_extrusion_quality(path, overhang_overlap_levels, dynamic_overhang_speeds,
-                                                                              ref_speed, speed, m_config.slowdown_for_curled_perimeters.value);
-            }
+            new_points = m_extrusion_quality_estimator.estimate_extrusion_quality(path, overhang_overlap_levels, dynamic_overhang_speeds,
+                                                                          ref_speed, speed, m_config.slowdown_for_curled_perimeters);
         }
         variable_speed = std::any_of(new_points.begin(), new_points.end(),
                                      [speed](const ProcessedPoint &p) { return fabs(double(p.speed) - speed) > 1; }); // Ignore small speed variations (under 1mm/sec)
