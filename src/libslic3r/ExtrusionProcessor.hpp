@@ -318,18 +318,19 @@ public:
                                                            float                               original_speed,
                                                            bool								   slowdown_for_curled_edges)
     {
-        // Safety check: ensure current_object is set
-        if (current_object == nullptr) {
-            // Return simple processed points without advanced processing if no object is set
-            std::vector<ProcessedPoint> simple_points;
-            for (const Point& pt : path.polyline.points) {
-                simple_points.push_back({pt, original_speed, 1.0f});
+        try {
+            // Safety check: ensure current_object is set
+            if (current_object == nullptr) {
+                // Return simple processed points without advanced processing if no object is set
+                std::vector<ProcessedPoint> simple_points;
+                for (const Point& pt : path.polyline.points) {
+                    simple_points.push_back({pt, original_speed, 1.0f});
+                }
+                return simple_points;
             }
-            return simple_points;
-        }
-        
-        size_t                               speed_sections_count = std::min(overlaps.values.size(), speeds.values.size());
-        std::vector<std::pair<float, float>> speed_sections;
+            
+            size_t                               speed_sections_count = std::min(overlaps.values.size(), speeds.values.size());
+            std::vector<std::pair<float, float>> speed_sections;
         
         
         
@@ -486,6 +487,21 @@ public:
             processed_points.push_back({ scaled(curr.position), extrusion_speed, overlap });
         }
         return processed_points;
+        } catch (const std::exception& e) {
+            // If anything goes wrong, return simple processed points
+            std::vector<ProcessedPoint> simple_points;
+            for (const Point& pt : path.polyline.points) {
+                simple_points.push_back({pt, original_speed, 1.0f});
+            }
+            return simple_points;
+        } catch (...) {
+            // If anything else goes wrong, return simple processed points
+            std::vector<ProcessedPoint> simple_points;
+            for (const Point& pt : path.polyline.points) {
+                simple_points.push_back({pt, original_speed, 1.0f});
+            }
+            return simple_points;
+        }
     }
 };
 
