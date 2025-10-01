@@ -5341,11 +5341,21 @@ double GCode::get_overhang_degree_corr_speed(float normal_speed, double path_deg
 
     int lower_degree_bound = int(path_degree);
     // BBS: use lower speed of 75%-100% for better cooling
-    if (path_degree >= 4 || path_degree == lower_degree_bound)
+    if (path_degree >= 4 || path_degree == lower_degree_bound) {
+        // Safety check for extruder index
+        if (cur_extruder_index() >= m_config.nozzle_diameter.values.size()) {
+            return normal_speed * 0.5; // Safe fallback speed
+        }
         return m_config.get_abs_value_at(overhang_speed_key_map[lower_degree_bound].c_str(), cur_extruder_index());
+    }
 
     int upper_degree_bound = lower_degree_bound + 1;
 
+    // Safety check for extruder index before accessing config values
+    if (cur_extruder_index() >= m_config.nozzle_diameter.values.size()) {
+        return normal_speed * 0.5; // Safe fallback speed
+    }
+    
     double lower_speed_bound = lower_degree_bound == 0 ? normal_speed : m_config.get_abs_value_at(overhang_speed_key_map[lower_degree_bound].c_str(), cur_extruder_index());
     double upper_speed_bound = upper_degree_bound == 0 ? normal_speed : m_config.get_abs_value_at(overhang_speed_key_map[upper_degree_bound].c_str(), cur_extruder_index());
 
