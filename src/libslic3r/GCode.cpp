@@ -5958,7 +5958,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         if (m_config.slowdown_for_curled_perimeters.value) {
             // Safety check: ensure extruder index is valid and config options exist
             size_t extruder_idx = cur_extruder_index();
-            if (extruder_idx >= m_config.overhang_1_4_speed.values.size()) {
+            if (extruder_idx >= m_config.nozzle_diameter.values.size()) {
                 // Fallback to safe default speeds if extruder index is invalid
                 ConfigOptionFloatsOrPercents dynamic_overhang_speeds({
                     FloatOrPercent{50, true}, FloatOrPercent{40, true}, 
@@ -5987,7 +5987,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         } else {
             // Safety check: ensure extruder index is valid for else block too
             size_t extruder_idx = cur_extruder_index();
-            if (extruder_idx >= m_config.overhang_1_4_speed.values.size()) {
+            if (extruder_idx >= m_config.nozzle_diameter.values.size()) {
                 // Fallback to safe default speeds if extruder index is invalid
                 ConfigOptionFloatsOrPercents dynamic_overhang_speeds({
                     FloatOrPercent{50, true}, FloatOrPercent{40, true}, 
