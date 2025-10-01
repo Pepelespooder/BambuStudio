@@ -9,6 +9,8 @@
 #include "ExtrusionEntity.hpp"
 #include "Layer.hpp"
 #include "Point.hpp"
+#include "Line.hpp"
+#include "ExPolygon.hpp"
 #include "SVG.hpp"
 #include "BoundingBox.hpp"
 #include "Polygon.hpp"
@@ -316,6 +318,16 @@ public:
                                                            float                               original_speed,
                                                            bool								   slowdown_for_curled_edges)
     {
+        // Safety check: ensure current_object is set
+        if (current_object == nullptr) {
+            // Return simple processed points without advanced processing if no object is set
+            std::vector<ProcessedPoint> simple_points;
+            for (const Point& pt : path.polyline.points) {
+                simple_points.push_back({pt, original_speed, 1.0f});
+            }
+            return simple_points;
+        }
+        
         size_t                               speed_sections_count = std::min(overlaps.values.size(), speeds.values.size());
         std::vector<std::pair<float, float>> speed_sections;
         
@@ -359,12 +371,27 @@ public:
             smallest_distance_with_lower_speed=-1.f;
 
         // Orca: Pass to the point properties estimator the smallest ovehang distance that triggers a slowdown (smallest_distance_with_lower_speed)
-        std::vector<ExtendedPoint> extended_points = estimate_points_properties<true, true, true, true>
+        std::vector<ExtendedPoint> extended_points;
+        
+        // Safety check: ensure we have valid boundary data for current_object
+        auto boundary_it = prev_layer_boundaries.find(current_object);
+        if (boundary_it != prev_layer_boundaries.end()) {
+            extended_points = estimate_points_properties<true, true, true, true>
                                                                 (path.polyline.points,
-                                                                 prev_layer_boundaries[current_object],
+                                                                 boundary_it->second,
                                                                  path.width,
                                                                  -1,
                                                                  smallest_distance_with_lower_speed);
+        } else {
+            // Fallback: create simple extended points if no boundary data available
+            for (const Point& pt : path.polyline.points) {
+                ExtendedPoint ep;
+                ep.position = unscaled(pt).cast<double>();
+                ep.distance = 0.0f; // No overhang detected
+                ep.curvature = 0.0f;
+                extended_points.push_back(ep);
+            }
+        }
         const auto width_inv = 1.0f / path.width;
         std::vector<ProcessedPoint> processed_points;
         processed_points.reserve(extended_points.size());
@@ -373,12 +400,15 @@ public:
             const ExtendedPoint &next = extended_points[i + 1 < extended_points.size() ? i + 1 : i];
             
             float artificial_distance_to_curled_lines = 0.0;
-            if(slowdown_for_curled_edges) {
+            if(slowdown_for_curled_edges && current_object != nullptr) {
             	// The following code artifically increases the distance to provide slowdown for extrusions that are over curled lines
             	const double dist_limit = 10.0 * path.width;
-				{
-				Vec2d middle = 0.5 * (curr.position + next.position);
-				auto line_indices = prev_curled_extrusions[current_object].all_lines_in_radius(Point::new_scale(middle), scale_(dist_limit));
+                
+                // Safety check: ensure we have valid curled extrusion data
+                auto curled_it = prev_curled_extrusions.find(current_object);
+                if (curled_it != prev_curled_extrusions.end()) {
+				    Vec2d middle = 0.5 * (curr.position + next.position);
+				    auto line_indices = curled_it->second.all_lines_in_radius(Point::new_scale(middle), scale_(dist_limit));
 					if (!line_indices.empty()) {
 						double len   = (next.position - curr.position).norm();
 						// For long lines, there is a problem with the additional slowdown. If by accident, there is small curled line near the middle of this long line
@@ -398,7 +428,7 @@ public:
 
                         	double projected_lengths_sum = 0;
                         	for (size_t idx : line_indices) {
-                            	const CurledLine &line   = prev_curled_extrusions[current_object].get_line(idx);
+                            	const CurledLine &line   = curled_it->second.get_line(idx);
                             	Lines             inside = intersection_ln({{line.a, line.b}}, {box_of_influence});
                             	if (inside.empty())
                                 	continue;
@@ -411,7 +441,7 @@ public:
                     	}
                     
                     	for (size_t idx : line_indices) {
-                        	const CurledLine &line                 = prev_curled_extrusions[current_object].get_line(idx);
+                        	const CurledLine &line                 = curled_it->second.get_line(idx);
                         	float             distance_from_curled = unscaled(line_alg::distance_to(line, Point::new_scale(middle)));
                         	float             dist                 = path.width * (1.0 - (distance_from_curled / dist_limit)) *
                                      (1.0 - (distance_from_curled / dist_limit)) *
