@@ -4834,8 +4834,14 @@ double GCode::get_path_speed(const ExtrusionPath &path)
             speed            = new_speed == 0.0 ? speed : new_speed;
         }
     }
-    else if (path.role() == erOverhangPerimeter && path.overhang_degree == 5)
-        speed = m_config.overhang_totally_speed.get_at(cur_extruder_index());
+    else if (path.role() == erOverhangPerimeter && path.overhang_degree == 5) {
+        // Safety check for extruder index
+        if (cur_extruder_index() >= m_config.nozzle_diameter.values.size()) {
+            speed = m_config.bridge_speed.get_at(0); // Safe fallback
+        } else {
+            speed = m_config.overhang_totally_speed.get_at(cur_extruder_index());
+        }
+    }
     else if (path.role() == erOverhangPerimeter || path.role() == erBridgeInfill || path.role() == erSupportTransition) {
         speed = m_config.bridge_speed.get_at(cur_extruder_index());
     }
@@ -5814,9 +5820,10 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             acceleration = m_config.top_surface_acceleration.get_at(cur_extruder_index());
         } else if (m_config.inner_wall_acceleration.get_at(cur_extruder_index()) > 0 && path.role() == erPerimeter) {
             acceleration = m_config.inner_wall_acceleration.get_at(cur_extruder_index());
-        } else if (m_config.get_abs_value_at("sparse_infill_acceleration", cur_extruder_index()) > 0 && (path.role() == erInternalInfill)) {
+        } else if (cur_extruder_index() < m_config.nozzle_diameter.values.size() && 
+                   m_config.get_abs_value_at("sparse_infill_acceleration", cur_extruder_index()) > 0 && (path.role() == erInternalInfill)) {
             acceleration = m_config.get_abs_value_at("sparse_infill_acceleration", cur_extruder_index());
-        } else {
+        }else {
             acceleration = m_config.default_acceleration.get_at(cur_extruder_index());
         }
         if (do_slowdown_by_height)
@@ -5878,8 +5885,13 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                 speed = new_speed == 0.0 ? speed : new_speed;
             }
         } else if (path.role() == erOverhangPerimeter && path.overhang_degree == 5) {
-            speed = m_config.overhang_totally_speed.get_at(cur_extruder_index());
-        } else if (path.role() == erOverhangPerimeter || path.role() == erBridgeInfill || path.role() == erSupportTransition) {
+            // Safety check for extruder index
+            if (cur_extruder_index() >= m_config.nozzle_diameter.values.size()) {
+                speed = m_config.bridge_speed.get_at(0); // Safe fallback
+            } else {
+                speed = m_config.overhang_totally_speed.get_at(cur_extruder_index());
+            }
+        }else if (path.role() == erOverhangPerimeter || path.role() == erBridgeInfill || path.role() == erSupportTransition) {
             speed = m_config.bridge_speed.get_at(cur_extruder_index());
         } else if (path.role() == erInternalInfill) {
             speed = m_config.sparse_infill_speed.get_at(cur_extruder_index());
