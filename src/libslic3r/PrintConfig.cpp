@@ -1278,51 +1278,51 @@ void PrintConfigDef::init_fff_params()
     def->nullable = true;
     def->set_default_value(new ConfigOptionBoolsNullable{ true });
 
-    def = this->add("overhang_1_4_speed", coFloats);
+    def = this->add("overhang_1_4_speed", coFloatOrPercent);
     def->label = "10%";
     def->category = L("Speed");
     def->full_label = "10%";
     //def->tooltip = L("Speed for line of wall which has degree of overhang between 10% and 25% line width. "
     //                 "0 means using original wall speed");
-    def->sidetext = L("mm/s");
+    def->sidetext = L("mm/s or %");
     def->min = 0;
+    def->ratio_over = "outer_wall_speed";
     def->mode = comAdvanced;
-    def->nullable = true;
-    def->set_default_value(new ConfigOptionFloatsNullable{0});
+    def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
 
-    def = this->add("overhang_2_4_speed", coFloats);
+    def = this->add("overhang_2_4_speed", coFloatOrPercent);
     def->label = "25%";
     def->category = L("Speed");
     def->full_label = "25%";
     //def->tooltip = L("Speed for line of wall which has degree of overhang between 25% and 50% line width. "
     //                 "0 means using original wall speed");
-    def->sidetext = L("mm/s");
+    def->sidetext = L("mm/s or %");
     def->min = 0;
+    def->ratio_over = "outer_wall_speed";
     def->mode = comAdvanced;
-    def->nullable = true;
-    def->set_default_value(new ConfigOptionFloatsNullable{0});
+    def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
 
-    def = this->add("overhang_3_4_speed", coFloats);
+    def = this->add("overhang_3_4_speed", coFloatOrPercent);
     def->label = "50%";
     def->category = L("Speed");
     def->full_label = "50%";
     //def->tooltip = L("Speed for line of wall which has degree of overhang between 50% and 75% line width. 0 means using original wall speed");
-    def->sidetext = L("mm/s");
+    def->sidetext = L("mm/s or %");
     def->min = 0;
+    def->ratio_over = "outer_wall_speed";
     def->mode = comAdvanced;
-    def->nullable = true;
-    def->set_default_value(new ConfigOptionFloatsNullable{0});
+    def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
 
-    def = this->add("overhang_4_4_speed", coFloats);
+    def = this->add("overhang_4_4_speed", coFloatOrPercent);
     def->label = "75%";
     def->category = L("Speed");
     def->full_label = "75%";
     // def->tooltip = L("Speed for line of wall which has degree of overhang between 75% and 100% line width. 0 means using original wall speed");
-    def->sidetext = L("mm/s");
+    def->sidetext = L("mm/s or %");
     def->min = 0;
+    def->ratio_over = "outer_wall_speed";
     def->mode = comAdvanced;
-    def->nullable = true;
-    def->set_default_value(new ConfigOptionFloatsNullable{0});
+    def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
 
     def = this->add("overhang_totally_speed", coFloats);
     def->label = L("100%");
