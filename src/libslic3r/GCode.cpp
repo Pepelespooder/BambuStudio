@@ -5966,6 +5966,11 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     if (m_config.enable_overhang_speed.get_at(cur_extruder_index()) && !this->on_first_layer() &&
         (path.role() == erPerimeter || path.role() == erExternalPerimeter)) {
 
+        // Ensure the extrusion quality estimator is properly initialized
+        if (m_layer != nullptr && m_layer->object() != nullptr) {
+            m_extrusion_quality_estimator.set_current_object(m_layer->object());
+        }
+
         double ref_speed = (path.role() == erExternalPerimeter) ?
             m_config.outer_wall_speed.get_at(cur_extruder_index()) :
             m_config.inner_wall_speed.get_at(cur_extruder_index());

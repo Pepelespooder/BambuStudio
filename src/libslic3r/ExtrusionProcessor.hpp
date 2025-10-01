@@ -303,12 +303,26 @@ public:
 
     void prepare_for_new_layer(const PrintObject * obj, const Layer *layer)
     {
-        if (layer == nullptr) return;
+        if (layer == nullptr || obj == nullptr) return;
         const PrintObject *object = obj;
-        prev_layer_boundaries[object] = next_layer_boundaries[object];
-        next_layer_boundaries[object] = AABBTreeLines::LinesDistancer<Linef>{to_unscaled_linesf(layer->lslices)};
-        prev_curled_extrusions[object] = next_curled_extrusions[object];
-        next_curled_extrusions[object] = AABBTreeLines::LinesDistancer<CurledLine>{layer->curled_lines};
+        
+        // Safely move previous layer data
+        if (next_layer_boundaries.find(object) != next_layer_boundaries.end()) {
+            prev_layer_boundaries[object] = std::move(next_layer_boundaries[object]);
+        }
+        if (next_curled_extrusions.find(object) != next_curled_extrusions.end()) {
+            prev_curled_extrusions[object] = std::move(next_curled_extrusions[object]);
+        }
+        
+        // Initialize new layer data
+        try {
+            next_layer_boundaries[object] = AABBTreeLines::LinesDistancer<Linef>{to_unscaled_linesf(layer->lslices)};
+            next_curled_extrusions[object] = AABBTreeLines::LinesDistancer<CurledLine>{layer->curled_lines};
+        } catch (const std::exception& e) {
+            // If initialization fails, ensure we have valid empty distancers
+            next_layer_boundaries[object] = AABBTreeLines::LinesDistancer<Linef>{std::vector<Linef>{}};
+            next_curled_extrusions[object] = AABBTreeLines::LinesDistancer<CurledLine>{std::vector<CurledLine>{}};
+        }
     }
 
     std::vector<ProcessedPoint> estimate_extrusion_quality(const ExtrusionPath                &path,
@@ -408,50 +422,65 @@ public:
                 // Safety check: ensure we have valid curled extrusion data
                 auto curled_it = prev_curled_extrusions.find(current_object);
                 if (curled_it != prev_curled_extrusions.end()) {
-				    Vec2d middle = 0.5 * (curr.position + next.position);
-				    auto line_indices = curled_it->second.all_lines_in_radius(Point::new_scale(middle), scale_(dist_limit));
-					if (!line_indices.empty()) {
-						double len   = (next.position - curr.position).norm();
-						// For long lines, there is a problem with the additional slowdown. If by accident, there is small curled line near the middle of this long line
-                    	//  The whole segment gets slower unnecesarily. For these long lines, we do additional check whether it is worth slowing down.
-                    	// NOTE that this is still quite rough approximation, e.g. we are still checking lines only near the middle point
-                    	// TODO maybe split the lines into smaller segments before running this alg? but can be demanding, and GCode will be huge
-                    	if (len > 2) {
-                        	Vec2d dir   = Vec2d(next.position - curr.position) / len;
-                        	Vec2d right = Vec2d(-dir.y(), dir.x());
+                    try {
+				        Vec2d middle = 0.5 * (curr.position + next.position);
+				        auto line_indices = curled_it->second.all_lines_in_radius(Point::new_scale(middle), scale_(dist_limit));
+					    if (!line_indices.empty()) {
+						    double len   = (next.position - curr.position).norm();
+						    // For long lines, there is a problem with the additional slowdown. If by accident, there is small curled line near the middle of this long line
+                    	    //  The whole segment gets slower unnecesarily. For these long lines, we do additional check whether it is worth slowing down.
+                    	    // NOTE that this is still quite rough approximation, e.g. we are still checking lines only near the middle point
+                    	    // TODO maybe split the lines into smaller segments before running this alg? but can be demanding, and GCode will be huge
+                    	    if (len > 2) {
+                        	    Vec2d dir   = Vec2d(next.position - curr.position) / len;
+                        	    Vec2d right = Vec2d(-dir.y(), dir.x());
 
-                        	Polygon box_of_influence = {
-                            	scaled(Vec2d(curr.position + right * dist_limit)),
-                            	scaled(Vec2d(next.position + right * dist_limit)),
-                            	scaled(Vec2d(next.position - right * dist_limit)),
-                            	scaled(Vec2d(curr.position - right * dist_limit)),
-                        	};
+                        	    Polygon box_of_influence = {
+                            	    scaled(Vec2d(curr.position + right * dist_limit)),
+                            	    scaled(Vec2d(next.position + right * dist_limit)),
+                            	    scaled(Vec2d(next.position - right * dist_limit)),
+                            	    scaled(Vec2d(curr.position - right * dist_limit)),
+                        	    };
 
-                        	double projected_lengths_sum = 0;
-                        	for (size_t idx : line_indices) {
-                            	const CurledLine &line   = curled_it->second.get_line(idx);
-                            	Lines             inside = intersection_ln({{line.a, line.b}}, {box_of_influence});
-                            	if (inside.empty())
-                                	continue;
-                            	double projected_length = abs(dir.dot(unscaled(Vec2d((inside.back().b - inside.back().a).cast<double>()))));
-                            	projected_lengths_sum += projected_length;
-                        	}
-                        	if (projected_lengths_sum < 0.4 * len) {
-                            	line_indices.clear();
-                        	}
-                    	}
+                        	    double projected_lengths_sum = 0;
+                        	    for (size_t idx : line_indices) {
+                                    try {
+                            	        const CurledLine &line   = curled_it->second.get_line(idx);
+                            	        Lines             inside = intersection_ln({{line.a, line.b}}, {box_of_influence});
+                            	        if (inside.empty())
+                                	        continue;
+                            	        double projected_length = abs(dir.dot(unscaled(Vec2d((inside.back().b - inside.back().a).cast<double>()))));
+                            	        projected_lengths_sum += projected_length;
+                                    } catch (...) {
+                                        // Skip this line if there's any error accessing it
+                                        continue;
+                                    }
+                        	    }
+                        	    if (projected_lengths_sum < 0.4 * len) {
+                            	    line_indices.clear();
+                        	    }
+                    	    }
                     
-                    	for (size_t idx : line_indices) {
-                        	const CurledLine &line                 = curled_it->second.get_line(idx);
-                        	float             distance_from_curled = unscaled(line_alg::distance_to(line, Point::new_scale(middle)));
-                        	float             dist                 = path.width * (1.0 - (distance_from_curled / dist_limit)) *
-                                     (1.0 - (distance_from_curled / dist_limit)) *
-                                     (line.curled_height / (path.height * 10.0f)); // max_curled_height_factor from SupportSpotGenerator
-                        	artificial_distance_to_curled_lines = std::max(artificial_distance_to_curled_lines, dist);
-                    	}
-					}
+                    	    for (size_t idx : line_indices) {
+                                try {
+                        	        const CurledLine &line                 = curled_it->second.get_line(idx);
+                        	        float             distance_from_curled = unscaled(line_alg::distance_to(line, Point::new_scale(middle)));
+                        	        float             dist                 = path.width * (1.0 - (distance_from_curled / dist_limit)) *
+                                         (1.0 - (distance_from_curled / dist_limit)) *
+                                         (line.curled_height / (path.height * 10.0f)); // max_curled_height_factor from SupportSpotGenerator
+                        	        artificial_distance_to_curled_lines = std::max(artificial_distance_to_curled_lines, dist);
+                                } catch (...) {
+                                    // Skip this line if there's any error accessing it
+                                    continue;
+                                }
+                    	    }
+					    }
+                    } catch (...) {
+                        // If any error occurs in curled line processing, continue without curled slowdown
+                        artificial_distance_to_curled_lines = 0.0f;
+                    }
 				}
-			}	
+			}
 
             auto calculate_speed = [&speed_sections, &original_speed](float distance) {
                 float final_speed;
