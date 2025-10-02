@@ -5971,9 +5971,8 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         const PrintObject* current_print_object = nullptr;
         if (m_layer != nullptr && m_layer->object() != nullptr) {
             current_print_object = m_layer->object();
-        } else if (m_print_region != nullptr && m_print_region->print() != nullptr && 
-                   !m_print_region->print()->objects().empty()) {
-            current_print_object = m_print_region->print()->objects().front();
+        } else if (m_print != nullptr && !m_print->objects().empty()) {
+            current_print_object = m_print->objects().front();
         }
         
         if (current_print_object != nullptr) {
