@@ -6011,12 +6011,12 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         } catch (const std::exception& e) {
             // If estimation fails, fall back to simple processing
             for (const Point& pt : path.polyline.points) {
-                new_points.push_back({pt, speed, 1.0f});
+                new_points.push_back({pt, static_cast<float>(speed), 1.0f});
             }
         } catch (...) {
             // If estimation fails, fall back to simple processing
             for (const Point& pt : path.polyline.points) {
-                new_points.push_back({pt, speed, 1.0f});
+                new_points.push_back({pt, static_cast<float>(speed), 1.0f});
             }
         }
         
