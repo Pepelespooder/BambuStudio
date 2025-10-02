@@ -5353,7 +5353,8 @@ double GCode::get_overhang_degree_corr_speed(float normal_speed, double path_deg
         if (cur_extruder_index() >= m_config.nozzle_diameter.values.size()) {
             return normal_speed; // Fallback: use normal speed (no slowdown) when config unavailable
         }
-        return m_config.get_abs_value_at(overhang_speed_key_map[lower_degree_bound].c_str(), cur_extruder_index());
+        double bound = m_config.get_abs_value_at(overhang_speed_key_map[lower_degree_bound].c_str(), cur_extruder_index());
+        return std::min<double>(normal_speed, bound == 0.0 ? normal_speed : bound);
     }
 
     int upper_degree_bound = lower_degree_bound + 1;
@@ -5363,14 +5364,20 @@ double GCode::get_overhang_degree_corr_speed(float normal_speed, double path_deg
         return normal_speed; // Fallback: use normal speed (no slowdown) when config unavailable
     }
     
-    double lower_speed_bound = lower_degree_bound == 0 ? normal_speed : m_config.get_abs_value_at(overhang_speed_key_map[lower_degree_bound].c_str(), cur_extruder_index());
-    double upper_speed_bound = upper_degree_bound == 0 ? normal_speed : m_config.get_abs_value_at(overhang_speed_key_map[upper_degree_bound].c_str(), cur_extruder_index());
+    auto resolve_bound = [&](int degree_bound) -> double {
+        if (degree_bound == 0)
+            return normal_speed;
+        double value = m_config.get_abs_value_at(overhang_speed_key_map[degree_bound].c_str(), cur_extruder_index());
+        if (value <= 0.0)
+            return normal_speed;
+        return std::min<double>(normal_speed, value);
+    };
 
-    lower_speed_bound = lower_speed_bound == 0 ? normal_speed : lower_speed_bound;
-    upper_speed_bound = upper_speed_bound == 0 ? normal_speed : upper_speed_bound;
+    double lower_speed_bound = resolve_bound(lower_degree_bound);
+    double upper_speed_bound = resolve_bound(upper_degree_bound);
 
     double speed_out = lower_speed_bound + (upper_speed_bound - lower_speed_bound) * (path_degree - lower_degree_bound);
-    return speed_out;
+    return std::min<double>(normal_speed, speed_out);
 }
 
 static bool need_smooth_speed(const ExtrusionPath &other_path, const ExtrusionPath &this_path)
