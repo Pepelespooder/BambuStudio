@@ -674,6 +674,20 @@ double ConfigBase::get_abs_value_at(const t_config_option_key &opt_key, size_t i
     if (raw_opt->type() == coFloats) {
         return static_cast<const ConfigOptionFloats*>(raw_opt)->get_at(index);
     }
+    if (raw_opt->type() == coFloatOrPercent) {
+        const ConfigDef *def = this->def();
+        if (def == nullptr)
+            throw NoDefinitionException(opt_key);
+        const ConfigOptionDef *opt_def = def->get(opt_key);
+        assert(opt_def != nullptr);
+
+        const auto *opt = static_cast<const ConfigOptionFloatOrPercent*>(raw_opt);
+        if (opt_def->ratio_over.empty())
+            return opt->getFloat();
+
+        double ratio = this->get_abs_value_at(opt_def->ratio_over.c_str(), index);
+        return opt->get_abs_value(ratio);
+    }
     if (raw_opt->type() == coFloatsOrPercents) {
         const ConfigDef *def = this->def();
         if (def == nullptr) throw NoDefinitionException(opt_key);
