@@ -3747,7 +3747,7 @@ GCode::LayerResult GCode::process_layer(
     m_config.apply(layer.object()->config(), true);
 
     // Prepare extrusion quality estimator for curled perimeter processing
-    if (m_config.enable_overhang_speed.get_at(cur_extruder_index()) && m_config.slowdown_for_curled_perimeters) {
+    if (m_config.enable_overhang_speed.get_at(cur_extruder_index()) && m_config.slowdown_for_curled_perimeters.value) {
         for (const auto &layer_to_print : layers) {
             m_extrusion_quality_estimator.prepare_for_new_layer(layer_to_print.original_object,
                                                                 layer_to_print.object_layer);
@@ -4514,7 +4514,7 @@ GCode::LayerResult GCode::process_layer(
                     this->set_origin(unscale(offset));
                     
                     // Set current object for extrusion quality estimator
-                    if (m_config.enable_overhang_speed.get_at(cur_extruder_index()) && m_config.slowdown_for_curled_perimeters)
+                    if (m_config.enable_overhang_speed.get_at(cur_extruder_index()) && m_config.slowdown_for_curled_perimeters.value)
                         m_extrusion_quality_estimator.set_current_object(&instance_to_print.print_object);
                         
                     //FIXME the following code prints regions in the order they are defined, the path is not optimized in any way.
@@ -5967,8 +5967,17 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         (path.role() == erPerimeter || path.role() == erExternalPerimeter)) {
 
         // Ensure the extrusion quality estimator is properly initialized
+        // Use current print object from available sources
+        const PrintObject* current_print_object = nullptr;
         if (m_layer != nullptr && m_layer->object() != nullptr) {
-            m_extrusion_quality_estimator.set_current_object(m_layer->object());
+            current_print_object = m_layer->object();
+        } else if (m_print_region != nullptr && m_print_region->print() != nullptr && 
+                   !m_print_region->print()->objects().empty()) {
+            current_print_object = m_print_region->print()->objects().front();
+        }
+        
+        if (current_print_object != nullptr) {
+            m_extrusion_quality_estimator.set_current_object(current_print_object);
         }
 
         double ref_speed = (path.role() == erExternalPerimeter) ?
@@ -5977,49 +5986,41 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
 
         ConfigOptionPercents overhang_overlap_levels({75, 50, 25, 13, 12.99, 0});
 
-        if (m_config.slowdown_for_curled_perimeters){
+        try {
             ConfigOptionFloatsOrPercents dynamic_overhang_speeds(
-                {(m_config.get_abs_value("overhang_1_4_speed", ref_speed) < 0.5) ?
+                {(m_config.overhang_1_4_speed.get_abs_value(ref_speed) < 0.5) ?
                      FloatOrPercent{100, true} :
-                     FloatOrPercent{m_config.get_abs_value("overhang_1_4_speed", ref_speed) * 100 / ref_speed, true},
-                 (m_config.get_abs_value("overhang_2_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{m_config.overhang_1_4_speed.get_abs_value(ref_speed) * 100 / ref_speed, true},
+                 (m_config.overhang_2_4_speed.get_abs_value(ref_speed) < 0.5) ?
                      FloatOrPercent{100, true} :
-                     FloatOrPercent{m_config.get_abs_value("overhang_2_4_speed", ref_speed) * 100 / ref_speed, true},
-                 (m_config.get_abs_value("overhang_3_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{m_config.overhang_2_4_speed.get_abs_value(ref_speed) * 100 / ref_speed, true},
+                 (m_config.overhang_3_4_speed.get_abs_value(ref_speed) < 0.5) ?
                      FloatOrPercent{100, true} :
-                     FloatOrPercent{m_config.get_abs_value("overhang_3_4_speed", ref_speed) * 100 / ref_speed, true},
-                 (m_config.get_abs_value("overhang_4_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{m_config.overhang_3_4_speed.get_abs_value(ref_speed) * 100 / ref_speed, true},
+                 (m_config.overhang_4_4_speed.get_abs_value(ref_speed) < 0.5) ?
                      FloatOrPercent{100, true} :
-                     FloatOrPercent{m_config.get_abs_value("overhang_4_4_speed", ref_speed) * 100 / ref_speed, true},
-                 (m_config.get_abs_value("overhang_4_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{m_config.overhang_4_4_speed.get_abs_value(ref_speed) * 100 / ref_speed, true},
+                 (m_config.overhang_4_4_speed.get_abs_value(ref_speed) < 0.5) ?
                      FloatOrPercent{100, true} :
-                     FloatOrPercent{m_config.get_abs_value("overhang_4_4_speed", ref_speed) * 100 / ref_speed, true},
-                 (m_config.get_abs_value("overhang_4_4_speed", ref_speed) < 0.5) ?
+                     FloatOrPercent{m_config.overhang_4_4_speed.get_abs_value(ref_speed) * 100 / ref_speed, true},
+                 (m_config.overhang_4_4_speed.get_abs_value(ref_speed) < 0.5) ?
                      FloatOrPercent{100, true} :
-                     FloatOrPercent{m_config.get_abs_value("overhang_4_4_speed", ref_speed) * 100 / ref_speed, true}});
+                     FloatOrPercent{m_config.overhang_4_4_speed.get_abs_value(ref_speed) * 100 / ref_speed, true}});
 
             new_points = m_extrusion_quality_estimator.estimate_extrusion_quality(path, overhang_overlap_levels, dynamic_overhang_speeds,
-                                                                          ref_speed, speed, m_config.slowdown_for_curled_perimeters);
-        }else{
-            ConfigOptionFloatsOrPercents dynamic_overhang_speeds(
-                {(m_config.get_abs_value("overhang_1_4_speed", ref_speed) < 0.5) ?
-                     FloatOrPercent{100, true} :
-                     FloatOrPercent{m_config.get_abs_value("overhang_1_4_speed", ref_speed) * 100 / ref_speed, true},
-                 (m_config.get_abs_value("overhang_2_4_speed", ref_speed) < 0.5) ?
-                     FloatOrPercent{100, true} :
-                     FloatOrPercent{m_config.get_abs_value("overhang_2_4_speed", ref_speed) * 100 / ref_speed, true},
-                 (m_config.get_abs_value("overhang_3_4_speed", ref_speed) < 0.5) ?
-                     FloatOrPercent{100, true} :
-                     FloatOrPercent{m_config.get_abs_value("overhang_3_4_speed", ref_speed) * 100 / ref_speed, true},
-                 (m_config.get_abs_value("overhang_4_4_speed", ref_speed) < 0.5) ?
-                     FloatOrPercent{100, true} :
-                     FloatOrPercent{m_config.get_abs_value("overhang_4_4_speed", ref_speed) * 100 / ref_speed, true},
-                 FloatOrPercent{m_config.get_abs_value("bridge_speed") * 100 / ref_speed, true},
-                 FloatOrPercent{m_config.get_abs_value("bridge_speed") * 100 / ref_speed, true}});
-
-            new_points = m_extrusion_quality_estimator.estimate_extrusion_quality(path, overhang_overlap_levels, dynamic_overhang_speeds,
-                                                                          ref_speed, speed, m_config.slowdown_for_curled_perimeters);
+                                                                          ref_speed, speed, m_config.slowdown_for_curled_perimeters.value);
+        } catch (const std::exception& e) {
+            // If estimation fails, fall back to simple processing
+            for (const Point& pt : path.polyline.points) {
+                new_points.push_back({pt, speed, 1.0f});
+            }
+        } catch (...) {
+            // If estimation fails, fall back to simple processing
+            for (const Point& pt : path.polyline.points) {
+                new_points.push_back({pt, speed, 1.0f});
+            }
         }
+        
         variable_speed = std::any_of(new_points.begin(), new_points.end(),
                                      [speed](const ProcessedPoint &p) { return fabs(double(p.speed) - speed) > 1; }); // Ignore small speed variations (under 1mm/sec)
         

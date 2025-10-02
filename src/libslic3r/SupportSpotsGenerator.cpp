@@ -167,8 +167,11 @@ void estimate_malformations(LayerPtrs &layers, const Params &params)
                                            extrusion};
                     Vec2f middle                               = 0.5 * (line_out.a + line_out.b);
                     auto [middle_distance, bottom_line_idx, x] = prev_layer_lines.distance_from_lines_extra<false>(middle);
-                    ExtrusionLine bottom_line                  = prev_layer_lines.get_lines().empty() ? ExtrusionLine{} :
-                                                                                                        prev_layer_lines.get_line(bottom_line_idx);
+                    ExtrusionLine bottom_line{};
+                    if (!prev_layer_lines.get_lines().empty() && bottom_line_idx != size_t(-1)) {
+                        // Reuse the previous layer's line only when the index is valid.
+                        bottom_line = prev_layer_lines.get_line(bottom_line_idx);
+                    }
 
                     // correctify the distance sign using slice polygons
                     float sign = (prev_layer_boundary.distance_from_lines<true>(middle.cast<double>()) + 0.5f * flow_width) < 0.0f ? -1.0f : 1.0f;
@@ -192,3 +195,4 @@ void estimate_malformations(LayerPtrs &layers, const Params &params)
 
 } // namespace SupportSpotsGenerator
 } // namespace Slic3r
+
