@@ -348,8 +348,12 @@ int default_ice_temperature(const std::string &filament_type_raw)
 
     if (has_token(tokens, "TPU"))
         return 0;
-    if (has_token(tokens, "PLA"))
+    if (has_token(tokens, "PLA")) {
+        // PLA Silk cannot be used on Ice plate due to poor adhesion
+        if (has_token(tokens, "SILK"))
+            return 0;
         return 40;
+    }
     if (has_token(tokens, "PETG") || has_token(tokens, "PCTG"))
         return 45;
 
