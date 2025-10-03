@@ -323,22 +323,37 @@ int default_g10_temperature(const std::string &filament_type_raw)
 
 int default_lux_temperature(const std::string &filament_type_raw)
 {
+    BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: default_lux_temperature called with filament_type=" << filament_type_raw;
+    
     auto tokens = tokenize_filament(filament_type_raw);
 
-    if (has_token(tokens, "TPU"))
+    if (has_token(tokens, "TPU")) {
+        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Lux TPU -> 1°C";
         return 1;
-    if (has_token(tokens, "PLA"))
+    }
+    if (has_token(tokens, "PLA")) {
+        BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Lux PLA -> 60°C";
         return 60;
-    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
+    }
+    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG")) {
+        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Lux PCTG/PETG -> 80°C";
         return 80;
-    if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
+    }
+    if (has_token(tokens, "ABS") || has_token(tokens, "ASA")) {
+        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Lux ABS/ASA -> 110°C";
         return 110;
-    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC"))
+    }
+    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC")) {
+        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Lux PC -> 100°C";
         return 100;
-    if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA"))
+    }
+    if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA")) {
+        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Lux NYLON/PAHT/PPA/PA -> 110°C";
         return 110;
+    }
 
     // Materials not listed are not recommended on Lux; use 0°C to flag unsupported.
+    BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: Lux unsupported filament " << filament_type_raw << " -> 0°C";
     return 0;
 }
 
@@ -536,9 +551,18 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
 
             // Try to get calculated values from temperature lookup table
             if (const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(mapping.darkmoon_key)) {
+                BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Found plate for key " << mapping.darkmoon_key 
+                                        << " - plate name: " << plate->display_name;
                 if (auto chart_values = default_darkmoon_temperatures(*plate, filament_types)) {
                     values = std::move(*chart_values);
+                    BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Got calculated values for " << plate->display_name 
+                                            << " - first value: " << (!values.empty() ? std::to_string(values[0]) : "empty");
+                } else {
+                    BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: Failed to calculate temperatures for " 
+                                              << plate->display_name << " with filament types";
                 }
+            } else {
+                BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: No plate found for temp key: " << mapping.darkmoon_key;
             }
 
             // If lookup table calculation failed, fall back to standard plate temperatures
