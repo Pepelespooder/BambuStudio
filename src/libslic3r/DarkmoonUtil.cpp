@@ -519,9 +519,17 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
     for (const DarkmoonMapping &mapping : mappings) {
         ConfigOptionInts *dm_opt = config.option<ConfigOptionInts>(mapping.darkmoon_key, true);
 
-        // Only replace values if they are missing/empty or wrong size
-        // Don't treat any specific temperature value as a "placeholder"
-        bool need_replacement = dm_opt->values.empty() || dm_opt->values.size() < extruder_count;
+        // Only replace values if they are missing/empty, wrong size, or contain placeholder values
+        bool has_placeholder_values = !dm_opt->values.empty() && 
+                                     std::all_of(dm_opt->values.begin(), dm_opt->values.end(),
+                                                [](int v) { return v == kDarkmoonPlaceholderTemp; });
+        bool need_replacement = dm_opt->values.empty() || dm_opt->values.size() < extruder_count || has_placeholder_values;
+        
+        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Checking " << mapping.darkmoon_key 
+                                << " - empty: " << dm_opt->values.empty()
+                                << ", size: " << dm_opt->values.size() << "/" << extruder_count
+                                << ", has_placeholder: " << has_placeholder_values
+                                << ", need_replacement: " << need_replacement;
         
         if (need_replacement) {
             std::vector<int> values;
@@ -549,6 +557,11 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
                 values.resize(extruder_count);
 
             dm_opt->values = std::move(values);
+            
+            BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Updated " << mapping.darkmoon_key << " with values: "
+                                    << (dm_opt->values.empty() ? "empty" : std::to_string(dm_opt->values[0]));
+        } else {
+            BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Skipping " << mapping.darkmoon_key << " - no replacement needed";
         }
     }
 }
