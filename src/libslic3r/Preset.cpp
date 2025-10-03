@@ -635,12 +635,6 @@ void Preset::reload(Preset const &parent)
     }
 }
 
-// Set the is_dirty flag if the provided config is different from the active one,
-void Preset::set_dirty(const DynamicPrintConfig &config)
-{
-    this->is_dirty = !this->config.diff(config).empty();
-}
-
 // Return a label of this preset, consisting of a name and a "(modified)" suffix, if this preset is dirty.
 std::string Preset::label(bool no_alias) const
 {
