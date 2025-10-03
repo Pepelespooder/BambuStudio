@@ -4,7 +4,6 @@
 #include "Preset.hpp"
 #include "PresetBundle.hpp"
 #include "DarkmoonUtil.hpp"
-#include "DarkmoonConfigApp.hpp"
 #include "AppConfig.hpp"
 
 #ifdef _MSC_VER
@@ -637,20 +636,9 @@ void Preset::reload(Preset const &parent)
 }
 
 // Set the is_dirty flag if the provided config is different from the active one,
-// but ignore darkmoon temperature keys that are just calculated defaults
-void Preset::set_dirty_with_darkmoon_filtering(const DynamicPrintConfig &config)
+void Preset::set_dirty(const DynamicPrintConfig &config)
 {
-    auto diff_keys = this->config.diff(config);
-    // Filter out darkmoon temperature keys that are just calculated defaults
-    auto iter = diff_keys.begin();
-    while (iter != diff_keys.end()) {
-        if (DarkmoonConfigApp::is_darkmoon_calculated_default_change(*iter, config, this->config)) {
-            iter = diff_keys.erase(iter);
-        } else {
-            ++iter;
-        }
-    }
-    this->is_dirty = !diff_keys.empty();
+    this->is_dirty = !this->config.diff(config).empty();
 }
 
 // Return a label of this preset, consisting of a name and a "(modified)" suffix, if this preset is dirty.
@@ -2991,10 +2979,6 @@ bool PresetCollection::is_dirty(const Preset *edited, const Preset *reference)
                 if (skipped_in_dirty.find(key) != skipped_in_dirty.end()) {
                     continue;
                 }
-                // Skip darkmoon temperature keys that are just calculated defaults
-                if (DarkmoonConfigApp::is_darkmoon_calculated_default_change(key, edited->config, reference->config)) {
-                    continue;
-                }
                 // This is a real difference
                 has_real_differences = true;
                 break;
@@ -3028,17 +3012,6 @@ std::vector<std::string> PresetCollection::dirty_options(const Preset *edited, c
         for (auto &opt_key : optional_keys)
             if (reference->config.has(opt_key) != edited->config.has(opt_key))
                 changed.emplace_back(opt_key);
-
-        // Filter out darkmoon temperature keys that are just calculated defaults
-        // These should not be considered "dirty" when they replace placeholder values
-        auto iter = changed.begin();
-        while (iter != changed.end()) {
-            if (DarkmoonConfigApp::is_darkmoon_calculated_default_change(*iter, edited->config, reference->config)) {
-                iter = changed.erase(iter);
-            } else {
-                ++iter;
-            }
-        }
     }
     return changed;
 }
@@ -3062,10 +3035,6 @@ std::vector<std::string> PresetCollection::dirty_options_without_option_list(con
         auto iter = changed.begin();
         while (iter != changed.end()) {
             if (option_ignore_list.find(*iter) != option_ignore_list.end()) {
-                iter = changed.erase(iter);
-            }
-            else if (DarkmoonConfigApp::is_darkmoon_calculated_default_change(*iter, edited->config, reference->config)) {
-                // Also filter out darkmoon temperature keys that are just calculated defaults
                 iter = changed.erase(iter);
             }
             else {

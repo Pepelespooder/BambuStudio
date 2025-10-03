@@ -5,7 +5,6 @@
 #include "I18N.hpp"
 #include "Utils.hpp"
 #include "DarkmoonUtil.hpp"
-#include "DarkmoonConfigApp.hpp"
 #include "Model.hpp"
 #include "format.hpp"
 

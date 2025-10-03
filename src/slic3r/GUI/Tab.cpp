@@ -7,7 +7,6 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "libslic3r/DarkmoonUtil.hpp"
-#include "libslic3r/DarkmoonConfigApp.hpp"
 
 #include "Search.hpp"
 #include "OG_CustomCtrl.hpp"
