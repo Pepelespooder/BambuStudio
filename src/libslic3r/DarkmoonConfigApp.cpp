@@ -240,10 +240,6 @@ int DarkmoonConfigApp::get_display_temperature(const DynamicPrintConfig &config,
     
     // Calculate the actual temperature for this filament type and plate
     if (auto calculated_temp = default_darkmoon_temperature(*plate, filament_types->values[0])) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonConfigApp: Displaying calculated temperature " 
-                                << *calculated_temp << "°C for " << darkmoon_temp_key 
-                                << " with filament " << filament_types->values[0] 
-                                << " (instead of placeholder " << stored_value << "°C)";
         return *calculated_temp;
     }
     
@@ -260,14 +256,11 @@ bool DarkmoonConfigApp::is_darkmoon_calculated_default_change(const std::string 
         return false;
     }
 
-    BOOST_LOG_TRIVIAL(debug) << "DarkmoonConfigApp: Checking if " << opt_key << " is a calculated default change";
-
     // Get the values from both configs
     const ConfigOptionInts *edited_opt = edited_config.opt<ConfigOptionInts>(opt_key);
     const ConfigOptionInts *reference_opt = reference_config.opt<ConfigOptionInts>(opt_key);
 
     if (!edited_opt || !reference_opt) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonConfigApp: Missing option data for " << opt_key;
         return false;
     }
 
@@ -294,14 +287,12 @@ bool DarkmoonConfigApp::is_darkmoon_calculated_default_change(const std::string 
                     
                     // If the edited values match expected calculated values, this is not a user override
                     bool is_calculated_default = std::equal(edited_opt->values.begin(), edited_opt->values.end(), expected.begin());
-                    BOOST_LOG_TRIVIAL(debug) << "DarkmoonConfigApp: " << opt_key << " is_calculated_default=" << is_calculated_default;
                     return is_calculated_default;
                 }
             }
         }
     }
 
-    BOOST_LOG_TRIVIAL(debug) << "DarkmoonConfigApp: " << opt_key << " is not a calculated default change";
     return false;
 }
 
