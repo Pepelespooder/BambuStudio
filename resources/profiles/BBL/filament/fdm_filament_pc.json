@@ -88,6 +88,36 @@
     "textured_plate_temp_initial_layer": [
         "110"
     ],
+    "darkmoon_g10_plate_temp": [
+        "0"
+    ],
+    "darkmoon_g10_plate_temp_initial_layer": [
+        "0"
+    ],
+    "darkmoon_ice_plate_temp": [
+        "0"
+    ],
+    "darkmoon_ice_plate_temp_initial_layer": [
+        "0"
+    ],
+    "darkmoon_lux_plate_temp": [
+        "100"
+    ],
+    "darkmoon_lux_plate_temp_initial_layer": [
+        "100"
+    ],
+    "darkmoon_cfx_plate_temp": [
+        "115"
+    ],
+    "darkmoon_cfx_plate_temp_initial_layer": [
+        "115"
+    ],
+    "darkmoon_satin_plate_temp": [
+        "120"
+    ],
+    "darkmoon_satin_plate_temp_initial_layer": [
+        "120"
+    ],
     "filament_end_gcode": [
         "; filament end gcode \n\n"
     ]
