@@ -1497,10 +1497,15 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
 
     const t_config_enum_values* bed_type_keys_map = bed_type_def->enum_keys_map;
     const ConfigOptionInts* bed_temp_opt = m_config.option<ConfigOptionInts>(get_bed_temp_key(m_config.curr_bed_type));
+    
+    BOOST_LOG_TRIVIAL(debug) << "Print::validate - bed_type: " << int(m_config.curr_bed_type) 
+                            << ", temp_key: " << get_bed_temp_key(m_config.curr_bed_type)
+                            << ", bed_temp_opt: " << (bed_temp_opt ? "found" : "null");
     for (unsigned int extruder_id : extruders) {
         int curr_bed_temp = 0;
         if (bed_temp_opt != nullptr) {
             curr_bed_temp = bed_temp_opt->get_at(extruder_id);
+            BOOST_LOG_TRIVIAL(debug) << "Print::validate - extruder " << extruder_id << " bed_temp: " << curr_bed_temp;
         } else {
             BOOST_LOG_TRIVIAL(warning) << "Missing bed temperature config for bed type " << int(m_config.curr_bed_type);
         }
