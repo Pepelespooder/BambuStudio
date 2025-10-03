@@ -14,32 +14,14 @@ bool DarkmoonConfigApp::apply_dynamic_config(DynamicPrintConfig &config,
                                            const std::string &filament_type,
                                            size_t extruder_count,
                                            const DynamicPrintConfig *printer_config) {
-    // Only apply darkmoon configuration to supported manufacturers
+    // Since we now have static temperatures in filament presets, this function is largely redundant
+    // but we'll keep it for backward compatibility
+    
     if (!is_darkmoon_supported_manufacturer(printer_config)) {
         return false; // Skip darkmoon configuration for unsupported manufacturers
     }
 
-    // Determine filament type if not provided
-    std::string actual_filament_type = filament_type.empty() ? 
-        determine_filament_type(config) : filament_type;
-    
-    if (actual_filament_type.empty()) {
-        return false; // Cannot determine filament type
-    }
-
-    // Ensure the correct filament type is set for dynamic temperature calculation
-    if (filament_type.empty()) {
-        // Set the filament type in the config if it wasn't provided
-        auto filament_types = config.option<ConfigOptionStrings>("filament_type", true);
-        if (filament_types->values.empty() || filament_types->values[0] != actual_filament_type) {
-            filament_types->values.clear();
-            filament_types->values.resize(std::max<size_t>(1, extruder_count), actual_filament_type);
-        }
-    }
-
-    // Apply calculated darkmoon temperatures for better out-of-box experience
-    ensure_darkmoon_bed_temps(config, extruder_count);
-
+    // The static preset values should already be correct, so no dynamic application needed
     return true;
 }
 

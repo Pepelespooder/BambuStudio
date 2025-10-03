@@ -612,9 +612,6 @@ void Tab::load_initial_data()
             if (!nozzle_opt->values.empty())
                 extruder_count = nozzle_opt->values.size();
         }
-
-        if (DarkmoonConfigApp::apply_dynamic_config_if_missing(*m_config, "", extruder_count, &printer_config))
-            m_presets->update_saved_preset_from_current_preset();
     }
 }
 
