@@ -80,6 +80,14 @@ public:
                                      const std::string &darkmoon_temp_key, 
                                      int stored_value);
 
+    /**
+     * Check if a changed darkmoon temperature key represents just a calculated default
+     * rather than a user override, so it shouldn't be considered "dirty"
+     */
+    static bool is_darkmoon_calculated_default_change(const std::string &opt_key, 
+                                                     const DynamicPrintConfig &edited_config, 
+                                                     const DynamicPrintConfig &reference_config);
+
 private:
     /**
      * Check if printer manufacturer supports darkmoon plates

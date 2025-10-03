@@ -280,6 +280,9 @@ public:
 
     // Set the is_dirty flag if the provided config is different from the active one.
     void                set_dirty(const DynamicPrintConfig &config) { this->is_dirty = ! this->config.diff(config).empty(); }
+    // Set the is_dirty flag if the provided config is different from the active one,
+    // but ignore darkmoon temperature keys that are just calculated defaults
+    void                set_dirty_with_darkmoon_filtering(const DynamicPrintConfig &config);
     void                set_dirty(bool dirty = true) { this->is_dirty = dirty; }
     void                reset_dirty() { this->is_dirty = false; }
 

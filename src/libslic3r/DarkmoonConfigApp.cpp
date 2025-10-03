@@ -254,4 +254,58 @@ int DarkmoonConfigApp::get_display_temperature(const DynamicPrintConfig &config,
     return stored_value;
 }
 
+bool DarkmoonConfigApp::is_darkmoon_calculated_default_change(const std::string &opt_key, 
+                                                             const DynamicPrintConfig &edited_config, 
+                                                             const DynamicPrintConfig &reference_config)
+{
+    // Only check darkmoon temperature keys
+    if (!is_darkmoon_bed_temp_key(opt_key)) {
+        return false;
+    }
+
+    BOOST_LOG_TRIVIAL(debug) << "DarkmoonConfigApp: Checking if " << opt_key << " is a calculated default change";
+
+    // Get the values from both configs
+    const ConfigOptionInts *edited_opt = edited_config.opt<ConfigOptionInts>(opt_key);
+    const ConfigOptionInts *reference_opt = reference_config.opt<ConfigOptionInts>(opt_key);
+
+    if (!edited_opt || !reference_opt) {
+        BOOST_LOG_TRIVIAL(debug) << "DarkmoonConfigApp: Missing option data for " << opt_key;
+        return false;
+    }
+
+    // If reference config has placeholder values and edited config has calculated values,
+    // then this is just a calculated default, not a user override
+    bool reference_has_placeholders = !reference_opt->values.empty() && 
+        std::all_of(reference_opt->values.begin(), reference_opt->values.end(), 
+                   [](int v) { return v == kDarkmoonPlaceholderTemp; });
+
+    if (reference_has_placeholders && !edited_opt->values.empty()) {
+        // Check if the edited values match what would be calculated for this filament type
+        const auto *filament_types = edited_config.opt<ConfigOptionStrings>("filament_type");
+        if (filament_types && !filament_types->values.empty()) {
+            const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(opt_key);
+            if (plate) {
+                if (auto expected_temps = default_darkmoon_temperatures(*plate, *filament_types)) {
+                    // Resize expected temps to match edited config size
+                    std::vector<int> expected = *expected_temps;
+                    if (expected.size() < edited_opt->values.size()) {
+                        expected.resize(edited_opt->values.size(), expected.back());
+                    } else if (expected.size() > edited_opt->values.size()) {
+                        expected.resize(edited_opt->values.size());
+                    }
+                    
+                    // If the edited values match expected calculated values, this is not a user override
+                    bool is_calculated_default = std::equal(edited_opt->values.begin(), edited_opt->values.end(), expected.begin());
+                    BOOST_LOG_TRIVIAL(debug) << "DarkmoonConfigApp: " << opt_key << " is_calculated_default=" << is_calculated_default;
+                    return is_calculated_default;
+                }
+            }
+        }
+    }
+
+    BOOST_LOG_TRIVIAL(debug) << "DarkmoonConfigApp: " << opt_key << " is not a calculated default change";
+    return false;
+}
+
 } // namespace Slic3r
