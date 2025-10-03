@@ -590,15 +590,4 @@ void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count
     }
 }
 
-void apply_dynamic_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
-{
-    BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: apply_dynamic_darkmoon_bed_temps called with extruder_count=" << extruder_count;
-    
-    // Use the same conservative logic as ensure_darkmoon_bed_temps
-    // Only replace missing/empty values, not user-set values
-    ensure_darkmoon_bed_temps(config, extruder_count);
-    
-    BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: apply_dynamic_darkmoon_bed_temps completed for all mappings";
-}
-
 } // namespace Slic3r

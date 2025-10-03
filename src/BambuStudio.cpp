@@ -65,7 +65,6 @@ using namespace nlohmann;
 #include "libslic3r/Thread.hpp"
 #include "libslic3r/BlacklistedLibraryCheck.hpp"
 #include "libslic3r/FlushVolCalc.hpp"
-#include "libslic3r/DarkmoonUtil.hpp"
 
 #include "libslic3r/Orient.hpp"
 #include "libslic3r/PNGReadWrite.hpp"
@@ -6289,11 +6288,6 @@ int CLI::run(int argc, char **argv)
                         DynamicPrintConfig new_print_config = m_print_config;
                         new_print_config.apply(*part_plate->config());
                         new_print_config.apply(m_extra_config, true);
-                        
-                        // Apply dynamic darkmoon bed temperatures to the final print config
-                        // This ensures that placeholder values (45°C) get replaced with proper calculated temperatures
-                        BOOST_LOG_TRIVIAL(debug) << "BambuStudio: Applying dynamic darkmoon temperatures to print config for plate " << (index + 1);
-                        apply_dynamic_darkmoon_bed_temps(new_print_config, new_extruder_count);
                         if (new_extruder_count > 1) {
                             FilamentMapMode map_mode = fmmAutoForFlush;
                             if (new_print_config.option<ConfigOptionEnum<FilamentMapMode>>("filament_map_mode"))

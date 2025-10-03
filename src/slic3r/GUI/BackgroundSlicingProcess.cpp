@@ -18,7 +18,6 @@
 // Print now includes tbb, and tbb includes Windows. This breaks compilation of wxWidgets if included before wx.
 #include "libslic3r/Print.hpp"
 #include "libslic3r/SLAPrint.hpp"
-#include "libslic3r/DarkmoonUtil.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/GCode/PostProcessor.hpp"
 #include "libslic3r/Format/SL1.hpp"
@@ -682,14 +681,6 @@ Print::ApplyStatus BackgroundSlicingProcess::apply(const Model &model, const Dyn
 	// TODO: add partplate config
 	DynamicPrintConfig new_config = config;
 	new_config.apply(*m_current_plate->config());
-	
-	// Apply dynamic darkmoon bed temperatures to ensure placeholder values are replaced
-	if (m_print->technology() == ptFFF) {
-		size_t extruder_count = new_config.opt<ConfigOptionStrings>("filament_type") ? 
-		                       new_config.opt<ConfigOptionStrings>("filament_type")->values.size() : 1;
-		apply_dynamic_darkmoon_bed_temps(new_config, extruder_count);
-	}
-	
 	Print::ApplyStatus invalidated = m_print->apply(model, new_config);
 	if ((invalidated & PrintBase::APPLY_STATUS_INVALIDATED) != 0 && m_print->technology() == ptFFF &&
 		!m_fff_print->is_step_done(psGCodeExport)) {

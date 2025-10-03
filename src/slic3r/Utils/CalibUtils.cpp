@@ -1653,10 +1653,6 @@ bool CalibUtils::process_and_store_3mf(Model *model, const DynamicPrintConfig &f
 
     // apply the new print config
     DynamicPrintConfig new_print_config = full_config;
-    
-    // Apply dynamic darkmoon bed temperatures to ensure placeholder values are replaced
-    apply_dynamic_darkmoon_bed_temps(new_print_config, new_print_config.opt<ConfigOptionInts>("filament_type") ? new_print_config.opt<ConfigOptionInts>("filament_type")->values.size() : 1);
-    
     print->apply(*model, new_print_config);
 
     Print *fff_print = dynamic_cast<Print *>(print);

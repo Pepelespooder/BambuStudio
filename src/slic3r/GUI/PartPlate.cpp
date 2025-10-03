@@ -2817,12 +2817,6 @@ int PartPlate::load_gcode_from_file(const std::string& filename)
 	std::vector<int>   filament_maps = this->get_real_filament_maps(preset_bundle->project_config);
 	DynamicPrintConfig full_config   = wxGetApp().preset_bundle->full_config(false, filament_maps);
 	full_config.apply(m_config, true);
-	
-	// Apply dynamic darkmoon bed temperatures to ensure placeholder values are replaced
-	size_t extruder_count = full_config.opt<ConfigOptionStrings>("filament_type") ? 
-	                       full_config.opt<ConfigOptionStrings>("filament_type")->values.size() : 1;
-	apply_dynamic_darkmoon_bed_temps(full_config, extruder_count);
-	
 	m_print->apply(*m_model, full_config, false);
 	//BBS: need to apply two times, for after the first apply, the m_print got its object,
 	//which will affect the config when new_full_config.normalize_fdm(used_filaments);

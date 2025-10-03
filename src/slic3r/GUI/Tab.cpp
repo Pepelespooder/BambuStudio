@@ -3710,9 +3710,6 @@ void TabFilament::reload_config()
         extruder_count = nozzle_opt->values.size();
     }
     
-    // Apply Darkmoon temperature defaults to the preset config itself
-    apply_dynamic_darkmoon_bed_temps(filament_config, extruder_count);
-    
     Tab::reload_config();
     
     // Reset dirty state since the temperature population should not be considered a user change

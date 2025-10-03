@@ -37,11 +37,8 @@ bool DarkmoonConfigApp::apply_dynamic_config(DynamicPrintConfig &config,
         }
     }
 
-    // Use the dynamic darkmoon bed temps function which always applies calculated values
-    // over any existing hardcoded values, ensuring the most up-to-date temperature calculations
-    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: Before apply_dynamic_darkmoon_bed_temps";
-    apply_dynamic_darkmoon_bed_temps(config, extruder_count);
-    BOOST_LOG_TRIVIAL(info) << "DarkmoonConfigApp: After apply_dynamic_darkmoon_bed_temps";
+    // Apply calculated darkmoon temperatures for better out-of-box experience
+    ensure_darkmoon_bed_temps(config, extruder_count);
 
     return true;
 }
