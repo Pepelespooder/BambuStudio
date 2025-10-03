@@ -286,7 +286,7 @@ bool DarkmoonConfigApp::is_darkmoon_calculated_default_change(const std::string 
         if (filament_types && !filament_types->values.empty()) {
             const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(opt_key);
             if (plate) {
-                if (auto expected_temps = default_darkmoon_temperatures(*plate, *filament_types)) {
+                if (auto expected_temps = default_darkmoon_temperatures(*plate, filament_types->values)) {
                     // Resize expected temps to match edited config size
                     std::vector<int> expected = *expected_temps;
                     if (expected.size() < edited_opt->values.size()) {
