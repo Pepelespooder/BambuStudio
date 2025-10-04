@@ -273,31 +273,31 @@ std::string get_darkmoon_bed_thumbnail_by_name(const std::string &plate_name)
 
 std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture_parts(BedType bed_type)
 {
-    // Universal Darkmoon part1: Moon logo positioned using same coordinates as BambuLab textured_pei and cool_plate part1
+    // Generic part1: Same for all darkmoon plates, positioned next to bed texture
     DarkmoonTexturePartInfo darkmoon_part1 = {10, 52, 8.393f, 192, "darkmoon_part1.svg"};
     
-    // Plate-specific part2: Contains the actual plate type name, positioned using same coordinates as BambuLab part2
+    // Plate-specific part2: Contains the actual plate type name, positioned next to darkmoon_part1
     DarkmoonTexturePartInfo darkmoon_part2;
     
     switch (bed_type) {
         case BedType::btDarkmoonG10:
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_g10_part2.svg"};
+            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_g10_part2.svg"};
             break;
         case BedType::btDarkmoonIce:
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_ice_part2.svg"};
+            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_ice_part2.svg"};
             break;
         case BedType::btDarkmoonLux:
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_lux_part2.svg"};
+            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_lux_part2.svg"};
             break;
         case BedType::btDarkmoonCFX:
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_cfx_part2.svg"};
+            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_cfx_part2.svg"};
             break;
         case BedType::btDarkmoonSatin:
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_satin_part2.svg"};
+            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_satin_part2.svg"};
             break;
         default:
             // Fallback to generic Darkmoon part2
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_part2.svg"};
+            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_part2.svg"};
             break;
     }
     
