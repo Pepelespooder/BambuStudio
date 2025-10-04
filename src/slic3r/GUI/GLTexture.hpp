@@ -127,6 +127,7 @@ namespace GUI {
 
         unsigned int get_id() const { return m_id; }
         int get_original_width() const { return m_original_width; }
+        int get_original_height() const { return m_original_height; }
         int get_width() const { return m_width; }
         int get_height() const { return m_height; }
 
