@@ -274,33 +274,44 @@ std::string get_darkmoon_bed_thumbnail_by_name(const std::string &plate_name)
 std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture_parts(BedType bed_type)
 {
     // Generic part1: Same for all darkmoon plates, positioned next to bed texture
-    DarkmoonTexturePartInfo darkmoon_part1 = {10, 52, 8.393f, 192, "darkmoon_part1.svg"};
-    
-    // Plate-specific part2: Contains the actual plate type name, positioned next to darkmoon_part1
+    DarkmoonTexturePartInfo darkmoon_part1 = {10.f, 52.f, 8.393f, 192.f, "darkmoon_part1.svg"};
+
+    // Plate-specific part2 should line up horizontally with part1 so both banners form a pair.
+    constexpr float kHorizontalGap = 4.f;
+    auto part2_for = [&](const char *filename) {
+        return DarkmoonTexturePartInfo {
+            darkmoon_part1.x + darkmoon_part1.w + kHorizontalGap,
+            darkmoon_part1.y,
+            darkmoon_part1.w,
+            darkmoon_part1.h,
+            filename
+        };
+    };
+
     DarkmoonTexturePartInfo darkmoon_part2;
-    
+
     switch (bed_type) {
         case BedType::btDarkmoonG10:
-            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_g10_part2.svg"};
+            darkmoon_part2 = part2_for("darkmoon_g10_part2.svg");
             break;
         case BedType::btDarkmoonIce:
-            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_ice_part2.svg"};
+            darkmoon_part2 = part2_for("darkmoon_ice_part2.svg");
             break;
         case BedType::btDarkmoonLux:
-            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_lux_part2.svg"};
+            darkmoon_part2 = part2_for("darkmoon_lux_part2.svg");
             break;
         case BedType::btDarkmoonCFX:
-            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_cfx_part2.svg"};
+            darkmoon_part2 = part2_for("darkmoon_cfx_part2.svg");
             break;
         case BedType::btDarkmoonSatin:
-            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_satin_part2.svg"};
+            darkmoon_part2 = part2_for("darkmoon_satin_part2.svg");
             break;
         default:
-            // Fallback to generic Darkmoon part2
-            darkmoon_part2 = {45, -14.5, 70, 8, "darkmoon_part2.svg"};
+            // Fallback to a safe default asset if an unknown bed type slips through.
+            darkmoon_part2 = part2_for("darkmoon_g10_part2.svg");
             break;
     }
-    
+
     return std::make_pair(darkmoon_part1, darkmoon_part2);
 }
 
