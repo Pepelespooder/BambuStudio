@@ -274,41 +274,63 @@ std::string get_darkmoon_bed_thumbnail_by_name(const std::string &plate_name)
 std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture_parts(BedType bed_type)
 {
     // Generic part1: Same for all darkmoon plates, positioned next to bed texture
-    DarkmoonTexturePartInfo darkmoon_part1 = {10.f, 52.f, 8.393f, 192.f, "darkmoon_part1.svg"};
+    constexpr float kPartBannerWidth  = 8.393f;
+    constexpr float kPartBannerHeight = 192.f;
 
-    // Plate-specific part2 should line up horizontally with part1 so both banners form a pair.
     constexpr float kHorizontalGap = 4.f;
-    auto part2_for = [&](const char *filename) {
-        return DarkmoonTexturePartInfo {
-            darkmoon_part1.x + darkmoon_part1.w + kHorizontalGap,
-            darkmoon_part1.y,
-            darkmoon_part1.w,
-            darkmoon_part1.h,
-            filename
-        };
+
+    auto make_vertical_label = [](const char *label) {
+        std::string result;
+        for (const char *c = label; *c != '\0'; ++c) {
+            if (!result.empty())
+                result.push_back('\n');
+            result.push_back(*c);
+        }
+        return result;
+    };
+
+    DarkmoonTexturePartInfo darkmoon_part1;
+    darkmoon_part1.x = 10.f;
+    darkmoon_part1.y = 52.f;
+    darkmoon_part1.w = kPartBannerWidth;
+    darkmoon_part1.h = kPartBannerHeight;
+    darkmoon_part1.text = make_vertical_label("DARKMOON");
+    darkmoon_part1.font_point_size = 20.f;
+    darkmoon_part1.bold = true;
+
+    auto part2_for = [&](const char *label) {
+        DarkmoonTexturePartInfo part2;
+        part2.x = darkmoon_part1.x + darkmoon_part1.w + kHorizontalGap;
+        part2.y = darkmoon_part1.y;
+        part2.w = kPartBannerWidth;
+        part2.h = kPartBannerHeight;
+        part2.text = make_vertical_label(label);
+        part2.font_point_size = 22.f;
+        part2.bold = true;
+        // Leave filename empty so the GUI knows to render text instead of an SVG asset.
+        return part2;
     };
 
     DarkmoonTexturePartInfo darkmoon_part2;
 
     switch (bed_type) {
         case BedType::btDarkmoonG10:
-            darkmoon_part2 = part2_for("darkmoon_g10_part2.svg");
+            darkmoon_part2 = part2_for("G10");
             break;
         case BedType::btDarkmoonIce:
-            darkmoon_part2 = part2_for("darkmoon_ice_part2.svg");
+            darkmoon_part2 = part2_for("ICE");
             break;
         case BedType::btDarkmoonLux:
-            darkmoon_part2 = part2_for("darkmoon_lux_part2.svg");
+            darkmoon_part2 = part2_for("LUX");
             break;
         case BedType::btDarkmoonCFX:
-            darkmoon_part2 = part2_for("darkmoon_cfx_part2.svg");
+            darkmoon_part2 = part2_for("CFX");
             break;
         case BedType::btDarkmoonSatin:
-            darkmoon_part2 = part2_for("darkmoon_satin_part2.svg");
+            darkmoon_part2 = part2_for("SATIN");
             break;
         default:
-            // Fallback to a safe default asset if an unknown bed type slips through.
-            darkmoon_part2 = part2_for("darkmoon_g10_part2.svg");
+            darkmoon_part2 = part2_for("G10");
             break;
     }
 

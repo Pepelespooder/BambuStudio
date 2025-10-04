@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <string>
@@ -70,8 +71,16 @@ std::optional<int> default_darkmoon_temperature(const DarkmoonPlateInfo &plate, 
 std::optional<std::vector<int>> default_darkmoon_temperatures(const DarkmoonPlateInfo &plate, const std::vector<std::string> &filament_types);
 
 struct DarkmoonTexturePartInfo {
-    float x, y, w, h;
+    float x { 0.f };
+    float y { 0.f };
+    float w { 0.f };
+    float h { 0.f };
     std::string filename;
+    std::string text;
+    float font_point_size { 22.f };
+    bool bold { true };
+    std::array<uint8_t, 4> text_color { { 179, 179, 179, 255 } };
+    std::array<uint8_t, 4> background_color { { 0, 0, 0, 0 } };
 };
 
 void append_darkmoon_plate_slugs(std::vector<std::string> &slugs);
