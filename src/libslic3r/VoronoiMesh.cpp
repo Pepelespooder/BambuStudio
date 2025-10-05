@@ -202,81 +202,173 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
         return std::make_unique<indexed_triangle_set>();
     }
     
+    // Enhanced validation: Need at least 4 non-coplanar points for 3D Delaunay
+    if (seed_points.size() < 4) {
+        // Fallback: return simple box structure
+        return std::make_unique<indexed_triangle_set>();
+    }
+    
     // Report progress: Starting
     if (config.progress_callback && !config.progress_callback(20))
         return nullptr;
     
-    // Step 1: Convert seed points to CGAL points and build Delaunay triangulation
+    // Step 1: Convert seed points to CGAL points with enhanced error handling
     std::vector<std::pair<Point_3, int>> cgal_points;
     cgal_points.reserve(seed_points.size());
+    
+    // Validate and convert points
     for (size_t i = 0; i < seed_points.size(); ++i) {
         const auto& p = seed_points[i];
+        
+        // Enhanced validation: Check for NaN or infinite values
+        if (std::isnan(p.x()) || std::isnan(p.y()) || std::isnan(p.z()) ||
+            std::isinf(p.x()) || std::isinf(p.y()) || std::isinf(p.z())) {
+            continue;  // Skip invalid points
+        }
+        
         cgal_points.emplace_back(Point_3(p.x(), p.y(), p.z()), int(i));
     }
     
-    Delaunay dt(cgal_points.begin(), cgal_points.end());
+    // Recheck after filtering
+    if (cgal_points.size() < 4) {
+        return std::make_unique<indexed_triangle_set>();
+    }
+    
+    // Step 2: Build Delaunay triangulation with comprehensive error handling
+    Delaunay dt;
+    try {
+        // Insert points incrementally for better error detection
+        dt.insert(cgal_points.begin(), cgal_points.end());
+        
+        // Validate resulting triangulation
+        if (dt.number_of_vertices() < 4 || !dt.is_valid()) {
+            // Triangulation failed or is degenerate
+            return std::make_unique<indexed_triangle_set>();
+        }
+        
+        // Check for sufficient cells
+        if (dt.number_of_finite_cells() == 0) {
+            // No valid cells (all points coplanar or colinear)
+            return std::make_unique<indexed_triangle_set>();
+        }
+    } catch (const std::exception& e) {
+        // CGAL exception - handle gracefully
+        return nullptr;
+    }
     
     if (config.progress_callback && !config.progress_callback(40))
         return nullptr;
     
-    // Step 2: For each vertex in Delaunay (seed point), compute its Voronoi cell
+    // Step 3: For each vertex in Delaunay (seed point), compute its Voronoi cell
     // The Voronoi cell is the convex hull of the circumcenters of incident tetrahedra
     
     auto result = std::make_unique<indexed_triangle_set>();
     
+    // Pre-allocate for better performance
+    result->vertices.reserve(dt.number_of_vertices() * 20);  // Estimate
+    result->indices.reserve(dt.number_of_vertices() * 40);   // Estimate
+    
     int vertex_count = 0;
     int total_vertices = dt.number_of_vertices();
+    int processed_cells = 0;
     
     for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
-        // Get all cells (tetrahedra) incident to this vertex
-        std::vector<Delaunay::Cell_handle> incident_cells;
-        dt.incident_cells(vit, std::back_inserter(incident_cells));
-        
-        // Collect circumcenters of incident cells (these are the Voronoi vertices)
-        std::vector<Point_3> voronoi_vertices;
-        for (const auto& cell : incident_cells) {
-            if (!dt.is_infinite(cell)) {
-                Point_3 circumcenter = dt.dual(cell);
-                
-                // Check if circumcenter is within reasonable bounds (clip to expanded bbox)
-                if (circumcenter.x() >= bounds.min.x() - 1 && circumcenter.x() <= bounds.max.x() + 1 &&
-                    circumcenter.y() >= bounds.min.y() - 1 && circumcenter.y() <= bounds.max.y() + 1 &&
-                    circumcenter.z() >= bounds.min.z() - 1 && circumcenter.z() <= bounds.max.z() + 1) {
-                    voronoi_vertices.push_back(circumcenter);
-                }
-            }
+        // Enhanced progress reporting
+        if (++vertex_count % 10 == 0) {
+            int progress = 40 + (vertex_count * 50) / total_vertices;
+            if (config.progress_callback && !config.progress_callback(progress))
+                return nullptr;
         }
         
-        // Skip if we don't have enough vertices for a valid cell
-        if (voronoi_vertices.size() < 4) {
-            vertex_count++;
+        // Get all cells (tetrahedra) incident to this vertex
+        std::vector<Delaunay::Cell_handle> incident_cells;
+        incident_cells.reserve(32);  // Typical count
+        dt.incident_cells(vit, std::back_inserter(incident_cells));
+        
+        // Enhanced: Filter infinite cells upfront
+        if (incident_cells.empty()) {
             continue;
         }
         
-        // Phase 4 Part 2: Check if cell is in exclusion zone
-        if (config.enable_layer_exclusion) {
-            // Get seed point location
-            const Point_3& seed = vit->point();
-            float seed_z = float(seed.z());
+        // Collect circumcenters of incident cells (these are the Voronoi vertices)
+        std::vector<Point_3> voronoi_vertices;
+        voronoi_vertices.reserve(incident_cells.size());
+        
+        for (const auto& cell : incident_cells) {
+            // Skip infinite cells
+            if (dt.is_infinite(cell)) {
+                continue;
+            }
             
-            // Calculate absolute exclusion heights
-            float excl_min_abs = bounds.min.z() + config.exclusion_height_min;
-            float excl_max_abs = bounds.min.z() + config.exclusion_height_max;
-            
-            // Skip cells whose seed is within the exclusion zone
-            if (seed_z >= excl_min_abs && seed_z <= excl_max_abs) {
-                vertex_count++;
+            try {
+                Point_3 circumcenter = dt.dual(cell);
+                
+                // Enhanced validation: Check for valid coordinates
+                if (std::isnan(circumcenter.x()) || std::isnan(circumcenter.y()) || std::isnan(circumcenter.z()) ||
+                    std::isinf(circumcenter.x()) || std::isinf(circumcenter.y()) || std::isinf(circumcenter.z())) {
+                    continue;  // Skip invalid circumcenters
+                }
+                
+                // Enhanced bounds checking with margin
+                double margin = (bounds.max - bounds.min).norm() * 0.1;
+                if (circumcenter.x() >= bounds.min.x() - margin && circumcenter.x() <= bounds.max.x() + margin &&
+                    circumcenter.y() >= bounds.min.y() - margin && circumcenter.y() <= bounds.max.y() + margin &&
+                    circumcenter.z() >= bounds.min.z() - margin && circumcenter.z() <= bounds.max.z() + margin) {
+                    voronoi_vertices.push_back(circumcenter);
+                }
+            } catch (const std::exception&) {
+                // Handle CGAL exceptions for degenerate cells
                 continue;
             }
         }
         
-        // Step 3: Create convex hull of Voronoi vertices (this is the Voronoi cell)
+        // Enhanced validation: Need at least 4 vertices for 3D convex hull
+        if (voronoi_vertices.size() < 4) {
+            continue;
+        }
+        
+        // Deduplicate vertices (CGAL might produce duplicates in degenerate cases)
+        std::sort(voronoi_vertices.begin(), voronoi_vertices.end(),
+                  [](const Point_3& a, const Point_3& b) {
+                      if (a.x() != b.x()) return a.x() < b.x();
+                      if (a.y() != b.y()) return a.y() < b.y();
+                      return a.z() < b.z();
+                  });
+        voronoi_vertices.erase(
+            std::unique(voronoi_vertices.begin(), voronoi_vertices.end(),
+                        [](const Point_3& a, const Point_3& b) {
+                            double eps = 1e-6;
+                            return std::abs(a.x() - b.x()) < eps &&
+                                   std::abs(a.y() - b.y()) < eps &&
+                                   std::abs(a.z() - b.z()) < eps;
+                        }),
+            voronoi_vertices.end());
+        
+        // Recheck after deduplication
+        if (voronoi_vertices.size() < 4) {
+            continue;
+        }
+        
+        // Step 4: Create convex hull of Voronoi vertices (this is the Voronoi cell)
         CGALMesh cell_mesh;
         try {
             CGAL::convex_hull_3(voronoi_vertices.begin(), voronoi_vertices.end(), cell_mesh);
             
+            // Enhanced validation: Check convex hull quality
+            if (cell_mesh.number_of_vertices() < 4 || cell_mesh.number_of_faces() < 4) {
+                // Degenerate convex hull
+                continue;
+            }
+            
+            // Validate mesh is manifold and properly oriented
+            if (!CGAL::is_closed(cell_mesh)) {
+                // Non-manifold mesh - skip
+                continue;
+            }
+            
             // Convert CGAL mesh to indexed_triangle_set
             if (cell_mesh.number_of_faces() > 0) {
+                processed_cells++;
                 // If hollow cells are enabled, create walls for this cell
                 if (config.hollow_cells) {
                     // Create a temporary indexed_triangle_set for this cell

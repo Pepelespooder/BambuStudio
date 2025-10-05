@@ -63,8 +63,7 @@ GLGizmoVoronoi::GLGizmoVoronoi(GLCanvas3D& parent, unsigned int sprite_id)
     , tr_wall_thickness(_u8L("Wall thickness"))
     , tr_random_seed(_u8L("Random seed"))
     , tr_seed_preview(_u8L("Preview seeds"))
-    , tr_layer_exclusion(_u8L("Exclude layers"))
-    , tr_exclusion_height(_u8L("Height range (mm)"))
+
     , tr_paint_exclusions(_u8L("Paint exclusions"))
 {
 }
@@ -164,44 +163,6 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
         
         ImGui::Separator();
         
-        // Phase 4 Part 2: Layer-based exclusion
-        if (ImGui::Checkbox(tr_layer_exclusion.c_str(), &m_configuration.enable_layer_exclusion)) {
-            request_rerender();
-        }
-        
-        if (m_configuration.enable_layer_exclusion) {
-            ImGui::Text("%s:", tr_exclusion_height.c_str());
-            
-            // Get model height for proper range
-            float max_height = 100.0f;  // Default
-            if (m_volume) {
-                BoundingBoxf3 bbox = m_volume->mesh().bounding_box();
-                max_height = bbox.size().z();
-                
-                // Ensure exclusion range is valid
-                if (m_configuration.exclusion_height_max > max_height) {
-                    m_configuration.exclusion_height_max = max_height;
-                }
-            }
-            
-            ImGui::Text("From:");
-            ImGui::SliderFloat("##excl_min", &m_configuration.exclusion_height_min, 0.0f, max_height, "%.1f mm");
-            ImGui::Text("To:");
-            ImGui::SliderFloat("##excl_max", &m_configuration.exclusion_height_max, 0.0f, max_height, "%.1f mm");
-            
-            // Ensure min <= max
-            if (m_configuration.exclusion_height_min > m_configuration.exclusion_height_max) {
-                std::swap(m_configuration.exclusion_height_min, m_configuration.exclusion_height_max);
-            }
-            
-            ImGui::TextColored(ImVec4(0.8f, 0.2f, 0.2f, 1.0f), 
-                             "Layers %.1f-%.1f mm will remain solid",
-                             m_configuration.exclusion_height_min,
-                             m_configuration.exclusion_height_max);
-        }
-        
-        ImGui::Separator();
-        
         // Phase 5: Triangle painting exclusion
         if (ImGui::Checkbox(tr_paint_exclusions.c_str(), &m_configuration.enable_triangle_painting)) {
             if (m_configuration.enable_triangle_painting) {
@@ -293,10 +254,7 @@ void GLGizmoVoronoi::on_render()
         render_seed_preview();
     }
     
-    // Phase 4 Part 2: Render exclusion zone
-    if (m_configuration.enable_layer_exclusion) {
-        render_exclusion_zone();
-    }
+
 }
 
 CommonGizmosDataID GLGizmoVoronoi::on_get_requirements() const
@@ -625,94 +583,7 @@ void GLGizmoVoronoi::render_seed_preview()
 }
 
 // Phase 4 Part 2: Render exclusion zone
-void GLGizmoVoronoi::render_exclusion_zone()
-{
-    if (!m_volume)
-        return;
-    
-    // Get bounding box
-    BoundingBoxf3 bbox = m_volume->mesh().bounding_box();
-    float z_min = bbox.min.z() + m_configuration.exclusion_height_min;
-    float z_max = bbox.min.z() + m_configuration.exclusion_height_max;
-    
-    // Create a semi-transparent red box showing the exclusion zone
-    glsafe(::glEnable(GL_BLEND));
-    glsafe(::glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
-    
-    const Camera& camera = wxGetApp().plater()->get_camera();
-    Transform3d view_model_matrix = camera.get_view_matrix();
-    
-    // Get model transform
-    const Selection& selection = m_parent.get_selection();
-    if (!selection.is_empty()) {
-        const GLVolume* vol = selection.get_volume(*selection.get_volume_idxs().begin());
-        if (vol) {
-            view_model_matrix = camera.get_view_matrix() * vol->world_matrix();
-        }
-    }
-    
-    // Create box geometry for the exclusion zone
-    GLModel::Geometry init_data;
-    init_data.format = {GLModel::PrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3N3};
-    
-    // Define the 8 corners of the exclusion zone box
-    Vec3f corners[8] = {
-        Vec3f(bbox.min.x(), bbox.min.y(), z_min),
-        Vec3f(bbox.max.x(), bbox.min.y(), z_min),
-        Vec3f(bbox.max.x(), bbox.max.y(), z_min),
-        Vec3f(bbox.min.x(), bbox.max.y(), z_min),
-        Vec3f(bbox.min.x(), bbox.min.y(), z_max),
-        Vec3f(bbox.max.x(), bbox.min.y(), z_max),
-        Vec3f(bbox.max.x(), bbox.max.y(), z_max),
-        Vec3f(bbox.min.x(), bbox.max.y(), z_max)
-    };
-    
-    // Add 6 faces (12 triangles) with normals
-    auto add_quad = [&](int i0, int i1, int i2, int i3, const Vec3f& normal) {
-        unsigned int start_idx = init_data.vertices_count();
-        init_data.add_vertex(corners[i0], normal);
-        init_data.add_vertex(corners[i1], normal);
-        init_data.add_vertex(corners[i2], normal);
-        init_data.add_vertex(corners[i3], normal);
-        init_data.add_triangle(start_idx, start_idx + 1, start_idx + 2);
-        init_data.add_triangle(start_idx, start_idx + 2, start_idx + 3);
-    };
-    
-    // Bottom face (z_min)
-    add_quad(0, 1, 2, 3, Vec3f(0, 0, -1));
-    // Top face (z_max)
-    add_quad(4, 7, 6, 5, Vec3f(0, 0, 1));
-    // Front face
-    add_quad(0, 4, 5, 1, Vec3f(0, -1, 0));
-    // Back face
-    add_quad(2, 6, 7, 3, Vec3f(0, 1, 0));
-    // Left face
-    add_quad(0, 3, 7, 4, Vec3f(-1, 0, 0));
-    // Right face
-    add_quad(1, 5, 6, 2, Vec3f(1, 0, 0));
-    
-    // Create temporary model for rendering
-    GLModel temp_model;
-    temp_model.init_from(std::move(init_data));
-    
-    // Render in semi-transparent red
-    std::array<float, 4> red_color = {0.8f, 0.2f, 0.2f, 0.3f};
-    
-    GLShaderProgram* shader = wxGetApp().get_shader("gouraud_light");
-    if (shader) {
-        shader->start_using();
-        shader->set_uniform("view_model_matrix", view_model_matrix);
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
-        shader->set_uniform("emission_factor", 0.3f);
-        
-        temp_model.set_color(-1, red_color);
-        temp_model.render();
-        
-        shader->stop_using();
-    }
-    
-    glsafe(::glDisable(GL_BLEND));
-}
+
 
 // Phase 5: Painting integration methods
 void GLGizmoVoronoi::render_painter_gizmo() const

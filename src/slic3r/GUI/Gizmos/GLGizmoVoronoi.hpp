@@ -63,8 +63,7 @@ private:
     void randomize_seed();
     void render_seed_preview();
     
-    // Phase 4 Part 2: Layer exclusion visualization
-    void render_exclusion_zone();
+
     
     struct Configuration
     {
@@ -81,11 +80,6 @@ private:
         int random_seed = 42;  // For reproducible random generation
         bool show_seed_preview = false;
         
-        // Phase 4 Part 2: Layer-based exclusion
-        bool enable_layer_exclusion = false;
-        float exclusion_height_min = 0.0f;  // mm from bottom
-        float exclusion_height_max = 5.0f;  // mm from bottom
-        
         // Phase 5: Triangle painting exclusion
         bool enable_triangle_painting = false;
         
@@ -94,10 +88,7 @@ private:
                    num_seeds == rhs.num_seeds && 
                    wall_thickness == rhs.wall_thickness &&
                    hollow_cells == rhs.hollow_cells &&
-                   random_seed == rhs.random_seed &&
-                   enable_layer_exclusion == rhs.enable_layer_exclusion &&
-                   (enable_layer_exclusion ? (exclusion_height_min == rhs.exclusion_height_min && 
-                                             exclusion_height_max == rhs.exclusion_height_max) : true);
+                   random_seed == rhs.random_seed;
         }
         bool operator!=(const Configuration& rhs) const {
             return !(*this == rhs);
@@ -153,8 +144,7 @@ private:
     const std::string tr_wall_thickness;
     const std::string tr_random_seed;
     const std::string tr_seed_preview;
-    const std::string tr_layer_exclusion;
-    const std::string tr_exclusion_height;
+
     const std::string tr_paint_exclusions;
     
     class VoronoiCanceledException : public std::exception
