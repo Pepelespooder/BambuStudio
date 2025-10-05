@@ -56,6 +56,9 @@ private:
     void randomize_seed();
     void render_seed_preview();
     
+    // Phase 4 Part 2: Layer exclusion visualization
+    void render_exclusion_zone();
+    
     struct Configuration
     {
         enum SeedType {
@@ -71,12 +74,20 @@ private:
         int random_seed = 42;  // For reproducible random generation
         bool show_seed_preview = false;
         
+        // Phase 4 Part 2: Layer-based exclusion
+        bool enable_layer_exclusion = false;
+        float exclusion_height_min = 0.0f;  // mm from bottom
+        float exclusion_height_max = 5.0f;  // mm from bottom
+        
         bool operator==(const Configuration& rhs) const {
             return seed_type == rhs.seed_type && 
                    num_seeds == rhs.num_seeds && 
                    wall_thickness == rhs.wall_thickness &&
                    hollow_cells == rhs.hollow_cells &&
-                   random_seed == rhs.random_seed;
+                   random_seed == rhs.random_seed &&
+                   enable_layer_exclusion == rhs.enable_layer_exclusion &&
+                   (enable_layer_exclusion ? (exclusion_height_min == rhs.exclusion_height_min && 
+                                             exclusion_height_max == rhs.exclusion_height_max) : true);
         }
         bool operator!=(const Configuration& rhs) const {
             return !(*this == rhs);
@@ -132,6 +143,8 @@ private:
     const std::string tr_wall_thickness;
     const std::string tr_random_seed;
     const std::string tr_seed_preview;
+    const std::string tr_layer_exclusion;
+    const std::string tr_exclusion_height;
     
     class VoronoiCanceledException : public std::exception
     {

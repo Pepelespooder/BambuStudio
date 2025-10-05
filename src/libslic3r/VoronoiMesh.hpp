@@ -25,6 +25,11 @@ public:
         bool hollow_cells = true;
         int random_seed = 42;  // For reproducible random generation
         
+        // Phase 4 Part 2: Layer-based exclusion
+        bool enable_layer_exclusion = false;
+        float exclusion_height_min = 0.0f;
+        float exclusion_height_max = 5.0f;
+        
         // Progress callback
         std::function<bool(int)> progress_callback = nullptr;
     };

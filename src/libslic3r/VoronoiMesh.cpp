@@ -253,6 +253,23 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
             continue;
         }
         
+        // Phase 4 Part 2: Check if cell is in exclusion zone
+        if (config.enable_layer_exclusion) {
+            // Get seed point location
+            const Point_3& seed = vit->point();
+            float seed_z = float(seed.z());
+            
+            // Calculate absolute exclusion heights
+            float excl_min_abs = bounds.min.z() + config.exclusion_height_min;
+            float excl_max_abs = bounds.min.z() + config.exclusion_height_max;
+            
+            // Skip cells whose seed is within the exclusion zone
+            if (seed_z >= excl_min_abs && seed_z <= excl_max_abs) {
+                vertex_count++;
+                continue;
+            }
+        }
+        
         // Step 3: Create convex hull of Voronoi vertices (this is the Voronoi cell)
         CGALMesh cell_mesh;
         try {
