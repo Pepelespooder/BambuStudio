@@ -1,13 +1,10 @@
 #include "GLGizmoVoronoi.hpp"
 #include "slic3r/GUI/GLCanvas3D.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
-#include "slic3r/GUI/GUI_ObjectList.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/format.hpp"
-#include "slic3r/GUI/GUI.hpp"
 #include "slic3r/GUI/Camera.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/VoronoiMesh.hpp"
 #include "libslic3r/Geometry.hpp"
 
@@ -19,7 +16,7 @@
 #include <memory>
 #include <algorithm>
 
-// Simple 2D Voronoi for preview
+// 2D Voronoi library for preview
 #define JC_VORONOI_IMPLEMENTATION
 #include "jc_voronoi.h"
 
@@ -679,15 +676,15 @@ void GLGizmoVoronoi::render_seed_preview()
     
     const auto& shader = wxGetApp().get_shader("gouraud_light");
     if (shader) {
-        shader->start_using();
+        wxGetApp().bind_shader(shader);
         shader->set_uniform("view_model_matrix", view_model_matrix);
         shader->set_uniform("projection_matrix", camera.get_projection_matrix());
         shader->set_uniform("emission_factor", 0.5f);
         
         m_seed_preview_model.set_color(-1, green_color);
-        m_seed_preview_model.render();
+        m_seed_preview_model.render_geometry();
         
-        shader->stop_using();
+        wxGetApp().unbind_shader();
     }
     
     glsafe(::glPointSize(1.0f));
@@ -716,7 +713,8 @@ void GLGizmoVoronoi::render_triangles(const Selection& selection) const
         
         for (const ModelVolume* mv : mo->volumes) {
             if (mv->is_model_part()) {
-                int mesh_id = std::distance(&mo->volumes.front(), &mv);
+                auto it = std::find(mo->volumes.begin(), mo->volumes.end(), mv);
+                int mesh_id = std::distance(mo->volumes.begin(), it);
                 if (mesh_id < (int)m_triangle_selectors.size() && m_triangle_selectors[mesh_id]) {
                     const Transform3d trafo_matrix = mo->instances[selection.get_instance_idx()]->get_transformation().get_matrix() * mv->get_matrix();
                     m_triangle_selectors[mesh_id]->render(m_imgui, trafo_matrix);
@@ -739,7 +737,8 @@ void GLGizmoVoronoi::update_model_object()
         
     for (const ModelVolume* mv : mo->volumes) {
         if (mv->is_model_part()) {
-            int mesh_id = std::distance(&mo->volumes.front(), &mv);
+            auto it = std::find(mo->volumes.begin(), mo->volumes.end(), mv);
+            int mesh_id = std::distance(mo->volumes.begin(), it);
             if (mesh_id < (int)m_triangle_selectors.size() && m_triangle_selectors[mesh_id]) {
                 // Triangle data is automatically managed by the base class
                 // Just ensure changes trigger model update
@@ -866,9 +865,9 @@ void GLGizmoVoronoi::update_2d_voronoi_preview()
                     
                     // Generate a color for this cell based on the seed index
                     float hue = (float(i) / float(diagram.numsites)) * 360.0f;
-                    ImVec4 color_hsv(hue / 360.0f, 0.6f, 0.8f, 0.7f);
-                    ImVec4 color_rgb = ImGui::ColorConvertHSVtoRGB(color_hsv.x, color_hsv.y, color_hsv.z);
-                    cell.color = ImGui::ColorConvertFloat4ToU32(ImVec4(color_rgb.x, color_rgb.y, color_rgb.z, color_hsv.w));
+                    float r, g, b;
+                    ImGui::ColorConvertHSVtoRGB(hue / 360.0f, 0.6f, 0.8f, r, g, b);
+                    cell.color = ImGui::ColorConvertFloat4ToU32(ImVec4(r, g, b, 0.7f));
                     
                     m_2d_voronoi_cells.push_back(cell);
                 }
@@ -895,9 +894,9 @@ void GLGizmoVoronoi::update_2d_voronoi_preview()
             
             // Generate a color for this cell based on the seed index
             float hue = (float(i) / float(points_2d.size())) * 360.0f;
-            ImVec4 color_hsv(hue / 360.0f, 0.6f, 0.8f, 0.7f);
-            ImVec4 color_rgb = ImGui::ColorConvertHSVtoRGB(color_hsv.x, color_hsv.y, color_hsv.z);
-            cell.color = ImGui::ColorConvertFloat4ToU32(ImVec4(color_rgb.x, color_rgb.y, color_rgb.z, color_hsv.w));
+            float r, g, b;
+            ImGui::ColorConvertHSVtoRGB(hue / 360.0f, 0.6f, 0.8f, r, g, b);
+            cell.color = ImGui::ColorConvertFloat4ToU32(ImVec4(r, g, b, 0.7f));
             
             m_2d_voronoi_cells.push_back(cell);
         }
