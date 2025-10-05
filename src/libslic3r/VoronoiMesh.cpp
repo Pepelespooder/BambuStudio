@@ -553,34 +553,185 @@ void VoronoiMesh::create_hollow_cells(
     if (mesh.vertices.empty() || mesh.indices.empty() || wall_thickness <= 0.0f)
         return;
 
-    CGALMesh outer_mesh;
-    if (!indexed_to_surface_mesh(mesh, outer_mesh))
-        return;
+    // Fallback: construct a shell by offsetting vertices along robust normals and
+    // stitching with tangentially smoothed inner faces. This tries to mimic a
+    // proper offset while remaining resilient to degenerate input.
+    indexed_triangle_set original = mesh;
 
-    CGALMesh inner_mesh;
-    const double offset_distance = -static_cast<double>(wall_thickness);
-    bool offset_ok = false;
-    try {
-        offset_ok = PMP::offset_mesh(outer_mesh, inner_mesh, offset_distance);
-    } catch (...) {
-        offset_ok = false;
+    const size_t vertex_count = original.vertices.size();
+    const size_t face_count   = original.indices.size();
+    constexpr float normal_epsilon = 1e-6f;
+
+    std::vector<Vec3f> face_normals(face_count, Vec3f::Zero());
+    std::vector<float> face_areas(face_count, 0.0f);
+    std::vector<std::vector<int>> adjacency(vertex_count);
+
+    auto add_neighbor = [&](int u, int v) {
+        if (u < 0 || v < 0)
+            return;
+        auto& list = adjacency[size_t(u)];
+        if (std::find(list.begin(), list.end(), v) == list.end())
+            list.push_back(v);
+    };
+
+    for (size_t fi = 0; fi < face_count; ++fi) {
+        const auto& face = original.indices[fi];
+        const Vec3f& v0 = original.vertices[face[0]];
+        const Vec3f& v1 = original.vertices[face[1]];
+        const Vec3f& v2 = original.vertices[face[2]];
+        Vec3f normal = (v1 - v0).cross(v2 - v0);
+        float len = normal.norm();
+        if (len > normal_epsilon) {
+            face_normals[fi] = normal / len;
+            face_areas[fi]   = 0.5f * len;
+        }
+
+        add_neighbor(face[0], face[1]);
+        add_neighbor(face[1], face[0]);
+        add_neighbor(face[1], face[2]);
+        add_neighbor(face[2], face[1]);
+        add_neighbor(face[2], face[0]);
+        add_neighbor(face[0], face[2]);
     }
-    if (!offset_ok || inner_mesh.is_empty() || !PMP::is_closed(inner_mesh))
-        return;
 
-    indexed_triangle_set inner_its = surface_mesh_to_indexed(inner_mesh);
-    if (inner_its.indices.empty())
-        return;
+    std::vector<Vec3f> vertex_normals(vertex_count, Vec3f::Zero());
+    std::vector<float> vertex_weights(vertex_count, 0.0f);
+    for (size_t fi = 0; fi < face_count; ++fi) {
+        const float weight = face_areas[fi];
+        if (weight <= 0.0f)
+            continue;
 
-    TriangleMesh outer_tm(mesh);
-    TriangleMesh inner_tm(inner_its);
-
-    try {
-        MeshBoolean::minus(outer_tm, inner_tm);
-        mesh = outer_tm.its;
-    } catch (...) {
-        // Leave mesh unchanged if boolean difference fails
+        const auto& face = original.indices[fi];
+        for (int j = 0; j < 3; ++j) {
+            const int vid = face[j];
+            vertex_normals[size_t(vid)] += face_normals[fi] * weight;
+            vertex_weights[size_t(vid)] += weight;
+        }
     }
+
+    for (size_t i = 0; i < vertex_count; ++i) {
+        Vec3f& normal = vertex_normals[i];
+        if (vertex_weights[i] > normal_epsilon)
+            normal /= vertex_weights[i];
+
+        float len = normal.norm();
+        if (len <= normal_epsilon) {
+            Vec3f neighbor_sum = Vec3f::Zero();
+            for (int n : adjacency[i]) {
+                const Vec3f& neigh_normal = vertex_normals[size_t(n)];
+                if (neigh_normal.norm() > normal_epsilon)
+                    neighbor_sum += neigh_normal;
+            }
+            if (neighbor_sum.norm() > normal_epsilon) {
+                normal = neighbor_sum.normalized();
+            } else {
+                for (size_t fi = 0; fi < face_count; ++fi) {
+                    const auto& face = original.indices[fi];
+                    if (face[0] == int(i) || face[1] == int(i) || face[2] == int(i)) {
+                        if (face_normals[fi].norm() > normal_epsilon) {
+                            normal = face_normals[fi];
+                            break;
+                        }
+                    }
+                }
+                if (normal.norm() <= normal_epsilon)
+                    normal = Vec3f(0.0f, 0.0f, 1.0f);
+            }
+        }
+
+        len = normal.norm();
+        if (len > normal_epsilon)
+            normal /= len;
+        else
+            normal = Vec3f(0.0f, 0.0f, 1.0f);
+    }
+
+    std::vector<Vec3f> inner_vertices(vertex_count, Vec3f::Zero());
+    for (size_t i = 0; i < vertex_count; ++i)
+        inner_vertices[i] = original.vertices[i] - vertex_normals[i] * wall_thickness;
+
+    if (wall_thickness > 0.0f) {
+        constexpr int   smoothing_iterations = 2;
+        constexpr float smoothing_strength   = 0.35f;
+        std::vector<Vec3f> smoothed = inner_vertices;
+        for (int iter = 0; iter < smoothing_iterations; ++iter) {
+            std::vector<Vec3f> updated = smoothed;
+            for (size_t i = 0; i < vertex_count; ++i) {
+                const auto& neighbors = adjacency[i];
+                if (neighbors.empty())
+                    continue;
+
+                Vec3f average = Vec3f::Zero();
+                for (int n : neighbors)
+                    average += smoothed[size_t(n)];
+                average /= float(neighbors.size());
+
+                Vec3f delta = average - smoothed[i];
+                Vec3f normal = vertex_normals[i];
+                float len = normal.norm();
+                if (len > normal_epsilon) {
+                    normal /= len;
+                    delta -= normal * delta.dot(normal);
+                }
+                updated[i] = smoothed[i] + smoothing_strength * delta;
+            }
+            smoothed.swap(updated);
+        }
+
+        for (size_t i = 0; i < vertex_count; ++i) {
+            Vec3f normal = vertex_normals[i];
+            float len = normal.norm();
+            if (len > normal_epsilon) {
+                normal /= len;
+                Vec3f base = original.vertices[i] - normal * wall_thickness;
+                Vec3f tangential = smoothed[i] - base;
+                tangential -= normal * tangential.dot(normal);
+                inner_vertices[i] = base + tangential;
+            } else {
+                inner_vertices[i] = smoothed[i];
+            }
+        }
+    }
+
+    mesh.vertices.clear();
+    mesh.indices.clear();
+    mesh.vertices.reserve(vertex_count * 2);
+    mesh.indices.reserve(face_count * 4);
+
+    mesh.vertices.insert(mesh.vertices.end(), original.vertices.begin(), original.vertices.end());
+    mesh.vertices.insert(mesh.vertices.end(), inner_vertices.begin(), inner_vertices.end());
+
+    const size_t offset = vertex_count;
+    for (const auto& face : original.indices)
+        mesh.indices.push_back(face);
+    for (const auto& face : original.indices) {
+        Vec3i flipped(face[0] + int(offset), face[2] + int(offset), face[1] + int(offset));
+        mesh.indices.push_back(flipped);
+    }
+
+    std::map<std::pair<int, int>, std::pair<int, int>> edge_map;
+    for (const auto& face : original.indices) {
+        for (int j = 0; j < 3; ++j) {
+            int a = face[j];
+            int b = face[(j + 1) % 3];
+            auto key = std::minmax(a, b);
+            auto dir = std::make_pair(a, b);
+            if (!edge_map.emplace(key, dir).second)
+                edge_map[key] = dir;
+        }
+    }
+
+    for (const auto& [key, dir] : edge_map) {
+        int a = dir.first;
+        int b = dir.second;
+        Vec3i tri1{ a, b, a + int(offset) };
+        Vec3i tri2{ b, b + int(offset), a + int(offset) };
+        mesh.indices.push_back(tri1);
+        mesh.indices.push_back(tri2);
+    }
+
+    mesh.properties.clear();
+    mesh.properties.resize(mesh.indices.size());
 }
 
 } // namespace Slic3r
