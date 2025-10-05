@@ -8,6 +8,7 @@
 
 #include <mutex>
 #include <thread>
+#include <wx/string.h>
 
 namespace Slic3r {
 class ModelVolume;
@@ -43,7 +44,10 @@ protected:
     void update_model_object() override;
     void update_from_model_object(bool first_update) override;
     PainterGizmoType get_painter_type() const override { return PainterGizmoType::FDM_SUPPORTS; }
-    
+    void on_opening() override;
+    void on_shutdown() override;
+    wxString handle_snapshot_action_name(bool shift_down, Button button_down) const override;
+
     CommonGizmosDataID on_get_requirements() const override;
 
 private:

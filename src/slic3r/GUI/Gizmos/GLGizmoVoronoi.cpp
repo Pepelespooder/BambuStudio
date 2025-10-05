@@ -18,6 +18,7 @@
 #include <cfloat>
 #include <cstring>
 #include <limits>
+#include <wx/string.h>
 
 // 2D Voronoi library for preview
 #define JC_VORONOI_IMPLEMENTATION
@@ -788,6 +789,46 @@ bool GLGizmoVoronoi::on_init()
     // Initialize painting system
     m_cursor_radius = 2.0f;
     return true;
+}
+
+void GLGizmoVoronoi::on_opening()
+{
+    if (m_configuration.show_seed_preview)
+        update_seed_preview();
+
+    update_2d_voronoi_preview();
+    request_rerender();
+}
+
+void GLGizmoVoronoi::on_shutdown()
+{
+    stop_worker_thread_request();
+    if (m_worker.joinable())
+        m_worker.join();
+
+    {
+        std::lock_guard<std::mutex> lock(m_state_mutex);
+        m_state.status = State::idle;
+        m_state.progress = 0;
+        m_state.result.reset();
+        m_state.mv = nullptr;
+    }
+
+    m_glmodel.reset();
+    m_seed_preview_model.reset();
+    m_seed_preview_points.clear();
+    m_2d_voronoi_cells.clear();
+    m_2d_delaunay_edges.clear();
+}
+
+wxString GLGizmoVoronoi::handle_snapshot_action_name(bool shift_down, GLGizmoPainterBase::Button button_down) const
+{
+    if (shift_down)
+        return wxString("Reset Voronoi painting");
+
+    return (button_down == Button::Left)
+        ? wxString("Add Voronoi region")
+        : wxString("Remove Voronoi region");
 }
 
 // 2D Voronoi Preview Implementation
