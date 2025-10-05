@@ -85,8 +85,27 @@ std::vector<Vec3d> VoronoiMesh::generate_seed_points(
             return generate_vertex_seeds(mesh, config.num_seeds);
         case SeedType::Grid:
             return generate_grid_seeds(mesh, config.num_seeds);
-        case SeedType::Random:
-            return generate_random_seeds(mesh, config.num_seeds);
+        case SeedType::Random: {
+            // Pass random seed for reproducibility
+            std::vector<Vec3d> seeds;
+            BoundingBoxf3 bbox;
+            for (const auto& v : mesh.vertices) {
+                bbox.merge(v.cast<double>());
+            }
+            
+            // Use configured random seed for reproducibility
+            std::mt19937 gen(config.random_seed);
+            
+            std::uniform_real_distribution<double> dist_x(bbox.min.x(), bbox.max.x());
+            std::uniform_real_distribution<double> dist_y(bbox.min.y(), bbox.max.y());
+            std::uniform_real_distribution<double> dist_z(bbox.min.z(), bbox.max.z());
+            
+            seeds.reserve(config.num_seeds);
+            for (int i = 0; i < config.num_seeds; ++i) {
+                seeds.emplace_back(dist_x(gen), dist_y(gen), dist_z(gen));
+            }
+            return seeds;
+        }
         default:
             return {};
     }

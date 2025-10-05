@@ -51,6 +51,11 @@ private:
     
     void set_center_position();
     
+    // Phase 4: Seed preview and randomization
+    void update_seed_preview();
+    void randomize_seed();
+    void render_seed_preview();
+    
     struct Configuration
     {
         enum SeedType {
@@ -63,12 +68,15 @@ private:
         int num_seeds = 50;
         float wall_thickness = 1.0f;
         bool hollow_cells = true;
+        int random_seed = 42;  // For reproducible random generation
+        bool show_seed_preview = false;
         
         bool operator==(const Configuration& rhs) const {
             return seed_type == rhs.seed_type && 
                    num_seeds == rhs.num_seeds && 
                    wall_thickness == rhs.wall_thickness &&
-                   hollow_cells == rhs.hollow_cells;
+                   hollow_cells == rhs.hollow_cells &&
+                   random_seed == rhs.random_seed;
         }
         bool operator!=(const Configuration& rhs) const {
             return !(*this == rhs);
@@ -76,6 +84,10 @@ private:
     };
     
     Configuration m_configuration;
+    
+    // Seed preview
+    std::vector<Vec3f> m_seed_preview_points;
+    GLModel m_seed_preview_model;
     
     bool m_move_to_center;
     
@@ -118,6 +130,8 @@ private:
     const std::string tr_seed_type;
     const std::string tr_num_seeds;
     const std::string tr_wall_thickness;
+    const std::string tr_random_seed;
+    const std::string tr_seed_preview;
     
     class VoronoiCanceledException : public std::exception
     {

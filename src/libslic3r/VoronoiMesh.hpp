@@ -23,6 +23,7 @@ public:
         int num_seeds = 50;
         float wall_thickness = 1.0f;
         bool hollow_cells = true;
+        int random_seed = 42;  // For reproducible random generation
         
         // Progress callback
         std::function<bool(int)> progress_callback = nullptr;

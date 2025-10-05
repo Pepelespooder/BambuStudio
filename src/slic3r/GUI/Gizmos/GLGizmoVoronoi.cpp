@@ -4,12 +4,16 @@
 #include "slic3r/GUI/GUI_ObjectList.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/format.hpp"
+#include "slic3r/GUI/Camera.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/VoronoiMesh.hpp"
+#include "libslic3r/Geometry.hpp"
 
 #include <GL/glew.h>
 #include <thread>
+#include <ctime>
+#include <random>
 
 namespace Slic3r::GUI {
 
@@ -57,6 +61,8 @@ GLGizmoVoronoi::GLGizmoVoronoi(GLCanvas3D& parent, unsigned int sprite_id)
     , tr_seed_type(_u8L("Seed type"))
     , tr_num_seeds(_u8L("Number of seeds"))
     , tr_wall_thickness(_u8L("Wall thickness"))
+    , tr_random_seed(_u8L("Random seed"))
+    , tr_seed_preview(_u8L("Preview seeds"))
 {
 }
 
@@ -66,6 +72,7 @@ GLGizmoVoronoi::~GLGizmoVoronoi()
     if (m_worker.joinable())
         m_worker.join();
     m_glmodel.reset();
+    m_seed_preview_model.reset();
 }
 
 bool GLGizmoVoronoi::on_esc_key_down()
@@ -112,9 +119,15 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
             m_configuration.seed_type = static_cast<Configuration::SeedType>(current_seed);
         }
         
-        // Number of seeds
+        // Number of seeds with manual input
         ImGui::Text("%s:", tr_num_seeds.c_str());
         ImGui::SliderInt("##num_seeds", &m_configuration.num_seeds, 10, 500);
+        
+        // Manual input for precise seed count
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(60);
+        ImGui::InputInt("##num_seeds_input", &m_configuration.num_seeds);
+        m_configuration.num_seeds = std::max(10, std::min(500, m_configuration.num_seeds));
         
         // Wall thickness
         ImGui::Text("%s:", tr_wall_thickness.c_str());
@@ -122,6 +135,29 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
         
         // Hollow cells option
         ImGui::Checkbox("Hollow cells", &m_configuration.hollow_cells);
+        
+        ImGui::Separator();
+        
+        // Phase 4: Random seed control
+        ImGui::Text("%s:", tr_random_seed.c_str());
+        ImGui::InputInt("##random_seed", &m_configuration.random_seed);
+        ImGui::SameLine();
+        if (ImGui::Button("Randomize##seed")) {
+            randomize_seed();
+        }
+        
+        // Phase 4: Seed preview
+        if (ImGui::Checkbox(tr_seed_preview.c_str(), &m_configuration.show_seed_preview)) {
+            if (m_configuration.show_seed_preview) {
+                update_seed_preview();
+            } else {
+                m_seed_preview_model.reset();
+            }
+        }
+        
+        if (m_configuration.show_seed_preview && ImGui::Button("Update Preview")) {
+            update_seed_preview();
+        }
         
         ImGui::Separator();
         
@@ -161,9 +197,16 @@ void GLGizmoVoronoi::on_set_state()
         Model& model = *wxGetApp().plater()->model();
         m_volume = get_model_volume(selection, model);
         m_move_to_center = true;
+        
+        // Initialize seed preview if enabled
+        if (m_configuration.show_seed_preview) {
+            update_seed_preview();
+        }
     } else {
         m_volume = nullptr;
         m_glmodel.reset();
+        m_seed_preview_model.reset();
+        m_seed_preview_points.clear();
     }
 }
 
@@ -180,6 +223,11 @@ void GLGizmoVoronoi::on_render()
         
         // Render the preview model
         glsafe(::glDisable(GL_BLEND));
+    }
+    
+    // Phase 4: Render seed preview points
+    if (m_configuration.show_seed_preview) {
+        render_seed_preview();
     }
 }
 
@@ -245,6 +293,7 @@ void GLGizmoVoronoi::process()
             voronoi_config.num_seeds = m_state.config.num_seeds;
             voronoi_config.wall_thickness = m_state.config.wall_thickness;
             voronoi_config.hollow_cells = m_state.config.hollow_cells;
+            voronoi_config.random_seed = m_state.config.random_seed;
             
             // Set progress callback
             voronoi_config.progress_callback = [this](int progress) -> bool {
@@ -373,6 +422,133 @@ void GLGizmoVoronoi::set_center_position()
         m_move_to_center = false;
         // Position window near the selected object
     }
+}
+
+// Phase 4: Seed randomization
+void GLGizmoVoronoi::randomize_seed()
+{
+    // Generate new random seed using current time
+    m_configuration.random_seed = static_cast<int>(std::time(nullptr)) % 100000;
+    
+    // Update preview if it's enabled
+    if (m_configuration.show_seed_preview) {
+        update_seed_preview();
+    }
+}
+
+// Phase 4: Update seed preview points
+void GLGizmoVoronoi::update_seed_preview()
+{
+    if (!m_volume)
+        return;
+    
+    m_seed_preview_points.clear();
+    m_seed_preview_model.reset();
+    
+    const indexed_triangle_set& mesh = m_volume->mesh().its;
+    
+    // Generate seed points based on current configuration
+    std::vector<Vec3d> seeds;
+    VoronoiMesh::Config config;
+    config.seed_type = static_cast<VoronoiMesh::SeedType>(m_configuration.seed_type);
+    config.num_seeds = m_configuration.num_seeds;
+    config.random_seed = m_configuration.random_seed;
+    
+    // Call the seed generation from VoronoiMesh
+    // For now, we'll generate simple preview based on bounding box
+    BoundingBoxf3 bbox = bounding_box(mesh);
+    
+    if (m_configuration.seed_type == Configuration::SEED_GRID) {
+        // Grid seeds
+        int seeds_per_axis = static_cast<int>(std::ceil(std::cbrt(m_configuration.num_seeds)));
+        Vec3d step = bbox.size().cwiseQuotient(Vec3d(seeds_per_axis, seeds_per_axis, seeds_per_axis));
+        
+        for (int x = 0; x < seeds_per_axis; ++x) {
+            for (int y = 0; y < seeds_per_axis; ++y) {
+                for (int z = 0; z < seeds_per_axis; ++z) {
+                    Vec3d pt = bbox.min + Vec3d(
+                        (x + 0.5) * step.x(),
+                        (y + 0.5) * step.y(),
+                        (z + 0.5) * step.z()
+                    );
+                    m_seed_preview_points.push_back(pt.cast<float>());
+                }
+            }
+        }
+    } else if (m_configuration.seed_type == Configuration::SEED_RANDOM) {
+        // Random seeds with configurable seed
+        std::mt19937 rng(m_configuration.random_seed);
+        std::uniform_real_distribution<double> dist_x(bbox.min.x(), bbox.max.x());
+        std::uniform_real_distribution<double> dist_y(bbox.min.y(), bbox.max.y());
+        std::uniform_real_distribution<double> dist_z(bbox.min.z(), bbox.max.z());
+        
+        for (int i = 0; i < m_configuration.num_seeds; ++i) {
+            Vec3d pt(dist_x(rng), dist_y(rng), dist_z(rng));
+            m_seed_preview_points.push_back(pt.cast<float>());
+        }
+    } else {
+        // Vertex seeds - subsample vertices
+        int step = std::max(1, static_cast<int>(mesh.vertices.size()) / m_configuration.num_seeds);
+        for (size_t i = 0; i < mesh.vertices.size() && m_seed_preview_points.size() < static_cast<size_t>(m_configuration.num_seeds); i += step) {
+            m_seed_preview_points.push_back(mesh.vertices[i]);
+        }
+    }
+    
+    // Create OpenGL model for rendering seed points
+    GLModel::Geometry init_data;
+    init_data.format = {GLModel::PrimitiveType::Points, GLModel::Geometry::EVertexLayout::P3};
+    
+    for (const Vec3f& pt : m_seed_preview_points) {
+        init_data.add_vertex(pt);
+    }
+    
+    m_seed_preview_model.init_from(std::move(init_data));
+    
+    request_rerender();
+}
+
+// Phase 4: Render seed preview
+void GLGizmoVoronoi::render_seed_preview()
+{
+    if (!m_seed_preview_model.is_initialized() || m_seed_preview_points.empty())
+        return;
+    
+    glsafe(::glEnable(GL_BLEND));
+    glsafe(::glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+    
+    // Set point size for seed visualization
+    glsafe(::glPointSize(8.0f));
+    
+    const Camera& camera = wxGetApp().plater()->get_camera();
+    Transform3d view_model_matrix = camera.get_view_matrix();
+    
+    // Get model transform
+    const Selection& selection = m_parent.get_selection();
+    if (!selection.is_empty()) {
+        const GLVolume* vol = selection.get_volume(*selection.get_volume_idxs().begin());
+        if (vol) {
+            view_model_matrix = camera.get_view_matrix() * vol->world_matrix();
+        }
+    }
+    
+    // Render seed points in green
+    std::array<float, 4> green_color = {0.0f, 0.7f, 0.0f, 0.9f};
+    
+    GLShaderProgram* shader = wxGetApp().get_shader("gouraud_light");
+    if (shader) {
+        shader->start_using();
+        shader->set_uniform("view_model_matrix", view_model_matrix);
+        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
+        shader->set_uniform("emission_factor", 0.5f);
+        
+        m_seed_preview_model.set_color(-1, green_color);
+        m_seed_preview_model.render();
+        
+        shader->stop_using();
+    }
+    
+    glsafe(::glPointSize(1.0f));
+    glsafe(::glDisable(GL_BLEND));
 }
 
 } // namespace Slic3r::GUI
