@@ -144,7 +144,11 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::generate(
     
     if (config.progress_callback && !config.progress_callback(90))
         return nullptr;
-    
+
+    if (config.clip_to_input) {
+        clip_to_mesh_boundary(*result, input_mesh);
+    }
+
     // Step 4: Finalize progress after tessellation, hollowing, and optional clipping
     
     if (config.progress_callback && !config.progress_callback(100))

@@ -332,7 +332,7 @@ bool GLGizmoVoronoi::on_is_activable() const
 
 void GLGizmoVoronoi::on_set_state()
 {
-    if (get_state() == GLGizmoBase::On) {
+    if (get_state() == GLGizmoBase::EState::On) {
         const Selection& selection = m_parent.get_selection();
         Model& model = wxGetApp().plater()->model();
         m_volume = get_model_volume(selection, model);
