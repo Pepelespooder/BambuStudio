@@ -1496,13 +1496,21 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
     assert(bed_type_def != nullptr);
 
     const t_config_enum_values* bed_type_keys_map = bed_type_def->enum_keys_map;
-    const ConfigOptionInts* bed_temp_opt = m_config.option<ConfigOptionInts>(get_bed_temp_key(m_config.curr_bed_type));
+    
+    // Debug: Log what bed type we're validating
+    BOOST_LOG_TRIVIAL(debug) << "Validating bed type: " << int(m_config.curr_bed_type);
+    
+    std::string bed_temp_key = get_bed_temp_key(m_config.curr_bed_type);
+    BOOST_LOG_TRIVIAL(debug) << "Using bed temp key: '" << bed_temp_key << "'";
+    
+    const ConfigOptionInts* bed_temp_opt = m_config.option<ConfigOptionInts>(bed_temp_key);
     for (unsigned int extruder_id : extruders) {
         int curr_bed_temp = 0;
         if (bed_temp_opt != nullptr) {
             curr_bed_temp = bed_temp_opt->get_at(extruder_id);
+            BOOST_LOG_TRIVIAL(debug) << "Extruder " << extruder_id << " bed temp: " << curr_bed_temp;
         } else {
-            BOOST_LOG_TRIVIAL(warning) << "Missing bed temperature config for bed type " << int(m_config.curr_bed_type);
+            BOOST_LOG_TRIVIAL(warning) << "Missing bed temperature config for key '" << bed_temp_key << "' and bed type " << int(m_config.curr_bed_type);
         }
         if (curr_bed_temp == 0 && bed_type_keys_map != nullptr) {
             std::string bed_type_name;

@@ -273,35 +273,46 @@ std::string get_darkmoon_bed_thumbnail_by_name(const std::string &plate_name)
 
 std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture_parts(BedType bed_type)
 {
-    // Universal Darkmoon part1: Moon logo positioned using same coordinates as BambuLab textured_pei and cool_plate part1
-    DarkmoonTexturePartInfo darkmoon_part1 = {10, 52, 8.393f, 192, "darkmoon_part1.svg"};
-    
-    // Plate-specific part2: Contains the actual plate type name, positioned using same coordinates as BambuLab part2
-    DarkmoonTexturePartInfo darkmoon_part2;
-    
+    // Generic part1: Same for all darkmoon plates, positioned next to bed texture
+    constexpr float kPartBannerWidth  = 8.393f;
+    constexpr float kPartBannerHeight = 192.f;
+
+    auto make_label = [](const char *label) {
+        return std::string(label);
+    };
+
+    DarkmoonTexturePartInfo darkmoon_part1;
+    darkmoon_part1.x = 4.f;
+    darkmoon_part1.y = 52.f;
+    darkmoon_part1.w = kPartBannerWidth;
+    darkmoon_part1.h = kPartBannerHeight;
+    darkmoon_part1.font_point_size = 20.f;
+    darkmoon_part1.bold = true;
+    darkmoon_part1.rotate_clockwise = true;
+
     switch (bed_type) {
         case BedType::btDarkmoonG10:
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_g10_part2.svg"};
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("G10");
             break;
         case BedType::btDarkmoonIce:
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_ice_part2.svg"};
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("ICE");
             break;
         case BedType::btDarkmoonLux:
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_lux_part2.svg"};
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("LUX");
             break;
         case BedType::btDarkmoonCFX:
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_cfx_part2.svg"};
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("CFX");
             break;
         case BedType::btDarkmoonSatin:
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_satin_part2.svg"};
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("SATIN");
             break;
         default:
-            // Fallback to generic Darkmoon part2
-            darkmoon_part2 = {74, -10, 148, 12, "darkmoon_part2.svg"};
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("G10");
             break;
     }
-    
-    return std::make_pair(darkmoon_part1, darkmoon_part2);
+
+    DarkmoonTexturePartInfo placeholder_part2{};
+    return std::make_pair(darkmoon_part1, placeholder_part2);
 }
 
 int default_g10_temperature(const std::string &filament_type_raw)
@@ -359,98 +370,56 @@ int default_ice_temperature(const std::string &filament_type_raw)
 
 int default_cfx_temperature(const std::string &filament_type_raw)
 {
-    BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: default_cfx_temperature called with filament_type=" << filament_type_raw;
-    
     auto tokens = tokenize_filament(filament_type_raw);
 
-    if (has_token(tokens, "TPU")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: CFX TPU -> 1°C";
+    if (has_token(tokens, "TPU"))
         return 1;
-    }
-    if (has_token(tokens, "PLA")) {
-        BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: CFX PLA -> 65°C";
+    if (has_token(tokens, "PLA"))
         return 65;
-    }
-    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: CFX PCTG/PETG -> 80°C";
+    if (has_token(tokens, "PCTG") || has_token(tokens, "PETG"))
         return 80;
-    }
-    if (has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: CFX PET-CF -> 105°C";
+    if (has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF"))
         return 105;
-    }
-    if (has_token(tokens, "PPS")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: CFX PPS -> 110°C";
+    if (has_token(tokens, "PPS"))
         return 110;
-    }
-    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: CFX PC -> 115°C";
+    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC"))
         return 115;
-    }
-    if (has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "NYLON") || has_token(tokens, "PA")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: CFX PAHT/PPA/NYLON/PA -> 105°C";
+    if (has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "NYLON") || has_token(tokens, "PA"))
         return 105;
-    }
-    if (has_token(tokens, "ABS") || has_token(tokens, "ASA")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: CFX ABS/ASA -> 110°C";
+    if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
         return 110;
-    }
-    if (is_token_pp(tokens)) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: CFX PP -> 85°C";
+    if (is_token_pp(tokens))
         return 85;
-    }
 
     // Materials not listed are not recommended on CFX; use 0°C to flag unsupported.
-    BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: CFX unsupported filament " << filament_type_raw << " -> 0°C";
     return 0;
 }
 
 int default_satin_temperature(const std::string &filament_type_raw)
 {
-    BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: default_satin_temperature called with filament_type=" << filament_type_raw;
-    
     auto tokens = tokenize_filament(filament_type_raw);
 
-    if (has_token(tokens, "TPU")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Satin TPU -> 1°C";
+    if (has_token(tokens, "TPU"))
         return 1;
-    }
-    if (has_token(tokens, "PLA")) {
-        BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Satin PLA -> 60°C";
+    if (has_token(tokens, "PLA"))
         return 60;
-    }
     if (has_token(tokens, "PCTG") || has_token(tokens, "PETG") ||
-        has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Satin PCTG/PETG/PET-CF -> 80°C";
+        has_token(tokens, "PET-CF") || has_all_tokens(tokens, "PET", "CF"))
         return 80;
-    }
-    if (has_token(tokens, "ABS") || has_token(tokens, "ASA")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Satin ABS/ASA -> 110°C";
+    if (has_token(tokens, "ABS") || has_token(tokens, "ASA"))
         return 110;
-    }
-    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Satin PC -> 120°C";
+    if (has_token(tokens, "PC") && !has_token(tokens, "PCT") && !has_token(tokens, "PETC"))
         return 120;
-    }
-    if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Satin NYLON/PAHT/PPA/PA -> 105°C";
+    if (has_token(tokens, "NYLON") || has_token(tokens, "PAHT") || has_token(tokens, "PPA") || has_token(tokens, "PA"))
         return 105;
-    }
-    if (is_token_pp(tokens)) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Satin PP -> 85°C";
+    if (is_token_pp(tokens))
         return 85;
-    }
-    if (is_token_pet_only(tokens)) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Satin PET-only -> 105°C";
+    if (is_token_pet_only(tokens))
         return 105;
-    }
-    if (has_token(tokens, "PPS")) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Satin PPS -> 105°C";
+    if (has_token(tokens, "PPS"))
         return 105;
-    }
 
     // Materials not listed are not recommended on Satin; use 0°C to flag unsupported.
-    BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: Satin unsupported filament " << filament_type_raw << " -> 0°C";
     return 0;
 }
 
@@ -483,185 +452,6 @@ std::optional<std::vector<int>> default_darkmoon_temperatures(const DarkmoonPlat
         values.push_back(*value);
     }
     return values;
-}
-
-void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
-{
-    struct DarkmoonMapping {
-        const char *darkmoon_key;
-        const char *fallback_key;
-    };
-
-    static const DarkmoonMapping mappings[] = {
-        {"darkmoon_g10_plate_temp",                 "cool_plate_temp"},
-        {"darkmoon_g10_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
-        {"darkmoon_ice_plate_temp",                 "cool_plate_temp"},
-        {"darkmoon_ice_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
-        {"darkmoon_lux_plate_temp",                 "hot_plate_temp"},
-        {"darkmoon_lux_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
-        {"darkmoon_cfx_plate_temp",                 "hot_plate_temp"},
-        {"darkmoon_cfx_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
-        {"darkmoon_satin_plate_temp",               "hot_plate_temp"},
-        {"darkmoon_satin_plate_temp_initial_layer", "hot_plate_temp_initial_layer"}
-    };
-
-    extruder_count = std::max<size_t>(1, extruder_count);
-
-    std::vector<std::string> filament_types;
-    if (const auto *types_opt = config.opt<ConfigOptionStrings>("filament_type")) {
-        filament_types = types_opt->values;
-    }
-    if (filament_types.empty())
-        filament_types.assign(extruder_count, "PLA");
-    if (filament_types.size() < extruder_count)
-        filament_types.resize(extruder_count, filament_types.back());
-
-    auto is_placeholder = [](const ConfigOptionInts *opt) {
-        return opt != nullptr && !opt->values.empty() &&
-               std::all_of(opt->values.begin(), opt->values.end(), [](int v) {
-                   return v == kDarkmoonPlaceholderTemp;
-               });
-    };
-
-    for (const DarkmoonMapping &mapping : mappings) {
-        ConfigOptionInts *dm_opt = config.option<ConfigOptionInts>(mapping.darkmoon_key, true);
-
-        std::vector<int> values;
-        bool have_chart_values = false;
-
-        if (const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(mapping.darkmoon_key)) {
-            if (auto chart_values = default_darkmoon_temperatures(*plate, filament_types)) {
-                values = std::move(*chart_values);
-                have_chart_values = true;
-            }
-        }
-
-        if (!have_chart_values) {
-            // Only fall back to existing values if dynamic calculation failed
-            bool need_fallback = dm_opt->values.empty() || is_placeholder(dm_opt) || dm_opt->values.size() < extruder_count;
-            if (!need_fallback) {
-                values = dm_opt->values;
-            } else if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty()) {
-                values.assign(fallback->values.begin(), fallback->values.end());
-            } else {
-                values.assign(extruder_count, 0);
-            }
-        }
-        // If have_chart_values is true, we already set values from dynamic calculation above
-
-        if (values.empty())
-            values.assign(extruder_count, 0);
-
-        if (values.size() < extruder_count)
-            values.resize(extruder_count, values.back());
-        else if (values.size() > extruder_count)
-            values.resize(extruder_count);
-
-        dm_opt->values = std::move(values);
-    }
-}
-
-void apply_dynamic_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count)
-{
-    BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: apply_dynamic_darkmoon_bed_temps called with extruder_count=" << extruder_count;
-    
-    struct DarkmoonMapping {
-        const char *darkmoon_key;
-        const char *fallback_key;
-    };
-
-    static const DarkmoonMapping mappings[] = {
-        {"darkmoon_g10_plate_temp",                 "cool_plate_temp"},
-        {"darkmoon_g10_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
-        {"darkmoon_ice_plate_temp",                 "cool_plate_temp"},
-        {"darkmoon_ice_plate_temp_initial_layer",   "cool_plate_temp_initial_layer"},
-        {"darkmoon_lux_plate_temp",                 "hot_plate_temp"},
-        {"darkmoon_lux_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
-        {"darkmoon_cfx_plate_temp",                 "hot_plate_temp"},
-        {"darkmoon_cfx_plate_temp_initial_layer",   "hot_plate_temp_initial_layer"},
-        {"darkmoon_satin_plate_temp",               "hot_plate_temp"},
-        {"darkmoon_satin_plate_temp_initial_layer", "hot_plate_temp_initial_layer"}
-    };
-
-    extruder_count = std::max<size_t>(1, extruder_count);
-
-    std::vector<std::string> filament_types;
-    if (const auto *types_opt = config.opt<ConfigOptionStrings>("filament_type")) {
-        filament_types = types_opt->values;
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Found filament_type config with " << filament_types.size() << " entries";
-        for (size_t i = 0; i < filament_types.size(); ++i) {
-            BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: filament_type[" << i << "] = " << filament_types[i];
-        }
-    }
-    if (filament_types.empty()) {
-        filament_types.assign(extruder_count, "PLA");
-        BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: No filament_type found, defaulting to PLA for " << extruder_count << " extruders";
-    }
-    if (filament_types.size() < extruder_count)
-        filament_types.resize(extruder_count, filament_types.back());
-
-    for (const DarkmoonMapping &mapping : mappings) {
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Processing mapping for " << mapping.darkmoon_key;
-        
-        ConfigOptionInts *dm_opt = config.option<ConfigOptionInts>(mapping.darkmoon_key, true);
-
-        std::vector<int> values;
-        bool have_dynamic_values = false;
-
-        // Always try dynamic calculation first
-        if (const DarkmoonPlateInfo *plate = find_darkmoon_plate_by_temp_key(mapping.darkmoon_key)) {
-            BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Found plate info for " << mapping.darkmoon_key << ", plate: " << plate->display_name;
-            
-            if (auto chart_values = default_darkmoon_temperatures(*plate, filament_types)) {
-                values = std::move(*chart_values);
-                have_dynamic_values = true;
-                BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Dynamic calculation SUCCESS for " << mapping.darkmoon_key << ", calculated " << values.size() << " values";
-                for (size_t i = 0; i < values.size(); ++i) {
-                    BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: " << mapping.darkmoon_key << "[" << i << "] = " << values[i] << "°C";
-                }
-            } else {
-                BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: Dynamic calculation FAILED for " << mapping.darkmoon_key << " - default_darkmoon_temperatures returned nullopt";
-            }
-        } else {
-            BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: No plate info found for " << mapping.darkmoon_key;
-        }
-
-        // Only use fallback if dynamic calculation completely failed
-        if (!have_dynamic_values) {
-            BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: Using fallback values for " << mapping.darkmoon_key;
-            
-            if (const ConfigOptionInts *fallback = config.opt<ConfigOptionInts>(mapping.fallback_key); fallback && !fallback->values.empty()) {
-                values.assign(fallback->values.begin(), fallback->values.end());
-                BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Using fallback from " << mapping.fallback_key << " with " << values.size() << " values";
-                for (size_t i = 0; i < values.size(); ++i) {
-                    BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: fallback " << mapping.darkmoon_key << "[" << i << "] = " << values[i] << "°C";
-                }
-            } else {
-                values.assign(extruder_count, 0);
-                BOOST_LOG_TRIVIAL(warning) << "DarkmoonUtil: No fallback available for " << mapping.darkmoon_key << ", using 0°C for all " << extruder_count << " extruders";
-            }
-        }
-
-        if (values.empty())
-            values.assign(extruder_count, 0);
-
-        if (values.size() < extruder_count)
-            values.resize(extruder_count, values.back());
-        else if (values.size() > extruder_count)
-            values.resize(extruder_count);
-
-        // Log the final values being set
-        BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: Setting " << mapping.darkmoon_key << " to " << values.size() << " values";
-        for (size_t i = 0; i < values.size(); ++i) {
-            BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: FINAL " << mapping.darkmoon_key << "[" << i << "] = " << values[i] << "°C";
-        }
-        
-        dm_opt->values = std::move(values);
-        
-        BOOST_LOG_TRIVIAL(debug) << "DarkmoonUtil: Successfully applied values for " << mapping.darkmoon_key;
-    }
-    
-    BOOST_LOG_TRIVIAL(info) << "DarkmoonUtil: apply_dynamic_darkmoon_bed_temps completed for all mappings";
 }
 
 } // namespace Slic3r

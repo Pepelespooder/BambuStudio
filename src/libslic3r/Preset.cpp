@@ -2963,8 +2963,25 @@ bool PresetCollection::is_dirty(const Preset *edited, const Preset *reference)
 {
     if (edited != nullptr && reference != nullptr) {
         // Only compares options existing in both configs.
-        if (! reference->config.equals(edited->config, &skipped_in_dirty))
-            return true;
+        if (! reference->config.equals(edited->config, &skipped_in_dirty)) {
+            // Additional check: see if the differences are only darkmoon calculated defaults
+            auto diff_keys = reference->config.diff(edited->config);
+            bool has_real_differences = false;
+            
+            for (const auto &key : diff_keys) {
+                // Skip keys that are already in the static skip list
+                if (skipped_in_dirty.find(key) != skipped_in_dirty.end()) {
+                    continue;
+                }
+                // This is a real difference
+                has_real_differences = true;
+                break;
+            }
+            
+            if (has_real_differences) {
+                return true;
+            }
+        }
         // The "compatible_printers" option key is handled differently from the others:
         // It is not mandatory. If the key is missing, it means it is compatible with any printer.
         // If the key exists and it is empty, it means it is compatible with no printer.

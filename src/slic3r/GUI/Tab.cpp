@@ -7,7 +7,6 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "libslic3r/DarkmoonUtil.hpp"
-#include "libslic3r/DarkmoonConfigApp.hpp"
 
 #include "Search.hpp"
 #include "OG_CustomCtrl.hpp"
@@ -612,9 +611,6 @@ void Tab::load_initial_data()
             if (!nozzle_opt->values.empty())
                 extruder_count = nozzle_opt->values.size();
         }
-
-        if (DarkmoonConfigApp::apply_dynamic_config_if_missing(*m_config, "", extruder_count, &printer_config))
-            m_presets->update_saved_preset_from_current_preset();
     }
 }
 
@@ -3699,7 +3695,21 @@ void TabFilament::reload_config()
 {
     this->compatible_widget_reload(m_compatible_printers);
     this->compatible_widget_reload(m_compatible_prints);
+    
+    // Populate missing Darkmoon temperatures with calculated values
+    // This happens during preset loading, so these changes won't be marked as dirty
+    DynamicPrintConfig& filament_config = m_preset_bundle->filaments.get_edited_preset().config;
+    
+    // Get the current extruder count for proper array sizing
+    size_t extruder_count = 1;
+    if (auto* nozzle_opt = m_preset_bundle->printers.get_edited_preset().config.opt<ConfigOptionFloatsNullable>("nozzle_diameter")) {
+        extruder_count = nozzle_opt->values.size();
+    }
+    
     Tab::reload_config();
+    
+    // Reset dirty state since the temperature population should not be considered a user change
+    m_presets->get_edited_preset().reset_dirty();
 }
 
 //void TabFilament::update_volumetric_flow_preset_hints()

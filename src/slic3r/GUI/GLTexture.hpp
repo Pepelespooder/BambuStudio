@@ -121,12 +121,13 @@ namespace GUI {
         int m_original_width;
         int m_original_height;
 
-        bool generate_texture_from_text(const std::string& text_str, wxFont& font, int& ww, int& hh, int &hl, wxColor background = *wxBLACK, wxColor foreground = *wxWHITE);
+        bool generate_texture_from_text(const std::string& text_str, wxFont& font, int& ww, int& hh, int &hl, wxColor background = *wxBLACK, wxColor foreground = *wxWHITE, bool rotate_clockwise = false);
         bool generate_from_text(const std::string& text_str, wxFont& font, wxColor background = *wxBLACK, wxColor foreground = *wxWHITE);
         bool generate_from_text_string(const std::string& text_str, wxFont& font, wxColor background = *wxBLACK, wxColor foreground = *wxWHITE);
 
         unsigned int get_id() const { return m_id; }
         int get_original_width() const { return m_original_width; }
+        int get_original_height() const { return m_original_height; }
         int get_width() const { return m_width; }
         int get_height() const { return m_height; }
 

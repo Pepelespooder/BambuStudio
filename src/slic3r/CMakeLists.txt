@@ -208,6 +208,7 @@ set(SLIC3R_GUI_SOURCES
     GUI/I18N.hpp
 	GUI/IconManager.cpp
     GUI/IconManager.hpp
+    GUI/DarkmoonGuiUtil.cpp
     GUI/MainFrame.cpp
     GUI/MainFrame.hpp
     GUI/BBLTopbar.cpp

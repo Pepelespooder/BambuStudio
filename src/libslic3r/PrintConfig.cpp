@@ -806,7 +806,7 @@ void PrintConfigDef::init_fff_params()
     def->full_label = L("Bed temperature");
     def->min        = 0;
     def->max        = 120;
-    def->set_default_value(new ConfigOptionInts{45});
+    def->set_default_value(new ConfigOptionInts{55}); // Default for PLA on Darkmoon G10
 
     def             = this->add("darkmoon_ice_plate_temp", coInts);
     def->label      = L("Other layers");
@@ -816,7 +816,7 @@ void PrintConfigDef::init_fff_params()
     def->full_label = L("Bed temperature");
     def->min        = 0;
     def->max        = 120;
-    def->set_default_value(new ConfigOptionInts{45});
+    def->set_default_value(new ConfigOptionInts{40}); // Default for PLA on Darkmoon Ice
 
     def             = this->add("darkmoon_lux_plate_temp", coInts);
     def->label      = L("Other layers");
@@ -826,7 +826,7 @@ void PrintConfigDef::init_fff_params()
     def->full_label = L("Bed temperature");
     def->min        = 0;
     def->max        = 120;
-    def->set_default_value(new ConfigOptionInts{45});
+    def->set_default_value(new ConfigOptionInts{60}); // Default for PLA on Darkmoon Lux
 
     def             = this->add("darkmoon_cfx_plate_temp", coInts);
     def->label      = L("Other layers");
@@ -836,7 +836,7 @@ void PrintConfigDef::init_fff_params()
     def->full_label = L("Bed temperature");
     def->min        = 0;
     def->max        = 120;
-    def->set_default_value(new ConfigOptionInts{45});
+    def->set_default_value(new ConfigOptionInts{65}); // Default for PLA on Darkmoon CFX
 
     def             = this->add("darkmoon_satin_plate_temp", coInts);
     def->label      = L("Other layers");
@@ -846,7 +846,7 @@ void PrintConfigDef::init_fff_params()
     def->full_label = L("Bed temperature");
     def->min        = 0;
     def->max        = 120;
-    def->set_default_value(new ConfigOptionInts{45});
+    def->set_default_value(new ConfigOptionInts{60}); // Default for PLA on Darkmoon Satin
 
     def = this->add("supertack_plate_temp_initial_layer", coInts);
     def->label = L("Initial layer");
@@ -907,7 +907,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext   = "°C";
     def->min        = 0;
     def->max        = 120;
-    def->set_default_value(new ConfigOptionInts{45});
+    def->set_default_value(new ConfigOptionInts{55}); // Default for PLA on Darkmoon G10
 
     def = this->add("darkmoon_ice_plate_temp_initial_layer", coInts);
     def->label      = L("Initial layer");
@@ -917,7 +917,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext   = "°C";
     def->min        = 0;
     def->max        = 120;
-    def->set_default_value(new ConfigOptionInts{45});
+    def->set_default_value(new ConfigOptionInts{40}); // Default for PLA on Darkmoon Ice
 
     def = this->add("darkmoon_lux_plate_temp_initial_layer", coInts);
     def->label      = L("Initial layer");
@@ -927,7 +927,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext   = "°C";
     def->min        = 0;
     def->max        = 120;
-    def->set_default_value(new ConfigOptionInts{45});
+    def->set_default_value(new ConfigOptionInts{60}); // Default for PLA on Darkmoon Lux
 
     def = this->add("darkmoon_cfx_plate_temp_initial_layer", coInts);
     def->label      = L("Initial layer");
@@ -937,7 +937,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext   = "°C";
     def->min        = 0;
     def->max        = 120;
-    def->set_default_value(new ConfigOptionInts{45});
+    def->set_default_value(new ConfigOptionInts{65}); // Default for PLA on Darkmoon CFX
 
     def = this->add("darkmoon_satin_plate_temp_initial_layer", coInts);
     def->label      = L("Initial layer");
@@ -947,7 +947,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext   = "°C";
     def->min        = 0;
     def->max        = 120;
-    def->set_default_value(new ConfigOptionInts{45});
+    def->set_default_value(new ConfigOptionInts{60}); // Default for PLA on Darkmoon Satin
 
     def = this->add("curr_bed_type", coEnum);
     def->label = L("Bed type");
@@ -2800,8 +2800,8 @@ void PrintConfigDef::init_fff_params()
     def->readonly=false;
 
     def = this->add("heat_soak_enable", coBool);
-    def->label = L("Enable heat soak");
-    def->tooltip = L("Insert a heat soak pause in the machine start G-code before leveling");
+    def->label = L("Enable heat soak (experimental)");
+    def->tooltip = L("Experimental: insert a heat soak pause in the machine start G-code before leveling");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 

@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <string>
@@ -45,11 +46,6 @@ int default_lux_temperature(const std::string &filament_type_raw);
 int default_cfx_temperature(const std::string &filament_type_raw);
 int default_satin_temperature(const std::string &filament_type_raw);
 
-void ensure_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
-
-// Apply dynamic Darkmoon temperatures, always overriding existing values
-void apply_dynamic_darkmoon_bed_temps(DynamicPrintConfig &config, size_t extruder_count);
-
 const std::array<std::string_view, 5> &darkmoon_plate_temp_keys();
 const std::array<std::string_view, 5> &darkmoon_initial_layer_plate_temp_keys();
 const std::array<std::string_view, 10> &darkmoon_all_temp_keys();
@@ -75,8 +71,17 @@ std::optional<int> default_darkmoon_temperature(const DarkmoonPlateInfo &plate, 
 std::optional<std::vector<int>> default_darkmoon_temperatures(const DarkmoonPlateInfo &plate, const std::vector<std::string> &filament_types);
 
 struct DarkmoonTexturePartInfo {
-    float x, y, w, h;
+    float x { 0.f };
+    float y { 0.f };
+    float w { 0.f };
+    float h { 0.f };
     std::string filename;
+    std::string text;
+    float font_point_size { 22.f };
+    bool bold { true };
+    std::array<uint8_t, 4> text_color { { 179, 179, 179, 255 } };
+    std::array<uint8_t, 4> background_color { { 0, 0, 0, 0 } };
+    bool rotate_clockwise { false };
 };
 
 void append_darkmoon_plate_slugs(std::vector<std::string> &slugs);

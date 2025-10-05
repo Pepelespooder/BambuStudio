@@ -6,6 +6,7 @@
 #include <array>
 #include <thread>
 #include <mutex>
+#include <cstdint>
 
 #include "libslic3r/ObjectID.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
@@ -698,6 +699,12 @@ public:
             VerticalAnchor   vertical_anchor   { VerticalAnchor::Bottom };
             AspectMode       aspect_mode       { AspectMode::FitInside };
             bool aspect_adjusted { false };
+            std::string text;
+            float font_point_size { 22.f };
+            bool text_bold { true };
+            std::array<uint8_t, 4> text_color { { 179, 179, 179, 255 } };
+            std::array<uint8_t, 4> background_color { { 0, 0, 0, 0 } };
+            bool rotate_clockwise { false };
 
             TexturePart(float xx, float yy, float ww, float hh, std::string file,
                         bool preserve = false,
@@ -735,6 +742,12 @@ public:
                 this->vertical_anchor       = part.vertical_anchor;
                 this->aspect_mode           = part.aspect_mode;
                 this->aspect_adjusted       = part.aspect_adjusted;
+                this->text                  = part.text;
+                this->font_point_size       = part.font_point_size;
+                this->text_bold             = part.text_bold;
+                this->text_color            = part.text_color;
+                this->background_color      = part.background_color;
+                this->rotate_clockwise      = part.rotate_clockwise;
             }
 
             void update_buffer();
