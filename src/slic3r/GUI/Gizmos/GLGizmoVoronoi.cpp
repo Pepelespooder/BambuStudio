@@ -331,8 +331,15 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(1);
         
-        GizmoImguiEnd();
+    } catch (const std::exception& e) {
+        // Handle any exceptions gracefully
+        ImGui::Text("Error: %s", e.what());
+    } catch (...) {
+        // Handle unknown exceptions
+        ImGui::Text("%s", into_u8(_u8L("An error occurred")).c_str());
     }
+    
+    GizmoImguiEnd();
 }
 
 bool GLGizmoVoronoi::on_is_activable() const
@@ -656,22 +663,38 @@ void GLGizmoVoronoi::update_seed_preview()
         for (size_t i = 0; i < mesh.vertices.size() && m_seed_preview_points.size() < static_cast<size_t>(m_configuration.num_seeds); i += step) {
             m_seed_preview_points.push_back(mesh.vertices[i]);
         }
+    } catch (const std::exception& e) {
+        // Handle any exceptions in seed generation
+        BOOST_LOG_TRIVIAL(error) << "Error in update_seed_preview: " << e.what();
+        m_seed_preview_points.clear();
+        return;
+    } catch (...) {
+        // Handle unknown exceptions
+        BOOST_LOG_TRIVIAL(error) << "Unknown error in update_seed_preview";
+        m_seed_preview_points.clear();
+        return;
     }
     
     // Create OpenGL model for rendering seed points
-    GLModel::Geometry init_data;
-    init_data.format = {GLModel::PrimitiveType::Points, GLModel::Geometry::EVertexLayout::P3};
-    
-    for (const Vec3f& pt : m_seed_preview_points) {
-        init_data.add_vertex(pt);
+    try {
+        GLModel::Geometry init_data;
+        init_data.format = {GLModel::PrimitiveType::Points, GLModel::Geometry::EVertexLayout::P3};
+        
+        for (const Vec3f& pt : m_seed_preview_points) {
+            init_data.add_vertex(pt);
+        }
+        
+        m_seed_preview_model.init_from(std::move(init_data));
+        
+        request_rerender();
+        
+        // Also update 2D preview
+        update_2d_voronoi_preview();
+    } catch (const std::exception& e) {
+        BOOST_LOG_TRIVIAL(error) << "Error creating OpenGL model: " << e.what();
+    } catch (...) {
+        BOOST_LOG_TRIVIAL(error) << "Unknown error creating OpenGL model";
     }
-    
-    m_seed_preview_model.init_from(std::move(init_data));
-    
-    request_rerender();
-    
-    // Also update 2D preview
-    update_2d_voronoi_preview();
 }
 
 // Phase 4: Render seed preview
@@ -815,23 +838,43 @@ void GLGizmoVoronoi::on_opening()
 
 void GLGizmoVoronoi::on_shutdown()
 {
-    stop_worker_thread_request();
-    if (m_worker.joinable())
-        m_worker.join();
+    // Thread safety - ensure worker thread is stopped safely
+    try {
+        stop_worker_thread_request();
+        if (m_worker.joinable()) {
+            m_worker.join();
+        }
 
-    {
-        std::lock_guard<std::mutex> lock(m_state_mutex);
-        m_state.status = State::idle;
-        m_state.progress = 0;
-        m_state.result.reset();
-        m_state.mv = nullptr;
+        // Thread-safe state cleanup
+        {
+            std::lock_guard<std::mutex> lock(m_state_mutex);
+            m_state.status = State::idle;
+            m_state.progress = 0;
+            m_state.result.reset();
+            m_state.mv = nullptr;
+        }
+
+        // Safe cleanup of OpenGL resources
+        if (m_glmodel.is_initialized()) {
+            m_glmodel.reset();
+        }
+        if (m_seed_preview_model.is_initialized()) {
+            m_seed_preview_model.reset();
+        }
+        
+        // Clear all containers
+        m_seed_preview_points.clear();
+        m_2d_voronoi_cells.clear();
+        m_2d_delaunay_edges.clear();
+        
+        // Reset volume pointer
+        m_volume = nullptr;
+        
+    } catch (const std::exception& e) {
+        BOOST_LOG_TRIVIAL(error) << "Error in on_shutdown: " << e.what();
+    } catch (...) {
+        BOOST_LOG_TRIVIAL(error) << "Unknown error in on_shutdown";
     }
-
-    m_glmodel.reset();
-    m_seed_preview_model.reset();
-    m_seed_preview_points.clear();
-    m_2d_voronoi_cells.clear();
-    m_2d_delaunay_edges.clear();
 }
 
 wxString GLGizmoVoronoi::handle_snapshot_action_name(bool shift_down, GLGizmoPainterBase::Button button_down) const
@@ -956,9 +999,71 @@ void GLGizmoVoronoi::update_2d_voronoi_preview()
             m_2d_delaunay_edges.push_back({ start, end });
         }
 
+        // Safely free the diagram
         jcv_diagram_free(&diagram);
+        
+    } catch (const std::exception& e) {
+        // Handle any exceptions in Voronoi generation
+        BOOST_LOG_TRIVIAL(error) << "Error in update_2d_voronoi_preview: " << e.what();
+        m_2d_voronoi_cells.clear();
+        m_2d_delaunay_edges.clear();
+        
+        // Fallback to simple hexagonal approximation
+        generate_fallback_hexagonal_preview();
+        
     } catch (...) {
-        // Fallback to simple hexagonal approximation if Voronoi generation fails
+        // Handle unknown exceptions
+        BOOST_LOG_TRIVIAL(error) << "Unknown error in update_2d_voronoi_preview";
+        m_2d_voronoi_cells.clear();
+        m_2d_delaunay_edges.clear();
+        
+        // Fallback to simple hexagonal approximation
+        generate_fallback_hexagonal_preview();
+    }
+}
+
+void GLGizmoVoronoi::generate_fallback_hexagonal_preview()
+{
+    // Safety check
+    if (m_seed_preview_points.empty()) {
+        return;
+    }
+    
+    try {
+        // Convert 3D points to 2D for fallback preview
+        std::vector<jcv_point> points_2d;
+        
+        float min_x = FLT_MAX, max_x = -FLT_MAX;
+        float min_y = FLT_MAX, max_y = -FLT_MAX;
+        
+        for (const Vec3f& pt3d : m_seed_preview_points) {
+            min_x = std::min(min_x, pt3d.x());
+            max_x = std::max(max_x, pt3d.x());
+            min_y = std::min(min_y, pt3d.y());
+            max_y = std::max(max_y, pt3d.y());
+        }
+        
+        if (min_x >= max_x || min_y >= max_y) {
+            return;
+        }
+        
+        float padding = 0.1f * std::max(max_x - min_x, max_y - min_y);
+        min_x -= padding;
+        max_x += padding;
+        min_y -= padding;
+        max_y += padding;
+        
+        float scale_x = (max_x - min_x) > 0 ? 1.0f / (max_x - min_x) : 1.0f;
+        float scale_y = (max_y - min_y) > 0 ? 1.0f / (max_y - min_y) : 1.0f;
+        
+        for (const Vec3f& pt3d : m_seed_preview_points) {
+            jcv_point pt2d;
+            pt2d.x = std::max(0.0f, std::min(1.0f, (pt3d.x() - min_x) * scale_x));
+            pt2d.y = std::max(0.0f, std::min(1.0f, (pt3d.y() - min_y) * scale_y));
+            points_2d.push_back(pt2d);
+        }
+        
+        // Generate simple hexagonal cells as fallback
         for (size_t i = 0; i < points_2d.size(); ++i) {
             VoronoiCell2D cell;
             cell.seed_point = Vec2f(points_2d[i].x, points_2d[i].y);
@@ -974,7 +1079,7 @@ void GLGizmoVoronoi::update_2d_voronoi_preview()
                 cell.vertices.push_back(vertex);
             }
             
-            // Generate a color for this cell based on the seed index
+            // Generate a color for this cell
             float hue = (float(i) / float(points_2d.size())) * 360.0f;
             float r, g, b;
             ImGui::ColorConvertHSVtoRGB(hue / 360.0f, 0.6f, 0.8f, r, g, b);
@@ -982,6 +1087,11 @@ void GLGizmoVoronoi::update_2d_voronoi_preview()
             
             m_2d_voronoi_cells.push_back(cell);
         }
+        
+    } catch (...) {
+        // Even fallback failed - just clear everything
+        m_2d_voronoi_cells.clear();
+        m_2d_delaunay_edges.clear();
     }
 }
 
