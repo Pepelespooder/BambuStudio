@@ -4,7 +4,7 @@
 #include "GLGizmoPainterBase.hpp"
 #include "slic3r/GUI/3DScene.hpp"
 #include "libslic3r/TriangleMesh.hpp"
-#include "imgui.h"
+#include <imgui/imgui.h>
 
 #include <mutex>
 #include <thread>
