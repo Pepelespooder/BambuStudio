@@ -10,6 +10,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Delaunay_triangulation_3.h>
 #include <CGAL/Triangulation_vertex_base_with_info_3.h>
+#include <CGAL/Delaunay_triangulation_cell_base_with_circumcenter_3.h>
 #include <CGAL/convex_hull_3.h>
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/Surface_mesh.h>
@@ -21,7 +22,7 @@ namespace Slic3r {
 // CGAL type definitions for 3D Delaunay/Voronoi
 using K = CGAL::Exact_predicates_inexact_constructions_kernel;
 using Vb = CGAL::Triangulation_vertex_base_with_info_3<int, K>;
-using Cb = CGAL::Triangulation_cell_base_3<K>;
+using Cb = CGAL::Delaunay_triangulation_cell_base_with_circumcenter_3<K>;
 using Tds = CGAL::Triangulation_data_structure_3<Vb, Cb>;
 using Delaunay = CGAL::Delaunay_triangulation_3<K, Tds>;
 using Point_3 = K::Point_3;
@@ -301,7 +302,7 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
             }
             
             try {
-                Point_3 circumcenter = dt.dual(cell);
+                Point_3 circumcenter = cell->circumcenter();
                 
                 // Enhanced validation: Check for valid coordinates
                 if (std::isnan(circumcenter.x()) || std::isnan(circumcenter.y()) || std::isnan(circumcenter.z()) ||
