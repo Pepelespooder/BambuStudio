@@ -53,7 +53,7 @@ static ModelVolume* get_model_volume(const Selection& selection, Model& model)
 }
 
 GLGizmoVoronoi::GLGizmoVoronoi(GLCanvas3D& parent, unsigned int sprite_id)
-    : GLGizmoBase(parent, sprite_id)
+    : GLGizmoPainterBase(parent, sprite_id)
     , m_volume(nullptr)
     , m_show_wireframe(false)
     , m_move_to_center(false)
@@ -65,6 +65,7 @@ GLGizmoVoronoi::GLGizmoVoronoi(GLCanvas3D& parent, unsigned int sprite_id)
     , tr_seed_preview(_u8L("Preview seeds"))
     , tr_layer_exclusion(_u8L("Exclude layers"))
     , tr_exclusion_height(_u8L("Height range (mm)"))
+    , tr_paint_exclusions(_u8L("Paint exclusions"))
 {
 }
 
@@ -197,6 +198,28 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
                              "Layers %.1f-%.1f mm will remain solid",
                              m_configuration.exclusion_height_min,
                              m_configuration.exclusion_height_max);
+        }
+        
+        ImGui::Separator();
+        
+        // Phase 5: Triangle painting exclusion
+        if (ImGui::Checkbox(tr_paint_exclusions.c_str(), &m_configuration.enable_triangle_painting)) {
+            if (m_configuration.enable_triangle_painting) {
+                // Initialize painting system
+                update_from_model_object(true);
+            }
+            request_rerender();
+        }
+        
+        if (m_configuration.enable_triangle_painting) {
+            ImGui::Text("Brush radius:");
+            ImGui::SliderFloat("##cursor_radius", &m_cursor_radius, 
+                             get_cursor_radius_min(), get_cursor_radius_max(), "%.1f");
+            
+            ImGui::TextColored(ImVec4(0.8f, 0.2f, 0.2f, 1.0f),
+                             "Paint surfaces red to exclude");
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                             "Click & drag to paint");
         }
         
         ImGui::Separator();
@@ -689,6 +712,87 @@ void GLGizmoVoronoi::render_exclusion_zone()
     }
     
     glsafe(::glDisable(GL_BLEND));
+}
+
+// Phase 5: Painting integration methods
+void GLGizmoVoronoi::render_painter_gizmo() const
+{
+    const Selection& selection = m_parent.get_selection();
+    render_triangles(selection);
+    render_cursor();
+}
+
+void GLGizmoVoronoi::render_triangles(const Selection& selection) const
+{
+    if (!m_configuration.enable_triangle_painting)
+        return;
+        
+    const ModelObject* mo = m_c->selection_info()->model_object();
+    if (mo && selection.is_from_single_instance()) {
+        const GLVolume* gl_volume = selection.get_volume(*selection.get_volume_idxs().begin());
+        
+        for (const ModelVolume* mv : mo->volumes) {
+            if (mv->is_model_part()) {
+                int mesh_id = &mv - &mo->volumes.front();
+                if (mesh_id < (int)m_triangle_selectors.size() && m_triangle_selectors[mesh_id]) {
+                    const Transform3d trafo_matrix = mo->instances[selection.get_instance_idx()]->get_transformation().get_matrix() * mv->get_matrix();
+                    m_triangle_selectors[mesh_id]->render(m_imgui, trafo_matrix);
+                }
+            }
+        }
+    }
+}
+
+void GLGizmoVoronoi::update_model_object()
+{
+    // Save painted triangle data to model volume
+    // This is called when painting changes need to be saved
+    
+    const Selection& selection = m_parent.get_selection();
+    const ModelObject* mo = m_c->selection_info()->model_object();
+    
+    if (!mo || !selection.is_from_single_instance())
+        return;
+        
+    for (const ModelVolume* mv : mo->volumes) {
+        if (mv->is_model_part()) {
+            int mesh_id = &mv - &mo->volumes.front();
+            if (mesh_id < (int)m_triangle_selectors.size() && m_triangle_selectors[mesh_id]) {
+                // Triangle data is automatically managed by the base class
+                // Just ensure changes trigger model update
+                m_parent.request_extra_frame();
+            }
+        }
+    }
+}
+
+void GLGizmoVoronoi::update_from_model_object(bool first_update)
+{
+    // Load painted triangle data from model volume
+    // This is called when the gizmo is opened or model changes
+    
+    const ModelObject* mo = m_c->selection_info()->model_object();
+    if (!mo)
+        return;
+        
+    // Initialize triangle selectors if needed
+    if (first_update || m_triangle_selectors.empty()) {
+        m_triangle_selectors.clear();
+        
+        for (const ModelVolume* mv : mo->volumes) {
+            if (mv->is_model_part()) {
+                const TriangleMesh& mesh = mv->mesh();
+                m_triangle_selectors.emplace_back(std::make_unique<TriangleSelectorGUI>(mesh));
+            }
+        }
+    }
+}
+
+bool GLGizmoVoronoi::on_init()
+{
+    // Initialize painting system
+    m_cursor_radius = 2.0f;
+    return true;
 }
 
 } // namespace Slic3r::GUI

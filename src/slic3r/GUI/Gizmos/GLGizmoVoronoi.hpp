@@ -1,7 +1,7 @@
 #ifndef slic3r_GLGizmoVoronoi_hpp_
 #define slic3r_GLGizmoVoronoi_hpp_
 
-#include "GLGizmoBase.hpp"
+#include "GLGizmoPainterBase.hpp"
 #include "slic3r/GUI/3DScene.hpp"
 #include "libslic3r/TriangleMesh.hpp"
 
@@ -14,7 +14,7 @@ class Model;
 
 namespace GUI {
 
-class GLGizmoVoronoi : public GLGizmoBase
+class GLGizmoVoronoi : public GLGizmoPainterBase
 {
 public:
     GLGizmoVoronoi(GLCanvas3D& parent, unsigned int sprite_id);
@@ -32,9 +32,16 @@ protected:
     virtual bool on_is_selectable() const override { return false; }
     virtual void on_set_state() override;
     
-    virtual bool on_init() override { return true; }
+    virtual bool on_init() override;
     virtual void on_render() override;
     virtual void on_render_for_picking() override {}
+    
+    // Phase 5: Painting integration
+    void render_painter_gizmo() const override;
+    void render_triangles(const Selection& selection) const override;
+    void update_model_object() override;
+    void update_from_model_object(bool first_update) override;
+    PainterGizmoType get_painter_type() const override { return PainterGizmoType::FDM_SUPPORTS; }
     
     CommonGizmosDataID on_get_requirements() const override;
 
@@ -78,6 +85,9 @@ private:
         bool enable_layer_exclusion = false;
         float exclusion_height_min = 0.0f;  // mm from bottom
         float exclusion_height_max = 5.0f;  // mm from bottom
+        
+        // Phase 5: Triangle painting exclusion
+        bool enable_triangle_painting = false;
         
         bool operator==(const Configuration& rhs) const {
             return seed_type == rhs.seed_type && 
@@ -145,6 +155,7 @@ private:
     const std::string tr_seed_preview;
     const std::string tr_layer_exclusion;
     const std::string tr_exclusion_height;
+    const std::string tr_paint_exclusions;
     
     class VoronoiCanceledException : public std::exception
     {
