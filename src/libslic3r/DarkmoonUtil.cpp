@@ -276,10 +276,7 @@ std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture
     // Generic part1: Same for all darkmoon plates, positioned next to bed texture
     constexpr float kPartBannerWidth  = 8.393f;
     constexpr float kPartBannerHeight = 192.f;
-    constexpr float kBottomTextX      = 74.f;
-    constexpr float kBottomTextY      = -10.f;
-    constexpr float kBottomTextWidth  = 148.f;
-    constexpr float kBottomTextHeight = 12.f;
+    constexpr float kHorizontalGap    = 4.f;
 
     auto make_label = [](const char *label) {
         return std::string(label);
@@ -297,14 +294,14 @@ std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture
 
     auto part2_for = [&](const char *label) {
         DarkmoonTexturePartInfo part2;
-        part2.x = kBottomTextX;
-        part2.y = kBottomTextY;
-        part2.w = kBottomTextWidth;
-        part2.h = kBottomTextHeight;
+        part2.x = darkmoon_part1.x + darkmoon_part1.w + kHorizontalGap;
+        part2.y = darkmoon_part1.y;
+        part2.w = kPartBannerWidth;
+        part2.h = kPartBannerHeight;
         part2.text = make_label(label);
-        part2.font_point_size = 16.f;
+        part2.font_point_size = 20.f;
         part2.bold = true;
-        part2.rotate_clockwise = false;
+        part2.rotate_clockwise = true;
         return part2;
     };
 
