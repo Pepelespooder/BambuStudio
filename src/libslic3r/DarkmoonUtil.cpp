@@ -276,7 +276,6 @@ std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture
     // Generic part1: Same for all darkmoon plates, positioned next to bed texture
     constexpr float kPartBannerWidth  = 8.393f;
     constexpr float kPartBannerHeight = 192.f;
-    constexpr float kHorizontalGap    = 4.f;
 
     auto make_label = [](const char *label) {
         return std::string(label);
@@ -287,48 +286,33 @@ std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture
     darkmoon_part1.y = 52.f;
     darkmoon_part1.w = kPartBannerWidth;
     darkmoon_part1.h = kPartBannerHeight;
-    darkmoon_part1.text = make_label("DARKMOON");
     darkmoon_part1.font_point_size = 20.f;
     darkmoon_part1.bold = true;
     darkmoon_part1.rotate_clockwise = true;
 
-    auto part2_for = [&](const char *label) {
-        DarkmoonTexturePartInfo part2;
-        part2.x = darkmoon_part1.x + darkmoon_part1.w + kHorizontalGap;
-        part2.y = darkmoon_part1.y;
-        part2.w = kPartBannerWidth;
-        part2.h = kPartBannerHeight;
-        part2.text = make_label(label);
-        part2.font_point_size = 20.f;
-        part2.bold = true;
-        part2.rotate_clockwise = true;
-        return part2;
-    };
-
-    DarkmoonTexturePartInfo darkmoon_part2;
-
     switch (bed_type) {
         case BedType::btDarkmoonG10:
-            darkmoon_part2 = part2_for("G10");
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("G10");
             break;
         case BedType::btDarkmoonIce:
-            darkmoon_part2 = part2_for("ICE");
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("ICE");
             break;
         case BedType::btDarkmoonLux:
-            darkmoon_part2 = part2_for("LUX");
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("LUX");
             break;
         case BedType::btDarkmoonCFX:
-            darkmoon_part2 = part2_for("CFX");
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("CFX");
             break;
         case BedType::btDarkmoonSatin:
-            darkmoon_part2 = part2_for("SATIN");
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("SATIN");
             break;
         default:
-            darkmoon_part2 = part2_for("G10");
+            darkmoon_part1.text = std::string("DARKMOON\n") + make_label("G10");
             break;
     }
 
-    return std::make_pair(darkmoon_part1, darkmoon_part2);
+    DarkmoonTexturePartInfo placeholder_part2{};
+    return std::make_pair(darkmoon_part1, placeholder_part2);
 }
 
 int default_g10_temperature(const std::string &filament_type_raw)

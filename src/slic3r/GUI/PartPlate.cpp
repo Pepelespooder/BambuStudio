@@ -6440,7 +6440,8 @@ void PartPlateList::init_bed_type_info()
         }
         
         bed_texture_info[plate.bed_type].parts.push_back(darkmoon_part1);
-        bed_texture_info[plate.bed_type].parts.push_back(darkmoon_part2);
+        if (texture_parts.second.w > 0.f && texture_parts.second.h > 0.f)
+            bed_texture_info[plate.bed_type].parts.push_back(darkmoon_part2);
     }
 
 	auto  bed_ext     = get_extents(m_shape);
@@ -6567,12 +6568,12 @@ void PartPlateList::load_bedtype_textures()
 			if (!part.text.empty()) {
 				part.texture = new GLTexture();
 				DarkmoonGui::TextParams params;
-			params.text             = part.text;
-			params.point_size       = part.font_point_size;
-			params.bold             = part.text_bold;
-			params.rotate_clockwise = part.rotate_clockwise;
-			params.foreground       = part.text_color;
-			params.background       = part.background_color;
+				params.text             = part.text;
+				params.point_size       = part.font_point_size;
+				params.bold             = part.text_bold;
+				params.rotate_clockwise = part.rotate_clockwise;
+				params.foreground       = part.text_color;
+				params.background       = part.background_color;
 
 				if (!DarkmoonGui::generate_texture(params, *part.texture)) {
 					delete part.texture;
