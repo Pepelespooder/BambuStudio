@@ -708,14 +708,14 @@ namespace Slic3r::GUI {
                                 pt.z() >= bbox.min.z() && pt.z() <= bbox.max.z()) {
                                 m_seed_preview_points.push_back(pt.cast<float>());
 
-                                if (m_seed_preview_points.size() >= m_configuration.num_seeds)
+                                if (m_seed_preview_points.size() >= static_cast<size_t>(m_configuration.num_seeds))
                                     break;
                             }
                         }
-                        if (m_seed_preview_points.size() >= m_configuration.num_seeds)
+                        if (m_seed_preview_points.size() >= static_cast<size_t>(m_configuration.num_seeds))
                             break;
                     }
-                    if (m_seed_preview_points.size() >= m_configuration.num_seeds)
+                    if (m_seed_preview_points.size() >= static_cast<size_t>(m_configuration.num_seeds))
                         break;
                 }
             }
@@ -735,7 +735,7 @@ namespace Slic3r::GUI {
                 int max_attempts = m_configuration.num_seeds * 50;
                 int attempts = 0;
 
-                while (m_seed_preview_points.size() < m_configuration.num_seeds && attempts < max_attempts) {
+                while (static_cast<int>(m_seed_preview_points.size()) < m_configuration.num_seeds && attempts < max_attempts) {
                     Vec3d pt(dist_x(rng), dist_y(rng), dist_z(rng));
 
                     // Check minimum distance from existing points
@@ -755,14 +755,14 @@ namespace Slic3r::GUI {
                 }
 
                 // Fill remaining if we couldn't maintain minimum distance
-                while (m_seed_preview_points.size() < m_configuration.num_seeds) {
+                while (static_cast<int>(m_seed_preview_points.size()) < m_configuration.num_seeds) {
                     Vec3d pt(dist_x(rng), dist_y(rng), dist_z(rng));
                     m_seed_preview_points.push_back(pt.cast<float>());
                 }
             }
             else {
                 // Vertex seeds - use farthest point sampling for better distribution
-                if (mesh.vertices.size() <= m_configuration.num_seeds) {
+                if (static_cast<int>(mesh.vertices.size()) <= m_configuration.num_seeds) {
                     // Use all vertices if we have fewer than requested
                     for (const auto& v : mesh.vertices) {
                         m_seed_preview_points.push_back(v);

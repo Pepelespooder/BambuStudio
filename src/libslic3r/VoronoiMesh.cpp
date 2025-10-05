@@ -1,6 +1,7 @@
 #include "VoronoiMesh.hpp"
 #include "libslic3r/AABBTreeIndirect.hpp"
 #include "libslic3r/MeshBoolean.hpp"
+#include "libslic3r/TriangleMesh.hpp"
 #include <random>
 #include <algorithm>
 #include <set>
@@ -20,6 +21,7 @@
 #include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
 #include <CGAL/Polygon_mesh_processing/orient_polygon_soup.h>
 #include <CGAL/Polygon_mesh_processing/orientation.h>
+#include <CGAL/IO/io.h>
 
 namespace Slic3r {
 
@@ -456,9 +458,9 @@ namespace Slic3r {
 
                 for (auto& face : cube_faces) {
                     result->indices.emplace_back(
-                        face[0] + base,
-                        face[1] + base,
-                        face[2] + base
+                        face[0] + static_cast<int>(base),
+                        face[1] + static_cast<int>(base),
+                        face[2] + static_cast<int>(base)
                     );
                 }
             }
@@ -620,9 +622,9 @@ namespace Slic3r {
         // Add inner faces (reversed orientation)
         for (const auto& face : original.indices) {
             mesh.indices.emplace_back(
-                face[0] + vertex_count,
-                face[2] + vertex_count,  // Reversed winding
-                face[1] + vertex_count
+                face[0] + static_cast<int>(vertex_count),
+                face[2] + static_cast<int>(vertex_count),  // Reversed winding
+                face[1] + static_cast<int>(vertex_count)
             );
         }
 
@@ -657,12 +659,12 @@ namespace Slic3r {
                 bool forward = (face_v1_idx == (face_v0_idx + 1) % 3);
 
                 if (forward) {
-                    mesh.indices.emplace_back(v0, v1, v0_inner);
-                    mesh.indices.emplace_back(v1, v1_inner, v0_inner);
+                    mesh.indices.emplace_back(v0, v1, static_cast<int>(v0_inner));
+                    mesh.indices.emplace_back(v1, static_cast<int>(v1_inner), static_cast<int>(v0_inner));
                 }
                 else {
-                    mesh.indices.emplace_back(v1, v0, v1_inner);
-                    mesh.indices.emplace_back(v0, v0_inner, v1_inner);
+                    mesh.indices.emplace_back(v1, v0, static_cast<int>(v1_inner));
+                    mesh.indices.emplace_back(v0, static_cast<int>(v0_inner), static_cast<int>(v1_inner));
                 }
             }
         }
