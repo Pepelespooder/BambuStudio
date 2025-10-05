@@ -950,9 +950,17 @@ namespace Slic3r::GUI {
 
     bool GLGizmoVoronoi::on_init()
     {
-        // Initialize base class first
-        if (!GLGizmoPainterBase::on_init())
-            return false;
+        // Initialize shortcut key and descriptions (similar to other painter gizmos)
+        m_shortcut_key = WXK_CONTROL_V;
+        
+        // Set up tool descriptions
+        m_desc["clipping_of_view_caption"] = GUI::shortkey_alt_prefix() + _L("Mouse wheel");
+        m_desc["clipping_of_view"] = _L("Section view");
+        m_desc["cursor_size_caption"] = _L("Ctrl + Mouse wheel");
+        m_desc["cursor_size"] = _L("Pen size");
+        m_desc["remove_caption"] = _L("Shift + Left mouse button");
+        m_desc["remove"] = _L("Erase");
+        m_desc["remove_all"] = _L("Erase all painting");
 
         // Initialize painting system
         m_cursor_radius = 2.0f;
