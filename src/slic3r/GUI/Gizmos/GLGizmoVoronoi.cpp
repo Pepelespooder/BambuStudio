@@ -287,13 +287,62 @@ void GLGizmoVoronoi::stop_worker_thread_request()
 
 void GLGizmoVoronoi::worker_finished()
 {
-    std::lock_guard<std::mutex> lock(m_state_mutex);
+    std::unique_ptr<indexed_triangle_set> result_its;
+    const ModelVolume* mv = nullptr;
     
-    if (m_state.result && m_state.status == State::running) {
-        // Apply the result to the model
-        // TODO: Implement mesh replacement logic
+    {
+        std::lock_guard<std::mutex> lock(m_state_mutex);
         
-        m_state.status = State::idle;
+        if (m_state.result && m_state.status == State::running) {
+            result_its = std::move(m_state.result);
+            mv = m_state.mv;
+            m_state.status = State::idle;
+        } else {
+            m_state.status = State::idle;
+            return;
+        }
+    }
+    
+    // Apply the result to the model (outside of lock)
+    if (result_its && mv && !result_its->vertices.empty()) {
+        // Get the model and update the volume's mesh
+        Plater* plater = wxGetApp().plater();
+        if (!plater)
+            return;
+        
+        Model& model = *plater->model();
+        const Selection& selection = m_parent.get_selection();
+        const Selection::IndicesList& idxs = selection.get_volume_idxs();
+        
+        if (idxs.size() != 1)
+            return;
+        
+        const GLVolume* selected_volume = selection.get_volume(*idxs.begin());
+        if (!selected_volume)
+            return;
+        
+        const GLVolume::CompositeID& cid = selected_volume->composite_id;
+        if (cid.object_id < 0 || cid.volume_id < 0)
+            return;
+        
+        ModelObject* obj = model.objects[cid.object_id];
+        if (!obj || cid.volume_id >= obj->volumes.size())
+            return;
+        
+        ModelVolume* volume = obj->volumes[cid.volume_id];
+        if (volume != mv)
+            return;
+        
+        // Replace the mesh
+        TriangleMesh new_mesh(*result_its);
+        volume->set_mesh(std::move(new_mesh));
+        volume->calculate_convex_hull();
+        
+        // Mark as modified and update
+        obj->invalidate_bounding_box();
+        plater->changed_object(cid.object_id);
+        plater->update();
+        
         request_rerender();
     }
 }
