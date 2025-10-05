@@ -30,19 +30,29 @@
 
 namespace Slic3r::GUI {
 
-static void call_after_if_active(std::function<void()> fn, GUI_App* app = &wxGetApp())
+static void call_after_if_active(
+    GLGizmoVoronoi* self,
+    std::function<void(GLGizmoVoronoi&)> fn,
+    GUI_App* app = &wxGetApp())
 {
-    if (app == nullptr) return;
-    app->CallAfter([fn, app]() {
+    if (app == nullptr || self == nullptr)
+        return;
+
+    app->CallAfter([fn = std::move(fn), app, self]() {
         const Plater* plater = app->plater();
-        if (plater == nullptr) return;
+        if (plater == nullptr)
+            return;
+
         const GLCanvas3D* canvas = plater->canvas3D();
-        if (canvas == nullptr) return;
-        const GLGizmosManager& mng = canvas->get_gizmos_manager();
-        if (mng.get_current_type() != GLGizmosManager::Undefined) {
-            // Check if it's the Voronoi gizmo - we'll add this check later
-            fn();
-        }
+        if (canvas == nullptr)
+            return;
+
+        GLGizmosManager& mgr = const_cast<GLGizmosManager&>(canvas->get_gizmos_manager());
+        auto* gizmo = dynamic_cast<GLGizmoVoronoi*>(mgr.get_gizmo(GLGizmosManager::Voronoi));
+        if (gizmo != self)
+            return;
+
+        fn(*gizmo);
     });
 }
 
@@ -333,6 +343,8 @@ bool GLGizmoVoronoi::on_is_activable() const
 
 void GLGizmoVoronoi::on_set_state()
 {
+    GLGizmoPainterBase::on_set_state();
+
     if (get_state() == GLGizmoBase::EState::On) {
         const Selection& selection = m_parent.get_selection();
         Model& model = wxGetApp().plater()->model();
@@ -343,6 +355,7 @@ void GLGizmoVoronoi::on_set_state()
         if (m_configuration.show_seed_preview) {
             update_seed_preview();
         }
+        update_2d_voronoi_preview();
     } else {
         m_volume = nullptr;
         m_glmodel.reset();
@@ -459,8 +472,8 @@ void GLGizmoVoronoi::process()
             m_state.progress = 100;
         }
         
-        call_after_if_active([this]() {
-            worker_finished();
+        call_after_if_active(this, [](GLGizmoVoronoi& gizmo) {
+            gizmo.worker_finished();
         });
         
     } catch (const VoronoiCanceledException&) {
