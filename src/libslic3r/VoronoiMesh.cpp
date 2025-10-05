@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <set>
 #include <map>
+#include <array>
+#include <cmath>
+#include <limits>
 
 // CGAL headers for 3D Voronoi/Delaunay
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
@@ -14,10 +17,15 @@
 #include <CGAL/convex_hull_3.h>
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/Surface_mesh.h>
+#include <CGAL/Polygon_mesh_processing/offset.h>
+#include <CGAL/Polygon_mesh_processing/predicates.h>
 #include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
 #include <CGAL/Polygon_mesh_processing/orient_polygon_soup.h>
+#include <CGAL/Polygon_mesh_processing/orientation.h>
 
 namespace Slic3r {
+
+namespace PMP = CGAL::Polygon_mesh_processing;
 
 // CGAL type definitions for 3D Delaunay/Voronoi
 using K = CGAL::Exact_predicates_inexact_constructions_kernel;
@@ -27,6 +35,75 @@ using Tds = CGAL::Triangulation_data_structure_3<Vb, Cb>;
 using Delaunay = CGAL::Delaunay_triangulation_3<K, Tds>;
 using Point_3 = K::Point_3;
 using CGALMesh = CGAL::Surface_mesh<Point_3>;
+
+namespace {
+
+indexed_triangle_set surface_mesh_to_indexed(const CGALMesh& mesh)
+{
+    indexed_triangle_set its;
+    its.vertices.reserve(mesh.number_of_vertices());
+    its.indices.reserve(mesh.number_of_faces());
+    std::map<CGALMesh::Vertex_index, size_t> vertex_map;
+    size_t idx = 0;
+    for (auto v : mesh.vertices()) {
+        const auto& p = mesh.point(v);
+        its.vertices.emplace_back(float(p.x()), float(p.y()), float(p.z()));
+        vertex_map[v] = idx++;
+    }
+    for (auto f : mesh.faces()) {
+        auto he = mesh.halfedge(f);
+        std::vector<size_t> face_vertices;
+        auto start = he;
+        do {
+            auto v = mesh.target(he);
+            face_vertices.push_back(vertex_map[v]);
+            he = mesh.next(he);
+        } while (he != start);
+
+        if (face_vertices.size() == 3) {
+            its.indices.emplace_back(int(face_vertices[0]),
+                                     int(face_vertices[1]),
+                                     int(face_vertices[2]));
+        } else if (face_vertices.size() > 3) {
+            for (size_t i = 1; i + 1 < face_vertices.size(); ++i) {
+                its.indices.emplace_back(int(face_vertices[0]),
+                                         int(face_vertices[i]),
+                                         int(face_vertices[i + 1]));
+            }
+        }
+    }
+    return its;
+}
+
+bool indexed_to_surface_mesh(const indexed_triangle_set& its, CGALMesh& mesh)
+{
+    if (its.vertices.empty() || its.indices.empty())
+        return false;
+
+    std::vector<Point_3> points;
+    points.reserve(its.vertices.size());
+    for (const auto& v : its.vertices)
+        points.emplace_back(v.x(), v.y(), v.z());
+
+    std::vector<std::array<size_t, 3>> faces;
+    faces.reserve(its.indices.size());
+    for (const auto& tri : its.indices) {
+        faces.push_back({ size_t(tri(0)), size_t(tri(1)), size_t(tri(2)) });
+    }
+
+    try {
+        PMP::orient_polygon_soup(points, faces);
+        PMP::polygon_soup_to_polygon_mesh(points, faces, mesh);
+        if (mesh.is_empty() || !PMP::is_closed(mesh))
+            return false;
+        PMP::orient_to_bound_a_volume(mesh);
+    } catch (...) {
+        return false;
+    }
+    return true;
+}
+
+} // namespace
 
 std::unique_ptr<indexed_triangle_set> VoronoiMesh::generate(
     const indexed_triangle_set& input_mesh,
@@ -60,16 +137,15 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::generate(
     
     // Step 3: Perform Voronoi tessellation (70% of work)
     // Tessellation now handles hollow cells per-cell for better quality
-    auto result = tessellate_voronoi(seed_points, bbox, config);
+    const indexed_triangle_set* clip_mesh = config.clip_to_input ? &input_mesh : nullptr;
+    auto result = tessellate_voronoi(seed_points, bbox, config, clip_mesh);
     if (!result)
         return nullptr;
     
     if (config.progress_callback && !config.progress_callback(90))
         return nullptr;
     
-    // Step 4: Optional post-processing (clipping to original mesh boundary)
-    // Note: Hollow cells are now created per-cell during tessellation
-    // This provides better wall connectivity and structure
+    // Step 4: Finalize progress after tessellation, hollowing, and optional clipping
     
     if (config.progress_callback && !config.progress_callback(100))
         return nullptr;
@@ -118,18 +194,23 @@ std::vector<Vec3d> VoronoiMesh::generate_vertex_seeds(
 {
     std::vector<Vec3d> seeds;
     
-    // Use a subset of mesh vertices as seed points
     const size_t vertex_count = mesh.vertices.size();
     if (vertex_count == 0)
         return seeds;
     
-    // Calculate step size to get approximately max_seeds points
-    size_t step = std::max(size_t(1), vertex_count / size_t(max_seeds));
-    
-    seeds.reserve(std::min(vertex_count, size_t(max_seeds)));
-    for (size_t i = 0; i < vertex_count; i += step) {
-        seeds.push_back(mesh.vertices[i].cast<double>());
+    if (max_seeds <= 0) {
+        seeds.reserve(vertex_count);
+        for (const Vec3f& vertex : mesh.vertices)
+            seeds.push_back(vertex.cast<double>());
+        return seeds;
     }
+    
+    const size_t target_count = std::min(vertex_count, static_cast<size_t>(max_seeds));
+    const size_t step = std::max<size_t>(1, (vertex_count + target_count - 1) / target_count);
+    
+    seeds.reserve(target_count);
+    for (size_t i = 0; i < vertex_count && seeds.size() < target_count; i += step)
+        seeds.push_back(mesh.vertices[i].cast<double>());
     
     return seeds;
 }
@@ -197,7 +278,8 @@ std::vector<Vec3d> VoronoiMesh::generate_random_seeds(
 std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
     const std::vector<Vec3d>& seed_points,
     const BoundingBoxf3& bounds,
-    const Config& config)
+    const Config& config,
+    const indexed_triangle_set* clip_mesh)
 {
     if (seed_points.empty()) {
         return std::make_unique<indexed_triangle_set>();
@@ -252,7 +334,7 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
             // No valid cells (all points coplanar or colinear)
             return std::make_unique<indexed_triangle_set>();
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         // CGAL exception - handle gracefully
         return nullptr;
     }
@@ -260,23 +342,26 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
     if (config.progress_callback && !config.progress_callback(40))
         return nullptr;
     
+    const bool clip_cells = clip_mesh != nullptr && !clip_mesh->indices.empty();
+    
     // Step 3: For each vertex in Delaunay (seed point), compute its Voronoi cell
     // The Voronoi cell is the convex hull of the circumcenters of incident tetrahedra
-    
     auto result = std::make_unique<indexed_triangle_set>();
     
     // Pre-allocate for better performance
     result->vertices.reserve(dt.number_of_vertices() * 20);  // Estimate
     result->indices.reserve(dt.number_of_vertices() * 40);   // Estimate
+    std::vector<int> face_cell_ids;
+    face_cell_ids.reserve(dt.number_of_vertices() * 40);
     
-    int vertex_count = 0;
-    int total_vertices = dt.number_of_vertices();
-    int processed_cells = 0;
+    int processed_vertices = 0;
+    const int total_vertices = std::max(1, dt.number_of_vertices());
     
     for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
         // Enhanced progress reporting
-        if (++vertex_count % 10 == 0) {
-            int progress = 40 + (vertex_count * 50) / total_vertices;
+        ++processed_vertices;
+        if ((processed_vertices % 10 == 0) || (processed_vertices == total_vertices)) {
+            int progress = 40 + (processed_vertices * 50) / total_vertices;
             if (config.progress_callback && !config.progress_callback(progress))
                 return nullptr;
         }
@@ -302,7 +387,7 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
             }
             
             try {
-                Point_3 circumcenter = cell->circumcenter();
+                const Point_3 circumcenter = cell->circumcenter();
                 
                 // Enhanced validation: Check for valid coordinates
                 if (std::isnan(circumcenter.x()) || std::isnan(circumcenter.y()) || std::isnan(circumcenter.z()) ||
@@ -311,7 +396,7 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
                 }
                 
                 // Enhanced bounds checking with margin
-                double margin = (bounds.max - bounds.min).norm() * 0.1;
+                const double margin = (bounds.max - bounds.min).norm() * 0.1;
                 if (circumcenter.x() >= bounds.min.x() - margin && circumcenter.x() <= bounds.max.x() + margin &&
                     circumcenter.y() >= bounds.min.y() - margin && circumcenter.y() <= bounds.max.y() + margin &&
                     circumcenter.z() >= bounds.min.z() - margin && circumcenter.z() <= bounds.max.z() + margin) {
@@ -331,17 +416,29 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
         // Deduplicate vertices (CGAL might produce duplicates in degenerate cases)
         std::sort(voronoi_vertices.begin(), voronoi_vertices.end(),
                   [](const Point_3& a, const Point_3& b) {
-                      if (a.x() != b.x()) return a.x() < b.x();
-                      if (a.y() != b.y()) return a.y() < b.y();
-                      return a.z() < b.z();
+                      const double ax = CGAL::to_double(a.x());
+                      const double bx = CGAL::to_double(b.x());
+                      if (ax != bx) return ax < bx;
+                      const double ay = CGAL::to_double(a.y());
+                      const double by = CGAL::to_double(b.y());
+                      if (ay != by) return ay < by;
+                      const double az = CGAL::to_double(a.z());
+                      const double bz = CGAL::to_double(b.z());
+                      return az < bz;
                   });
         voronoi_vertices.erase(
             std::unique(voronoi_vertices.begin(), voronoi_vertices.end(),
                         [](const Point_3& a, const Point_3& b) {
-                            double eps = 1e-6;
-                            return std::abs(a.x() - b.x()) < eps &&
-                                   std::abs(a.y() - b.y()) < eps &&
-                                   std::abs(a.z() - b.z()) < eps;
+                            const double eps = std::numeric_limits<double>::epsilon() * 32.0;
+                            const double ax = CGAL::to_double(a.x());
+                            const double ay = CGAL::to_double(a.y());
+                            const double az = CGAL::to_double(a.z());
+                            const double bx = CGAL::to_double(b.x());
+                            const double by = CGAL::to_double(b.y());
+                            const double bz = CGAL::to_double(b.z());
+                            return std::abs(ax - bx) <= eps &&
+                                   std::abs(ay - by) <= eps &&
+                                   std::abs(az - bz) <= eps;
                         }),
             voronoi_vertices.end());
         
@@ -362,138 +459,61 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
             }
             
             // Validate mesh is manifold and properly oriented
-            if (!CGAL::is_closed(cell_mesh)) {
+            if (!PMP::is_closed(cell_mesh)) {
                 // Non-manifold mesh - skip
                 continue;
             }
             
-            // Convert CGAL mesh to indexed_triangle_set
-            if (cell_mesh.number_of_faces() > 0) {
-                processed_cells++;
-                // If hollow cells are enabled, create walls for this cell
-                if (config.hollow_cells) {
-                    // Create a temporary indexed_triangle_set for this cell
-                    indexed_triangle_set temp_cell;
-                    
-                    // Add vertices
-                    std::map<CGALMesh::Vertex_index, size_t> vertex_map;
-                    size_t idx = 0;
-                    for (auto v : cell_mesh.vertices()) {
-                        const auto& p = cell_mesh.point(v);
-                        temp_cell.vertices.emplace_back(float(p.x()), float(p.y()), float(p.z()));
-                        vertex_map[v] = idx;
-                        idx++;
-                    }
-                    
-                    // Add faces
-                    for (auto f : cell_mesh.faces()) {
-                        auto he = cell_mesh.halfedge(f);
-                        std::vector<size_t> face_verts;
-                        
-                        // Collect vertices of this face
-                        auto start = he;
-                        do {
-                            auto v = cell_mesh.target(he);
-                            face_verts.push_back(vertex_map[v]);
-                            he = cell_mesh.next(he);
-                        } while (he != start);
-                        
-                        // Triangulate face if needed
-                        if (face_verts.size() == 3) {
-                            temp_cell.indices.emplace_back(
-                                int(face_verts[0]),
-                                int(face_verts[1]),
-                                int(face_verts[2])
-                            );
-                        } else if (face_verts.size() > 3) {
-                            // Fan triangulation for polygons
-                            for (size_t i = 1; i < face_verts.size() - 1; ++i) {
-                                temp_cell.indices.emplace_back(
-                                    int(face_verts[0]),
-                                    int(face_verts[i]),
-                                    int(face_verts[i + 1])
-                                );
-                            }
-                        }
-                    }
-                    
-                    // Apply hollowing to this individual cell
-                    create_hollow_cells(temp_cell, config.wall_thickness);
-                    
-                    // Merge the hollowed cell into result
-                    size_t vertex_offset = result->vertices.size();
-                    for (const auto& v : temp_cell.vertices) {
-                        result->vertices.push_back(v);
-                    }
-                    for (const auto& f : temp_cell.indices) {
-                        result->indices.emplace_back(
-                            f[0] + vertex_offset,
-                            f[1] + vertex_offset,
-                            f[2] + vertex_offset
-                        );
-                    }
-                } else {
-                    // Solid cells - just add vertices and faces directly
-                    size_t vertex_offset = result->vertices.size();
-                    
-                    // Add vertices
-                    std::map<CGALMesh::Vertex_index, size_t> vertex_map;
-                    size_t idx = 0;
-                    for (auto v : cell_mesh.vertices()) {
-                        const auto& p = cell_mesh.point(v);
-                        result->vertices.emplace_back(float(p.x()), float(p.y()), float(p.z()));
-                        vertex_map[v] = vertex_offset + idx;
-                        idx++;
-                    }
-                    
-                    // Add faces
-                    for (auto f : cell_mesh.faces()) {
-                        auto he = cell_mesh.halfedge(f);
-                        std::vector<size_t> face_verts;
-                        
-                        // Collect vertices of this face
-                        auto start = he;
-                        do {
-                            auto v = cell_mesh.target(he);
-                            face_verts.push_back(vertex_map[v]);
-                            he = cell_mesh.next(he);
-                        } while (he != start);
-                        
-                        // Triangulate face if needed
-                        if (face_verts.size() == 3) {
-                            result->indices.emplace_back(
-                                int(face_verts[0]),
-                                int(face_verts[1]),
-                                int(face_verts[2])
-                            );
-                        } else if (face_verts.size() > 3) {
-                            // Fan triangulation for polygons
-                            for (size_t i = 1; i < face_verts.size() - 1; ++i) {
-                                result->indices.emplace_back(
-                                    int(face_verts[0]),
-                                    int(face_verts[i]),
-                                    int(face_verts[i + 1])
-                                );
-                            }
-                        }
-                    }
+            indexed_triangle_set cell_geometry = surface_mesh_to_indexed(cell_mesh);
+            
+            if (config.hollow_cells) {
+                create_hollow_cells(cell_geometry, config.wall_thickness);
+            }
+            
+            if (cell_geometry.indices.empty()) {
+                continue;
+            }
+            
+            if (clip_cells) {
+                try {
+                    MeshBoolean::cgal::intersect(cell_geometry, *clip_mesh);
+                } catch (...) {
+                    continue;
                 }
+                if (cell_geometry.indices.empty()) {
+                    continue;
+                }
+            }
+            
+            const size_t vertex_offset = result->vertices.size();
+            result->vertices.insert(result->vertices.end(), cell_geometry.vertices.begin(), cell_geometry.vertices.end());
+            const int base = static_cast<int>(vertex_offset);
+            int cell_id = vit->info();
+            if (cell_id < 0)
+                cell_id = 0;
+            for (const auto& face : cell_geometry.indices) {
+                result->indices.emplace_back(
+                    int(face(0)) + base,
+                    int(face(1)) + base,
+                    int(face(2)) + base);
+                face_cell_ids.push_back(cell_id);
             }
         } catch (...) {
             // Skip cells that fail to generate
-        }
-        
-        // Update progress
-        vertex_count++;
-        if (vertex_count % 10 == 0) {
-            int progress = 40 + int((vertex_count * 50.0) / total_vertices);
-            if (config.progress_callback && !config.progress_callback(progress))
-                return nullptr;
+            continue;
         }
     }
     
     if (config.progress_callback && !config.progress_callback(90))
         return nullptr;
+    
+    if (result->indices.size() != face_cell_ids.size()) {
+        face_cell_ids.resize(result->indices.size(), -1);
+    }
+    result->properties.resize(result->indices.size());
+    for (size_t i = 0; i < result->properties.size(); ++i) {
+        result->properties[i].cell_id = face_cell_ids[i];
+    }
     
     return result;
 }
@@ -527,143 +547,36 @@ void VoronoiMesh::create_hollow_cells(
     indexed_triangle_set& mesh,
     float wall_thickness)
 {
-    // Advanced implementation: Create true hollow structures with walls
-    // Each face becomes a wall with proper thickness and connectivity
-    
     if (mesh.vertices.empty() || mesh.indices.empty() || wall_thickness <= 0.0f)
         return;
-    
-    // Store original mesh
-    indexed_triangle_set original = mesh;
-    
-    // Compute face normals for proper offsetting
-    std::vector<Vec3f> face_normals;
-    face_normals.reserve(original.indices.size());
-    
-    for (const auto& face : original.indices) {
-        const Vec3f& v0 = original.vertices[face[0]];
-        const Vec3f& v1 = original.vertices[face[1]];
-        const Vec3f& v2 = original.vertices[face[2]];
-        
-        Vec3f edge1 = v1 - v0;
-        Vec3f edge2 = v2 - v0;
-        Vec3f normal = edge1.cross(edge2);
-        float len = normal.norm();
-        if (len > 1e-6f) {
-            normal /= len;
-        }
-        face_normals.push_back(normal);
+
+    CGALMesh outer_mesh;
+    if (!indexed_to_surface_mesh(mesh, outer_mesh))
+        return;
+
+    CGALMesh inner_mesh;
+    const double offset_distance = -static_cast<double>(wall_thickness);
+    bool offset_ok = false;
+    try {
+        offset_ok = PMP::offset_mesh(outer_mesh, inner_mesh, offset_distance);
+    } catch (...) {
+        offset_ok = false;
     }
-    
-    // Compute vertex normals by averaging face normals
-    std::vector<Vec3f> vertex_normals(original.vertices.size(), Vec3f(0, 0, 0));
-    std::vector<int> vertex_face_count(original.vertices.size(), 0);
-    
-    for (size_t i = 0; i < original.indices.size(); ++i) {
-        const auto& face = original.indices[i];
-        const Vec3f& normal = face_normals[i];
-        
-        for (int j = 0; j < 3; ++j) {
-            vertex_normals[face[j]] += normal;
-            vertex_face_count[face[j]]++;
-        }
-    }
-    
-    // Normalize vertex normals
-    for (size_t i = 0; i < vertex_normals.size(); ++i) {
-        if (vertex_face_count[i] > 0) {
-            vertex_normals[i] /= float(vertex_face_count[i]);
-            float len = vertex_normals[i].norm();
-            if (len > 1e-6f) {
-                vertex_normals[i] /= len;
-            }
-        }
-    }
-    
-    // Create inner surface by offsetting vertices inward
-    std::vector<Vec3f> inner_vertices;
-    inner_vertices.reserve(original.vertices.size());
-    
-    float offset_distance = wall_thickness;
-    for (size_t i = 0; i < original.vertices.size(); ++i) {
-        Vec3f offset_vertex = original.vertices[i] - vertex_normals[i] * offset_distance;
-        inner_vertices.push_back(offset_vertex);
-    }
-    
-    // Build new mesh with walls
-    mesh.vertices.clear();
-    mesh.indices.clear();
-    
-    // Reserve space for outer surface + inner surface + wall connections
-    mesh.vertices.reserve(original.vertices.size() * 2);
-    mesh.indices.reserve(original.indices.size() * 2 + original.indices.size() * 6);
-    
-    // Add outer surface vertices
-    for (const auto& v : original.vertices) {
-        mesh.vertices.push_back(v);
-    }
-    
-    // Add inner surface vertices
-    for (const auto& v : inner_vertices) {
-        mesh.vertices.push_back(v);
-    }
-    
-    size_t vertex_offset = original.vertices.size();
-    
-    // Add outer surface faces (original orientation)
-    for (const auto& face : original.indices) {
-        mesh.indices.push_back(face);
-    }
-    
-    // Add inner surface faces (reversed orientation for inward-facing)
-    for (const auto& face : original.indices) {
-        Vec3i inner_face;
-        inner_face[0] = face[0] + vertex_offset;
-        inner_face[1] = face[2] + vertex_offset; // Swap order for inward facing
-        inner_face[2] = face[1] + vertex_offset;
-        mesh.indices.push_back(inner_face);
-    }
-    
-    // Create walls connecting edges
-    // Build edge map to find boundary edges
-    std::map<std::pair<int, int>, std::vector<int>> edge_to_faces;
-    
-    for (size_t i = 0; i < original.indices.size(); ++i) {
-        const auto& face = original.indices[i];
-        
-        // Add three edges of the triangle
-        for (int j = 0; j < 3; ++j) {
-            int v1 = face[j];
-            int v2 = face[(j + 1) % 3];
-            
-            // Store edge with consistent ordering (smaller index first)
-            auto edge = std::make_pair(std::min(v1, v2), std::max(v1, v2));
-            edge_to_faces[edge].push_back(i);
-        }
-    }
-    
-    // For edges that are boundaries (appear in only one face) or shared edges,
-    // create connecting walls
-    for (const auto& edge_entry : edge_to_faces) {
-        int v1 = edge_entry.first.first;
-        int v2 = edge_entry.first.second;
-        
-        // Create quad connecting outer edge to inner edge
-        // Split quad into two triangles
-        
-        // Triangle 1: v1_outer, v2_outer, v1_inner
-        Vec3i tri1;
-        tri1[0] = v1;
-        tri1[1] = v2;
-        tri1[2] = v1 + vertex_offset;
-        mesh.indices.push_back(tri1);
-        
-        // Triangle 2: v2_outer, v2_inner, v1_inner
-        Vec3i tri2;
-        tri2[0] = v2;
-        tri2[1] = v2 + vertex_offset;
-        tri2[2] = v1 + vertex_offset;
-        mesh.indices.push_back(tri2);
+    if (!offset_ok || inner_mesh.is_empty() || !PMP::is_closed(inner_mesh))
+        return;
+
+    indexed_triangle_set inner_its = surface_mesh_to_indexed(inner_mesh);
+    if (inner_its.indices.empty())
+        return;
+
+    TriangleMesh outer_tm(mesh);
+    TriangleMesh inner_tm(inner_its);
+
+    try {
+        MeshBoolean::minus(outer_tm, inner_tm);
+        mesh = outer_tm.its;
+    } catch (...) {
+        // Leave mesh unchanged if boolean difference fails
     }
 }
 

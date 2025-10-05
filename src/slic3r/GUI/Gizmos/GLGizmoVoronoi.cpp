@@ -15,6 +15,8 @@
 #include <cmath>
 #include <memory>
 #include <algorithm>
+#include <cfloat>
+#include <cstring>
 
 // 2D Voronoi library for preview
 #define JC_VORONOI_IMPLEMENTATION
@@ -142,8 +144,17 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
         ImGui::Text("%s:", tr_wall_thickness.c_str());
         ImGui::SliderFloat("##wall_thickness", &m_configuration.wall_thickness, 0.1f, 5.0f);
         
-        // Hollow cells option
-        ImGui::Checkbox("Hollow cells", &m_configuration.hollow_cells);
+        // Hollow / solid toggle
+        ImGui::Text("Cells:");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Solid", !m_configuration.hollow_cells)) {
+            m_configuration.hollow_cells = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Hollow", m_configuration.hollow_cells)) {
+            m_configuration.hollow_cells = true;
+        }
+        ImGui::Checkbox("Clip to input", &m_configuration.clip_to_input);
         
         ImGui::Separator();
         
@@ -321,7 +332,7 @@ bool GLGizmoVoronoi::on_is_activable() const
 
 void GLGizmoVoronoi::on_set_state()
 {
-    if (m_state == On) {
+    if (get_state() == GLGizmoBase::On) {
         const Selection& selection = m_parent.get_selection();
         Model& model = wxGetApp().plater()->model();
         m_volume = get_model_volume(selection, model);
@@ -427,6 +438,7 @@ void GLGizmoVoronoi::process()
             voronoi_config.num_seeds = m_state.config.num_seeds;
             voronoi_config.wall_thickness = m_state.config.wall_thickness;
             voronoi_config.hollow_cells = m_state.config.hollow_cells;
+            voronoi_config.clip_to_input = m_state.config.clip_to_input;
             voronoi_config.random_seed = m_state.config.random_seed;
             
             // Set progress callback
@@ -587,6 +599,7 @@ void GLGizmoVoronoi::update_seed_preview()
     VoronoiMesh::Config config;
     config.seed_type = static_cast<VoronoiMesh::SeedType>(m_configuration.seed_type);
     config.num_seeds = m_configuration.num_seeds;
+    config.clip_to_input = m_configuration.clip_to_input;
     config.random_seed = m_configuration.random_seed;
     
     // Compute bounding box for generated points

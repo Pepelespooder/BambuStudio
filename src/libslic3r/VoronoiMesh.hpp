@@ -23,6 +23,7 @@ public:
         int num_seeds = 50;
         float wall_thickness = 1.0f;
         bool hollow_cells = true;
+        bool clip_to_input = false;
         int random_seed = 42;  // For reproducible random generation
         
         // Progress callback
@@ -66,7 +67,8 @@ private:
     static std::unique_ptr<indexed_triangle_set> tessellate_voronoi(
         const std::vector<Vec3d>& seed_points,
         const BoundingBoxf3& bounds,
-        const Config& config
+        const Config& config,
+        const indexed_triangle_set* clip_mesh = nullptr
     );
     
     // Clip Voronoi cells to original mesh boundary

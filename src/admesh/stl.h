@@ -171,8 +171,9 @@ struct stl_file {
 
 struct FaceProperty
 {   // triangle face property
-    EnumFaceTypes type;
-    double area;
+    EnumFaceTypes type = eNormal;
+    double area = 0.0;
+    int cell_id = -1;
     // stl_normal normal;
 
     std::string to_string() const
@@ -183,6 +184,8 @@ struct FaceProperty
             str += std::to_string(type);
             if (area != 0.f)
                 str += " " + std::to_string(area);
+            if (cell_id >= 0)
+                str += " " + std::to_string(cell_id);
         }
         return str;
     }
@@ -190,6 +193,7 @@ struct FaceProperty
     void from_string(const std::string& str)
     {
         std::string val_str, area_str;
+        cell_id = -1;
         do {
             if (str.empty())
                 break;
@@ -205,6 +209,14 @@ struct FaceProperty
             }
 
             area_str = str.substr(type_end_pos + 1);
+            size_t area_end_pos = area_str.find(" ");
+            if (area_end_pos != std::string::npos) {
+                std::string cell_str = area_str.substr(area_end_pos + 1);
+                area_str = area_str.substr(0, area_end_pos);
+                if (!cell_str.empty())
+                    this->cell_id = std::atoi(cell_str.c_str());
+            }
+
             if (!area_str.empty())
                 this->area = std::atof(area_str.c_str());
             else
@@ -214,8 +226,10 @@ struct FaceProperty
 
         this->type = eNormal;
         this->area = 0.f;
+        this->cell_id = -1;
     }
 };
+
 
 struct indexed_triangle_set
 {

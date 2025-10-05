@@ -85,6 +85,7 @@ private:
         int num_seeds = 50;
         float wall_thickness = 1.0f;
         bool hollow_cells = true;
+        bool clip_to_input = false;
         int random_seed = 42;  // For reproducible random generation
         bool show_seed_preview = false;
         
@@ -96,6 +97,7 @@ private:
                    num_seeds == rhs.num_seeds && 
                    wall_thickness == rhs.wall_thickness &&
                    hollow_cells == rhs.hollow_cells &&
+                   clip_to_input == rhs.clip_to_input &&
                    random_seed == rhs.random_seed;
         }
         bool operator!=(const Configuration& rhs) const {
