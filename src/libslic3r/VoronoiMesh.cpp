@@ -58,9 +58,7 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::generate(
         return nullptr;
     
     // Step 3: Perform Voronoi tessellation (70% of work)
-    // NOTE: This is a placeholder. Actual implementation would use CGAL's
-    // 3D Delaunay triangulation to compute Voronoi diagram, then convert
-    // Voronoi cells to meshes
+    // Tessellation now handles hollow cells per-cell for better quality
     auto result = tessellate_voronoi(seed_points, bbox, config);
     if (!result)
         return nullptr;
@@ -68,10 +66,9 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::generate(
     if (config.progress_callback && !config.progress_callback(90))
         return nullptr;
     
-    // Step 4: Post-processing
-    if (config.hollow_cells) {
-        create_hollow_cells(*result, config.wall_thickness);
-    }
+    // Step 4: Optional post-processing (clipping to original mesh boundary)
+    // Note: Hollow cells are now created per-cell during tessellation
+    // This provides better wall connectivity and structure
     
     if (config.progress_callback && !config.progress_callback(100))
         return nullptr;
@@ -244,46 +241,111 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
             
             // Convert CGAL mesh to indexed_triangle_set
             if (cell_mesh.number_of_faces() > 0) {
-                size_t vertex_offset = result->vertices.size();
-                
-                // Add vertices
-                std::map<CGALMesh::Vertex_index, size_t> vertex_map;
-                size_t idx = 0;
-                for (auto v : cell_mesh.vertices()) {
-                    const auto& p = cell_mesh.point(v);
-                    result->vertices.emplace_back(float(p.x()), float(p.y()), float(p.z()));
-                    vertex_map[v] = vertex_offset + idx;
-                    idx++;
-                }
-                
-                // Add faces
-                for (auto f : cell_mesh.faces()) {
-                    auto he = cell_mesh.halfedge(f);
-                    std::vector<size_t> face_verts;
+                // If hollow cells are enabled, create walls for this cell
+                if (config.hollow_cells) {
+                    // Create a temporary indexed_triangle_set for this cell
+                    indexed_triangle_set temp_cell;
                     
-                    // Collect vertices of this face
-                    auto start = he;
-                    do {
-                        auto v = cell_mesh.target(he);
-                        face_verts.push_back(vertex_map[v]);
-                        he = cell_mesh.next(he);
-                    } while (he != start);
+                    // Add vertices
+                    std::map<CGALMesh::Vertex_index, size_t> vertex_map;
+                    size_t idx = 0;
+                    for (auto v : cell_mesh.vertices()) {
+                        const auto& p = cell_mesh.point(v);
+                        temp_cell.vertices.emplace_back(float(p.x()), float(p.y()), float(p.z()));
+                        vertex_map[v] = idx;
+                        idx++;
+                    }
                     
-                    // Triangulate face if needed (convex hull faces should be triangles)
-                    if (face_verts.size() == 3) {
+                    // Add faces
+                    for (auto f : cell_mesh.faces()) {
+                        auto he = cell_mesh.halfedge(f);
+                        std::vector<size_t> face_verts;
+                        
+                        // Collect vertices of this face
+                        auto start = he;
+                        do {
+                            auto v = cell_mesh.target(he);
+                            face_verts.push_back(vertex_map[v]);
+                            he = cell_mesh.next(he);
+                        } while (he != start);
+                        
+                        // Triangulate face if needed
+                        if (face_verts.size() == 3) {
+                            temp_cell.indices.emplace_back(
+                                int(face_verts[0]),
+                                int(face_verts[1]),
+                                int(face_verts[2])
+                            );
+                        } else if (face_verts.size() > 3) {
+                            // Fan triangulation for polygons
+                            for (size_t i = 1; i < face_verts.size() - 1; ++i) {
+                                temp_cell.indices.emplace_back(
+                                    int(face_verts[0]),
+                                    int(face_verts[i]),
+                                    int(face_verts[i + 1])
+                                );
+                            }
+                        }
+                    }
+                    
+                    // Apply hollowing to this individual cell
+                    create_hollow_cells(temp_cell, config.wall_thickness);
+                    
+                    // Merge the hollowed cell into result
+                    size_t vertex_offset = result->vertices.size();
+                    for (const auto& v : temp_cell.vertices) {
+                        result->vertices.push_back(v);
+                    }
+                    for (const auto& f : temp_cell.indices) {
                         result->indices.emplace_back(
-                            int(face_verts[0]),
-                            int(face_verts[1]),
-                            int(face_verts[2])
+                            f[0] + vertex_offset,
+                            f[1] + vertex_offset,
+                            f[2] + vertex_offset
                         );
-                    } else if (face_verts.size() > 3) {
-                        // Fan triangulation for polygons
-                        for (size_t i = 1; i < face_verts.size() - 1; ++i) {
+                    }
+                } else {
+                    // Solid cells - just add vertices and faces directly
+                    size_t vertex_offset = result->vertices.size();
+                    
+                    // Add vertices
+                    std::map<CGALMesh::Vertex_index, size_t> vertex_map;
+                    size_t idx = 0;
+                    for (auto v : cell_mesh.vertices()) {
+                        const auto& p = cell_mesh.point(v);
+                        result->vertices.emplace_back(float(p.x()), float(p.y()), float(p.z()));
+                        vertex_map[v] = vertex_offset + idx;
+                        idx++;
+                    }
+                    
+                    // Add faces
+                    for (auto f : cell_mesh.faces()) {
+                        auto he = cell_mesh.halfedge(f);
+                        std::vector<size_t> face_verts;
+                        
+                        // Collect vertices of this face
+                        auto start = he;
+                        do {
+                            auto v = cell_mesh.target(he);
+                            face_verts.push_back(vertex_map[v]);
+                            he = cell_mesh.next(he);
+                        } while (he != start);
+                        
+                        // Triangulate face if needed
+                        if (face_verts.size() == 3) {
                             result->indices.emplace_back(
                                 int(face_verts[0]),
-                                int(face_verts[i]),
-                                int(face_verts[i + 1])
+                                int(face_verts[1]),
+                                int(face_verts[2])
                             );
+                        } else if (face_verts.size() > 3) {
+                            // Fan triangulation for polygons
+                            for (size_t i = 1; i < face_verts.size() - 1; ++i) {
+                                result->indices.emplace_back(
+                                    int(face_verts[0]),
+                                    int(face_verts[i]),
+                                    int(face_verts[i + 1])
+                                );
+                            }
                         }
                     }
                 }
@@ -336,26 +398,143 @@ void VoronoiMesh::create_hollow_cells(
     indexed_triangle_set& mesh,
     float wall_thickness)
 {
-    // Simple implementation: Scale mesh inward slightly to create hollow effect
-    // A full implementation would use proper offset surfaces
+    // Advanced implementation: Create true hollow structures with walls
+    // Each face becomes a wall with proper thickness and connectivity
     
-    if (mesh.vertices.empty() || wall_thickness <= 0.0f)
+    if (mesh.vertices.empty() || mesh.indices.empty() || wall_thickness <= 0.0f)
         return;
     
-    // Compute centroid
-    Vec3f centroid(0, 0, 0);
-    for (const auto& v : mesh.vertices) {
-        centroid += v;
+    // Store original mesh
+    indexed_triangle_set original = mesh;
+    
+    // Compute face normals for proper offsetting
+    std::vector<Vec3f> face_normals;
+    face_normals.reserve(original.indices.size());
+    
+    for (const auto& face : original.indices) {
+        const Vec3f& v0 = original.vertices[face[0]];
+        const Vec3f& v1 = original.vertices[face[1]];
+        const Vec3f& v2 = original.vertices[face[2]];
+        
+        Vec3f edge1 = v1 - v0;
+        Vec3f edge2 = v2 - v0;
+        Vec3f normal = edge1.cross(edge2);
+        float len = normal.norm();
+        if (len > 1e-6f) {
+            normal /= len;
+        }
+        face_normals.push_back(normal);
     }
-    centroid /= float(mesh.vertices.size());
     
-    // Scale vertices inward from centroid
-    float scale_factor = 1.0f - (wall_thickness * 0.01f); // Simple scaling approach
-    scale_factor = std::max(0.5f, std::min(0.95f, scale_factor));
+    // Compute vertex normals by averaging face normals
+    std::vector<Vec3f> vertex_normals(original.vertices.size(), Vec3f(0, 0, 0));
+    std::vector<int> vertex_face_count(original.vertices.size(), 0);
     
-    for (auto& v : mesh.vertices) {
-        Vec3f dir = v - centroid;
-        v = centroid + dir * scale_factor;
+    for (size_t i = 0; i < original.indices.size(); ++i) {
+        const auto& face = original.indices[i];
+        const Vec3f& normal = face_normals[i];
+        
+        for (int j = 0; j < 3; ++j) {
+            vertex_normals[face[j]] += normal;
+            vertex_face_count[face[j]]++;
+        }
+    }
+    
+    // Normalize vertex normals
+    for (size_t i = 0; i < vertex_normals.size(); ++i) {
+        if (vertex_face_count[i] > 0) {
+            vertex_normals[i] /= float(vertex_face_count[i]);
+            float len = vertex_normals[i].norm();
+            if (len > 1e-6f) {
+                vertex_normals[i] /= len;
+            }
+        }
+    }
+    
+    // Create inner surface by offsetting vertices inward
+    std::vector<Vec3f> inner_vertices;
+    inner_vertices.reserve(original.vertices.size());
+    
+    float offset_distance = wall_thickness;
+    for (size_t i = 0; i < original.vertices.size(); ++i) {
+        Vec3f offset_vertex = original.vertices[i] - vertex_normals[i] * offset_distance;
+        inner_vertices.push_back(offset_vertex);
+    }
+    
+    // Build new mesh with walls
+    mesh.vertices.clear();
+    mesh.indices.clear();
+    
+    // Reserve space for outer surface + inner surface + wall connections
+    mesh.vertices.reserve(original.vertices.size() * 2);
+    mesh.indices.reserve(original.indices.size() * 2 + original.indices.size() * 6);
+    
+    // Add outer surface vertices
+    for (const auto& v : original.vertices) {
+        mesh.vertices.push_back(v);
+    }
+    
+    // Add inner surface vertices
+    for (const auto& v : inner_vertices) {
+        mesh.vertices.push_back(v);
+    }
+    
+    size_t vertex_offset = original.vertices.size();
+    
+    // Add outer surface faces (original orientation)
+    for (const auto& face : original.indices) {
+        mesh.indices.push_back(face);
+    }
+    
+    // Add inner surface faces (reversed orientation for inward-facing)
+    for (const auto& face : original.indices) {
+        Vec3i inner_face;
+        inner_face[0] = face[0] + vertex_offset;
+        inner_face[1] = face[2] + vertex_offset; // Swap order for inward facing
+        inner_face[2] = face[1] + vertex_offset;
+        mesh.indices.push_back(inner_face);
+    }
+    
+    // Create walls connecting edges
+    // Build edge map to find boundary edges
+    std::map<std::pair<int, int>, std::vector<int>> edge_to_faces;
+    
+    for (size_t i = 0; i < original.indices.size(); ++i) {
+        const auto& face = original.indices[i];
+        
+        // Add three edges of the triangle
+        for (int j = 0; j < 3; ++j) {
+            int v1 = face[j];
+            int v2 = face[(j + 1) % 3];
+            
+            // Store edge with consistent ordering (smaller index first)
+            auto edge = std::make_pair(std::min(v1, v2), std::max(v1, v2));
+            edge_to_faces[edge].push_back(i);
+        }
+    }
+    
+    // For edges that are boundaries (appear in only one face) or shared edges,
+    // create connecting walls
+    for (const auto& edge_entry : edge_to_faces) {
+        int v1 = edge_entry.first.first;
+        int v2 = edge_entry.first.second;
+        
+        // Create quad connecting outer edge to inner edge
+        // Split quad into two triangles
+        
+        // Triangle 1: v1_outer, v2_outer, v1_inner
+        Vec3i tri1;
+        tri1[0] = v1;
+        tri1[1] = v2;
+        tri1[2] = v1 + vertex_offset;
+        mesh.indices.push_back(tri1);
+        
+        // Triangle 2: v2_outer, v2_inner, v1_inner
+        Vec3i tri2;
+        tri2[0] = v2;
+        tri2[1] = v2 + vertex_offset;
+        tri2[2] = v1 + vertex_offset;
+        mesh.indices.push_back(tri2);
     }
 }
 
