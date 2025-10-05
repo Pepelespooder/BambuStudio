@@ -63,8 +63,15 @@ private:
     void randomize_seed();
     void render_seed_preview();
     
-
-    
+    // 2D Voronoi preview
+    void render_2d_voronoi_preview();
+    void update_2d_voronoi_preview();
+    struct VoronoiCell2D {
+        std::vector<Vec2f> vertices;
+        Vec2f seed_point;
+        ImU32 color;
+    };
+    std::vector<VoronoiCell2D> m_2d_voronoi_cells;
     struct Configuration
     {
         enum SeedType {
@@ -144,8 +151,6 @@ private:
     const std::string tr_wall_thickness;
     const std::string tr_random_seed;
     const std::string tr_seed_preview;
-
-    const std::string tr_paint_exclusions;
     
     class VoronoiCanceledException : public std::exception
     {

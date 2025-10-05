@@ -4,6 +4,7 @@
 #include "slic3r/GUI/GUI_ObjectList.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/format.hpp"
+#include "slic3r/GUI/GUI.hpp"
 #include "slic3r/GUI/Camera.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -14,6 +15,17 @@
 #include <thread>
 #include <ctime>
 #include <random>
+#include <cmath>
+#include <memory>
+#include <algorithm>
+
+// Simple 2D Voronoi for preview
+#define JC_VORONOI_IMPLEMENTATION
+#include "jc_voronoi.h"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace Slic3r::GUI {
 
@@ -63,8 +75,6 @@ GLGizmoVoronoi::GLGizmoVoronoi(GLCanvas3D& parent, unsigned int sprite_id)
     , tr_wall_thickness(_u8L("Wall thickness"))
     , tr_random_seed(_u8L("Random seed"))
     , tr_seed_preview(_u8L("Preview seeds"))
-
-    , tr_paint_exclusions(_u8L("Paint exclusions"))
 {
 }
 
@@ -144,9 +154,18 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
         ImGui::Text("%s:", tr_random_seed.c_str());
         ImGui::InputInt("##random_seed", &m_configuration.random_seed);
         ImGui::SameLine();
-        if (ImGui::Button("Randomize##seed")) {
+        // Randomize button with secondary styling
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(60 / 255.0f, 60 / 255.0f, 60 / 255.0f, 1.0f) : ImVec4(0.75f, 0.75f, 0.75f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(70 / 255.0f, 70 / 255.0f, 70 / 255.0f, 1.0f) : ImVec4(0.85f, 0.85f, 0.85f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(50 / 255.0f, 50 / 255.0f, 50 / 255.0f, 1.0f) : ImVec4(0.65f, 0.65f, 0.65f, 1.0f));
+        
+        if (ImGui::Button(into_u8(_u8L("Randomize")).c_str())) {
             randomize_seed();
         }
+        
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(1);
         
         // Phase 4: Seed preview
         if (ImGui::Checkbox(tr_seed_preview.c_str(), &m_configuration.show_seed_preview)) {
@@ -157,30 +176,91 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
             }
         }
         
-        if (m_configuration.show_seed_preview && ImGui::Button("Update Preview")) {
-            update_seed_preview();
+        if (m_configuration.show_seed_preview) {
+            // Update Preview button with secondary styling
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+            ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(60 / 255.0f, 60 / 255.0f, 60 / 255.0f, 1.0f) : ImVec4(0.75f, 0.75f, 0.75f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(70 / 255.0f, 70 / 255.0f, 70 / 255.0f, 1.0f) : ImVec4(0.85f, 0.85f, 0.85f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(50 / 255.0f, 50 / 255.0f, 50 / 255.0f, 1.0f) : ImVec4(0.65f, 0.65f, 0.65f, 1.0f));
+            
+            if (ImGui::Button(into_u8(_u8L("Update Preview")).c_str())) {
+                update_seed_preview();
+                update_2d_voronoi_preview();
+            }
+            
+            ImGui::PopStyleColor(3);
+            ImGui::PopStyleVar(1);
+            
+            // 2D Voronoi Preview
+            ImGui::Separator();
+            ImGui::Text("%s:", into_u8(_u8L("2D Preview")).c_str());
+            render_2d_voronoi_preview();
         }
         
         ImGui::Separator();
         
         // Phase 5: Triangle painting exclusion
-        if (ImGui::Checkbox(tr_paint_exclusions.c_str(), &m_configuration.enable_triangle_painting)) {
-            if (m_configuration.enable_triangle_painting) {
+        if (!m_configuration.enable_triangle_painting) {
+            // Show Painting button when not in painting mode with proper styling
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+            ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(38 / 255.0f, 46 / 255.0f, 48 / 255.0f, 1.0f) : ImVec4(0.70f, 0.70f, 0.70f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(50 / 255.0f, 58 / 255.0f, 61 / 255.0f, 1.0f) : ImVec4(0.80f, 0.80f, 0.80f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(60 / 255.0f, 68 / 255.0f, 71 / 255.0f, 1.0f) : ImVec4(0.60f, 0.60f, 0.60f, 1.0f));
+            
+            if (ImGui::Button(into_u8(_u8L("Painting")).c_str())) {
+                m_configuration.enable_triangle_painting = true;
                 // Initialize painting system
                 update_from_model_object(true);
+                request_rerender();
             }
-            request_rerender();
-        }
-        
-        if (m_configuration.enable_triangle_painting) {
-            ImGui::Text("Brush radius:");
+            
+            ImGui::PopStyleColor(3);
+            ImGui::PopStyleVar(1);
+        } else {
+            // Show painting controls and Apply button when in painting mode
+            ImGui::Text("%s:", into_u8(_u8L("Brush radius")).c_str());
             ImGui::SliderFloat("##cursor_radius", &m_cursor_radius, 
                              get_cursor_radius_min(), get_cursor_radius_max(), "%.1f");
             
             ImGui::TextColored(ImVec4(0.8f, 0.2f, 0.2f, 1.0f),
-                             "Paint surfaces red to exclude");
+                             "%s", into_u8(_u8L("Paint surfaces red to exclude")).c_str());
             ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
-                             "Click & drag to paint");
+                             "%s", into_u8(_u8L("Click & drag to paint")).c_str());
+            
+            // Apply button - only visible when painting is active with proper styling
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+            ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(43 / 255.0f, 64 / 255.0f, 54 / 255.0f, 1.0f) : ImVec4(0.86f, 0.99f, 0.91f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(50 / 255.0f, 74 / 255.0f, 64 / 255.0f, 1.0f) : ImVec4(0.76f, 0.94f, 0.86f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(35 / 255.0f, 56 / 255.0f, 46 / 255.0f, 1.0f) : ImVec4(0.81f, 0.97f, 0.88f, 1.0f));
+            
+            if (ImGui::Button(into_u8(_u8L("Apply")).c_str())) {
+                // Apply the painting changes
+                update_model_object();
+                m_configuration.enable_triangle_painting = false;
+                request_rerender();
+            }
+            
+            ImGui::PopStyleColor(3);
+            ImGui::PopStyleVar(1);
+            
+            ImGui::SameLine();
+            
+            // Cancel button with warning styling
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+            ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(64 / 255.0f, 43 / 255.0f, 43 / 255.0f, 1.0f) : ImVec4(0.99f, 0.86f, 0.86f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(74 / 255.0f, 50 / 255.0f, 50 / 255.0f, 1.0f) : ImVec4(0.94f, 0.76f, 0.76f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(56 / 255.0f, 35 / 255.0f, 35 / 255.0f, 1.0f) : ImVec4(0.97f, 0.81f, 0.81f, 1.0f));
+            
+            if (ImGui::Button(into_u8(_u8L("Cancel")).c_str())) {
+                // Cancel painting mode without applying changes
+                m_configuration.enable_triangle_painting = false;
+                // Reset any pending changes if needed
+                update_from_model_object(true);
+                request_rerender();
+            }
+            
+            ImGui::PopStyleColor(3);
+            ImGui::PopStyleVar(1);
         }
         
         ImGui::Separator();
@@ -189,20 +269,48 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
         {
             std::lock_guard<std::mutex> lock(m_state_mutex);
             if (m_state.status == State::idle) {
-                if (ImGui::Button("Generate Voronoi")) {
+                // Generate button with primary styling
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
+                ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(0 / 255.0f, 174 / 255.0f, 66 / 255.0f, 1.0f) : ImVec4(0 / 255.0f, 174 / 255.0f, 66 / 255.0f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(26 / 255.0f, 190 / 255.0f, 92 / 255.0f, 1.0f) : ImVec4(26 / 255.0f, 190 / 255.0f, 92 / 255.0f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(0 / 255.0f, 158 / 255.0f, 54 / 255.0f, 1.0f) : ImVec4(0 / 255.0f, 158 / 255.0f, 54 / 255.0f, 1.0f));
+                
+                if (ImGui::Button(into_u8(_u8L("Generate Voronoi")).c_str())) {
                     apply_voronoi();
                 }
+                
+                ImGui::PopStyleColor(3);
+                ImGui::PopStyleVar(1);
             } else if (m_state.status == State::running) {
-                ImGui::Text("Processing... %d%%", m_state.progress);
-                if (ImGui::Button("Cancel")) {
+                ImGui::Text("%s %d%%", into_u8(_u8L("Processing...")).c_str(), m_state.progress);
+                
+                // Cancel button with warning styling
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+                ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(64 / 255.0f, 43 / 255.0f, 43 / 255.0f, 1.0f) : ImVec4(0.99f, 0.86f, 0.86f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(74 / 255.0f, 50 / 255.0f, 50 / 255.0f, 1.0f) : ImVec4(0.94f, 0.76f, 0.76f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(56 / 255.0f, 35 / 255.0f, 35 / 255.0f, 1.0f) : ImVec4(0.97f, 0.81f, 0.81f, 1.0f));
+                
+                if (ImGui::Button(into_u8(_u8L("Cancel")).c_str())) {
                     stop_worker_thread_request();
                 }
+                
+                ImGui::PopStyleColor(3);
+                ImGui::PopStyleVar(1);
             }
         }
         
-        if (ImGui::Button("Close")) {
+        // Close button with secondary styling
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(60 / 255.0f, 60 / 255.0f, 60 / 255.0f, 1.0f) : ImVec4(0.75f, 0.75f, 0.75f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(70 / 255.0f, 70 / 255.0f, 70 / 255.0f, 1.0f) : ImVec4(0.85f, 0.85f, 0.85f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(50 / 255.0f, 50 / 255.0f, 50 / 255.0f, 1.0f) : ImVec4(0.65f, 0.65f, 0.65f, 1.0f));
+        
+        if (ImGui::Button(into_u8(_u8L("Close")).c_str())) {
             close();
         }
+        
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(1);
         
         GizmoImguiEnd();
     }
@@ -218,7 +326,7 @@ void GLGizmoVoronoi::on_set_state()
 {
     if (m_state == On) {
         const Selection& selection = m_parent.get_selection();
-        Model& model = *wxGetApp().plater()->model();
+        Model& model = wxGetApp().plater()->model();
         m_volume = get_model_volume(selection, model);
         m_move_to_center = true;
         
@@ -254,7 +362,10 @@ void GLGizmoVoronoi::on_render()
         render_seed_preview();
     }
     
-
+    // Phase 5: Render painting gizmo when painting is active
+    if (m_configuration.enable_triangle_painting) {
+        render_painter_gizmo();
+    }
 }
 
 CommonGizmosDataID GLGizmoVoronoi::on_get_requirements() const
@@ -321,11 +432,6 @@ void GLGizmoVoronoi::process()
             voronoi_config.hollow_cells = m_state.config.hollow_cells;
             voronoi_config.random_seed = m_state.config.random_seed;
             
-            // Phase 4 Part 2: Layer exclusion
-            voronoi_config.enable_layer_exclusion = m_state.config.enable_layer_exclusion;
-            voronoi_config.exclusion_height_min = m_state.config.exclusion_height_min;
-            voronoi_config.exclusion_height_max = m_state.config.exclusion_height_max;
-            
             // Set progress callback
             voronoi_config.progress_callback = [this](int progress) -> bool {
                 std::lock_guard<std::mutex> lock(m_state_mutex);
@@ -390,7 +496,7 @@ void GLGizmoVoronoi::worker_finished()
         if (!plater)
             return;
         
-        Model& model = *plater->model();
+        Model& model = plater->model();
         const Selection& selection = m_parent.get_selection();
         const Selection::IndicesList& idxs = selection.get_volume_idxs();
         
@@ -464,6 +570,7 @@ void GLGizmoVoronoi::randomize_seed()
     // Update preview if it's enabled
     if (m_configuration.show_seed_preview) {
         update_seed_preview();
+        update_2d_voronoi_preview();
     }
 }
 
@@ -485,9 +592,11 @@ void GLGizmoVoronoi::update_seed_preview()
     config.num_seeds = m_configuration.num_seeds;
     config.random_seed = m_configuration.random_seed;
     
-    // Call the seed generation from VoronoiMesh
-    // For now, we'll generate simple preview based on bounding box
-    BoundingBoxf3 bbox = bounding_box(mesh);
+    // Compute bounding box for generated points
+    BoundingBoxf3 bbox;
+    for (const auto& v : mesh.vertices) {
+        bbox.merge(v.cast<double>());
+    }
     
     if (m_configuration.seed_type == Configuration::SEED_GRID) {
         // Grid seeds
@@ -536,6 +645,9 @@ void GLGizmoVoronoi::update_seed_preview()
     m_seed_preview_model.init_from(std::move(init_data));
     
     request_rerender();
+    
+    // Also update 2D preview
+    update_2d_voronoi_preview();
 }
 
 // Phase 4: Render seed preview
@@ -565,7 +677,7 @@ void GLGizmoVoronoi::render_seed_preview()
     // Render seed points in green
     std::array<float, 4> green_color = {0.0f, 0.7f, 0.0f, 0.9f};
     
-    GLShaderProgram* shader = wxGetApp().get_shader("gouraud_light");
+    const auto& shader = wxGetApp().get_shader("gouraud_light");
     if (shader) {
         shader->start_using();
         shader->set_uniform("view_model_matrix", view_model_matrix);
@@ -604,7 +716,7 @@ void GLGizmoVoronoi::render_triangles(const Selection& selection) const
         
         for (const ModelVolume* mv : mo->volumes) {
             if (mv->is_model_part()) {
-                int mesh_id = &mv - &mo->volumes.front();
+                int mesh_id = std::distance(&mo->volumes.front(), &mv);
                 if (mesh_id < (int)m_triangle_selectors.size() && m_triangle_selectors[mesh_id]) {
                     const Transform3d trafo_matrix = mo->instances[selection.get_instance_idx()]->get_transformation().get_matrix() * mv->get_matrix();
                     m_triangle_selectors[mesh_id]->render(m_imgui, trafo_matrix);
@@ -627,7 +739,7 @@ void GLGizmoVoronoi::update_model_object()
         
     for (const ModelVolume* mv : mo->volumes) {
         if (mv->is_model_part()) {
-            int mesh_id = &mv - &mo->volumes.front();
+            int mesh_id = std::distance(&mo->volumes.front(), &mv);
             if (mesh_id < (int)m_triangle_selectors.size() && m_triangle_selectors[mesh_id]) {
                 // Triangle data is automatically managed by the base class
                 // Just ensure changes trigger model update
@@ -664,6 +776,193 @@ bool GLGizmoVoronoi::on_init()
     // Initialize painting system
     m_cursor_radius = 2.0f;
     return true;
+}
+
+// 2D Voronoi Preview Implementation
+void GLGizmoVoronoi::update_2d_voronoi_preview()
+{
+    m_2d_voronoi_cells.clear();
+    
+    if (m_seed_preview_points.empty()) {
+        return;
+    }
+    
+    // Convert 3D seed points to 2D (project to XY plane)
+    std::vector<jcv_point> points_2d;
+    points_2d.reserve(m_seed_preview_points.size());
+    
+    // Find bounding box of projected points
+    float min_x = FLT_MAX, max_x = -FLT_MAX;
+    float min_y = FLT_MAX, max_y = -FLT_MAX;
+    
+    for (const auto& pt3d : m_seed_preview_points) {
+        min_x = std::min(min_x, pt3d.x());
+        max_x = std::max(max_x, pt3d.x());
+        min_y = std::min(min_y, pt3d.y());
+        max_y = std::max(max_y, pt3d.y());
+    }
+    
+    // Add some padding to avoid edge cases
+    float padding = 0.1f;
+    min_x -= padding;
+    max_x += padding;
+    min_y -= padding;
+    max_y += padding;
+    
+    // Normalize points to [0, 1] range for the 2D preview
+    float scale_x = (max_x - min_x) > 0 ? 1.0f / (max_x - min_x) : 1.0f;
+    float scale_y = (max_y - min_y) > 0 ? 1.0f / (max_y - min_y) : 1.0f;
+    
+    for (const auto& pt3d : m_seed_preview_points) {
+        jcv_point pt2d;
+        pt2d.x = (pt3d.x() - min_x) * scale_x;
+        pt2d.y = (pt3d.y() - min_y) * scale_y;
+        points_2d.push_back(pt2d);
+    }
+    
+    // Set up bounding rectangle
+    jcv_rect rect;
+    rect.min.x = 0.0f;
+    rect.min.y = 0.0f;
+    rect.max.x = 1.0f;
+    rect.max.y = 1.0f;
+    
+    // Generate Voronoi diagram
+    jcv_diagram diagram;
+    memset(&diagram, 0, sizeof(jcv_diagram));
+    
+    try {
+        jcv_diagram_generate((int)points_2d.size(), points_2d.data(), &rect, nullptr, &diagram);
+        
+        // Extract cells from the diagram
+        const jcv_site* sites = jcv_diagram_get_sites(&diagram);
+        
+        if (sites) {
+            for (int i = 0; i < diagram.numsites; ++i) {
+                const jcv_site* site = &sites[i];
+                VoronoiCell2D cell;
+                cell.seed_point = Vec2f(site->p.x, site->p.y);
+                
+                // Collect vertices from the edges
+                jcv_graphedge* edge = site->edges;
+                std::vector<Vec2f> vertices;
+                
+                while (edge) {
+                    vertices.push_back(Vec2f(edge->pos[0].x, edge->pos[0].y));
+                    edge = edge->next;
+                }
+                
+                // Sort vertices in counter-clockwise order
+                if (vertices.size() >= 3) {
+                    // Simple sorting by angle from center
+                    Vec2f center = cell.seed_point;
+                    std::sort(vertices.begin(), vertices.end(), [&center](const Vec2f& a, const Vec2f& b) {
+                        float angle_a = atan2f(a.y() - center.y(), a.x() - center.x());
+                        float angle_b = atan2f(b.y() - center.y(), b.x() - center.x());
+                        return angle_a < angle_b;
+                    });
+                    
+                    cell.vertices = vertices;
+                    
+                    // Generate a color for this cell based on the seed index
+                    float hue = (float(i) / float(diagram.numsites)) * 360.0f;
+                    ImVec4 color_hsv(hue / 360.0f, 0.6f, 0.8f, 0.7f);
+                    ImVec4 color_rgb = ImGui::ColorConvertHSVtoRGB(color_hsv.x, color_hsv.y, color_hsv.z);
+                    cell.color = ImGui::ColorConvertFloat4ToU32(ImVec4(color_rgb.x, color_rgb.y, color_rgb.z, color_hsv.w));
+                    
+                    m_2d_voronoi_cells.push_back(cell);
+                }
+            }
+        }
+        
+        jcv_diagram_free(&diagram);
+    } catch (...) {
+        // Fallback to simple hexagonal approximation if Voronoi generation fails
+        for (size_t i = 0; i < points_2d.size(); ++i) {
+            VoronoiCell2D cell;
+            cell.seed_point = Vec2f(points_2d[i].x, points_2d[i].y);
+            
+            // Generate a simple hexagonal cell around each seed point
+            float radius = 0.08f; // Approximate cell size
+            
+            for (int j = 0; j < 6; ++j) {
+                float angle = (j * 2.0f * M_PI) / 6.0f;
+                Vec2f vertex;
+                vertex.x() = cell.seed_point.x() + radius * cosf(angle);
+                vertex.y() = cell.seed_point.y() + radius * sinf(angle);
+                cell.vertices.push_back(vertex);
+            }
+            
+            // Generate a color for this cell based on the seed index
+            float hue = (float(i) / float(points_2d.size())) * 360.0f;
+            ImVec4 color_hsv(hue / 360.0f, 0.6f, 0.8f, 0.7f);
+            ImVec4 color_rgb = ImGui::ColorConvertHSVtoRGB(color_hsv.x, color_hsv.y, color_hsv.z);
+            cell.color = ImGui::ColorConvertFloat4ToU32(ImVec4(color_rgb.x, color_rgb.y, color_rgb.z, color_hsv.w));
+            
+            m_2d_voronoi_cells.push_back(cell);
+        }
+    }
+}
+
+void GLGizmoVoronoi::render_2d_voronoi_preview()
+{
+    if (m_2d_voronoi_cells.empty()) {
+        ImGui::Text("%s", into_u8(_u8L("No preview available")).c_str());
+        return;
+    }
+    
+    // Create a canvas for drawing
+    ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
+    ImVec2 canvas_size = ImVec2(200, 200); // Fixed size for the preview
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    
+    // Draw background
+    ImU32 bg_color = m_is_dark_mode ? IM_COL32(40, 40, 40, 255) : IM_COL32(240, 240, 240, 255);
+    draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), bg_color);
+    
+    // Draw border
+    ImU32 border_color = m_is_dark_mode ? IM_COL32(80, 80, 80, 255) : IM_COL32(160, 160, 160, 255);
+    draw_list->AddRect(canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), border_color, 0.0f, 0, 2.0f);
+    
+    // Draw Voronoi cells
+    for (const auto& cell : m_2d_voronoi_cells) {
+        if (cell.vertices.size() >= 3) {
+            // Convert vertices to screen coordinates
+            std::vector<ImVec2> screen_vertices;
+            screen_vertices.reserve(cell.vertices.size());
+            
+            for (const auto& vertex : cell.vertices) {
+                ImVec2 screen_pos;
+                screen_pos.x = canvas_pos.x + vertex.x() * canvas_size.x;
+                screen_pos.y = canvas_pos.y + vertex.y() * canvas_size.y;
+                screen_vertices.push_back(screen_pos);
+            }
+            
+            // Draw filled polygon
+            draw_list->AddConvexPolyFilled(screen_vertices.data(), (int)screen_vertices.size(), cell.color);
+            
+            // Draw cell outline
+            ImU32 outline_color = m_is_dark_mode ? IM_COL32(200, 200, 200, 150) : IM_COL32(80, 80, 80, 150);
+            for (size_t i = 0; i < screen_vertices.size(); ++i) {
+                size_t next_i = (i + 1) % screen_vertices.size();
+                draw_list->AddLine(screen_vertices[i], screen_vertices[next_i], outline_color, 1.0f);
+            }
+        }
+        
+        // Draw seed point
+        ImVec2 seed_screen_pos;
+        seed_screen_pos.x = canvas_pos.x + cell.seed_point.x() * canvas_size.x;
+        seed_screen_pos.y = canvas_pos.y + cell.seed_point.y() * canvas_size.y;
+        
+        ImU32 seed_color = m_is_dark_mode ? IM_COL32(255, 255, 255, 255) : IM_COL32(0, 0, 0, 255);
+        draw_list->AddCircleFilled(seed_screen_pos, 3.0f, seed_color);
+    }
+    
+    // Reserve space for the canvas
+    ImGui::Dummy(canvas_size);
+    
+    // Add some info text
+    ImGui::Text("%s: %zu", into_u8(_u8L("Cells")).c_str(), m_2d_voronoi_cells.size());
 }
 
 } // namespace Slic3r::GUI
