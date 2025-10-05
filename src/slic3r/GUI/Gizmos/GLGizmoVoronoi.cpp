@@ -330,16 +330,6 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
         
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(1);
-        
-    } catch (const std::exception& e) {
-        // Handle any exceptions gracefully
-        ImGui::Text("Error: %s", e.what());
-    } catch (...) {
-        // Handle unknown exceptions
-        ImGui::Text("%s", into_u8(_u8L("An error occurred")).c_str());
-    }
-    
-    GizmoImguiEnd();
 }
 
 bool GLGizmoVoronoi::on_is_activable() const
@@ -607,8 +597,15 @@ void GLGizmoVoronoi::randomize_seed()
 // Phase 4: Update seed preview points
 void GLGizmoVoronoi::update_seed_preview()
 {
-    if (!m_volume)
+    fprintf(stderr, "DEBUG: update_seed_preview called\n");
+    fflush(stderr);
+    
+    // Safety checks
+    if (!m_volume) {
+        fprintf(stderr, "DEBUG: No volume in update_seed_preview\n");
+        fflush(stderr);
         return;
+    }
     
     m_seed_preview_points.clear();
     m_seed_preview_model.reset();
@@ -822,17 +819,50 @@ void GLGizmoVoronoi::update_from_model_object(bool first_update)
 
 bool GLGizmoVoronoi::on_init()
 {
+    // Initialize base class first - CRITICAL
+    if (!GLGizmoPainterBase::on_init())
+        return false;
+    
     // Initialize painting system
     m_cursor_radius = 2.0f;
+    m_is_dark_mode = false;  // Initialize dark mode state
+    
+    // Initialize volume pointer to null for safety
+    m_volume = nullptr;
+    
     return true;
 }
 
 void GLGizmoVoronoi::on_opening()
 {
-    if (m_configuration.show_seed_preview)
-        update_seed_preview();
+    fprintf(stderr, "DEBUG: on_opening called\n");
+    fflush(stderr);
+    
+    // Only update previews if we have a valid volume
+    if (m_volume && m_configuration.show_seed_preview) {
+        try {
+            fprintf(stderr, "DEBUG: Attempting to update seed preview\n");
+            fflush(stderr);
+            update_seed_preview();
+        } catch (const std::exception& e) {
+            fprintf(stderr, "DEBUG: Exception in preview update: %s\n", e.what());
+            fflush(stderr);
+            // Silently fail on preview generation
+        } catch (...) {
+            fprintf(stderr, "DEBUG: Unknown exception in preview update\n");
+            fflush(stderr);
+            // Silently fail on preview generation
+        }
+    }
 
-    update_2d_voronoi_preview();
+    // Safe 2D preview update
+    try {
+        update_2d_voronoi_preview();
+    } catch (...) {
+        fprintf(stderr, "DEBUG: Exception in 2D preview update\n");
+        fflush(stderr);
+    }
+    
     request_rerender();
 }
 
@@ -890,10 +920,23 @@ wxString GLGizmoVoronoi::handle_snapshot_action_name(bool shift_down, GLGizmoPai
 // 2D Voronoi Preview Implementation
 void GLGizmoVoronoi::update_2d_voronoi_preview()
 {
+    fprintf(stderr, "DEBUG: update_2d_voronoi_preview called\n");
+    fflush(stderr);
+    
     m_2d_voronoi_cells.clear();
     m_2d_delaunay_edges.clear();
     
     if (m_seed_preview_points.empty()) {
+        fprintf(stderr, "DEBUG: No seed points available for 2D preview\n");
+        fflush(stderr);
+        
+        // Generate fallback preview instead of returning empty
+        try {
+            generate_fallback_hexagonal_preview();
+        } catch (...) {
+            fprintf(stderr, "DEBUG: Exception in fallback preview generation\n");
+            fflush(stderr);
+        }
         return;
     }
     

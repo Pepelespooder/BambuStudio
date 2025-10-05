@@ -72,6 +72,7 @@ private:
     void render_2d_voronoi_preview();
     void update_2d_voronoi_preview();
     void generate_fallback_hexagonal_preview();
+    void render_ui_content();  // Extracted UI rendering for safer error handling
     
     struct VoronoiCell2D {
         std::vector<Vec2f> vertices;
@@ -117,6 +118,10 @@ private:
     };
     
     Configuration m_configuration;
+    
+    // UI state variables
+    bool m_is_dark_mode = false;
+    float m_cursor_radius = 2.0f;
     
     // Seed preview
     std::vector<Vec3f> m_seed_preview_points;
