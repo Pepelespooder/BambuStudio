@@ -40,6 +40,7 @@
 #include "GUI_ObjectList.hpp"
 #include "Tab.hpp"
 #include "format.hpp"
+#include "DarkmoonGuiUtil.hpp"
 #include <imgui/imgui_internal.h>
 #include <wx/dcgraph.h>
 #include <wx/font.h>
@@ -73,25 +74,6 @@ const float I3_WIPE_TOWER_DEFAULT_X_POS = 0.;
 const float I3_WIPE_TOWER_DEFAULT_Y_POS = 250.; // Max y
 
 std::array<unsigned char, 4>  PlateTextureForeground = {0x0, 0xae, 0x42, 0xff};
-
-namespace {
-void ensure_nanum_font_registered()
-{
-    static bool attempted = false;
-    if (attempted)
-        return;
-    attempted = true;
-
-    const std::string font_dir = Slic3r::resources_dir() + "/fonts/";
-    const std::array<std::string, 2> nanum_fonts = { "NanumGothic-Regular.ttf", "NanumGothic-Bold.ttf" };
-    for (const std::string &font_name : nanum_fonts) {
-        fs::path font_path(font_dir + font_name);
-        if (!fs::exists(font_path))
-            continue;
-        wxFont::AddPrivateFont(wxString::FromUTF8(font_path.string()));
-    }
-}
-}
 
 namespace Slic3r {
 namespace GUI {
@@ -6583,32 +6565,16 @@ void PartPlateList::load_bedtype_textures()
 		for (int j = 0; j < bed_texture_info[i].parts.size(); j++) {
 			auto &part = PartPlateList::bed_texture_info[i].parts[j];
 			if (!part.text.empty()) {
-				ensure_nanum_font_registered();
 				part.texture = new GLTexture();
-				auto make_colour = [](const std::array<uint8_t, 4> &rgba) {
-					return wxColour(rgba[0], rgba[1], rgba[2], rgba[3]);
-				};
-				const wxColour background = make_colour(part.background_color);
-				const wxColour foreground = make_colour(part.text_color);
-				auto build_font = [&](const wxString &face) {
-					wxFontInfo info(static_cast<int>(std::round(part.font_point_size)));
-					info.FaceName(face);
-					if (part.text_bold)
-						info = info.Bold();
-					return wxFont(info);
-				};
-				wxFont font = build_font(wxString::FromUTF8("NanumGothic"));
-				if (!font.IsOk())
-					font = build_font(wxString::FromUTF8("Nanum Gothic"));
-				if (!font.IsOk())
-					font = wxFont(wxFontInfo(static_cast<int>(std::round(part.font_point_size)))
-						.Family(wxFONTFAMILY_SWISS)
-						.Bold(part.text_bold));
-				int tex_w = 0;
-				int tex_h = 0;
-				int baseline = 0;
-					if (!part.texture->generate_texture_from_text(part.text, font, tex_w, tex_h, baseline, background, foreground, part.rotate_clockwise)) {
-					BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << ": failed to generate Darkmoon label texture";
+				DarkmoonGui::TextParams params;
+			params.text             = part.text;
+			params.point_size       = part.font_point_size;
+			params.bold             = part.text_bold;
+			params.rotate_clockwise = part.rotate_clockwise;
+			params.foreground       = part.text_color;
+			params.background       = part.background_color;
+
+				if (!DarkmoonGui::generate_texture(params, *part.texture)) {
 					delete part.texture;
 					part.texture = nullptr;
 					continue;
@@ -6617,23 +6583,25 @@ void PartPlateList::load_bedtype_textures()
 					part.adjust_to_texture_ratio(static_cast<float>(part.texture->get_original_width()),
 						static_cast<float>(part.texture->get_original_height()));
 				}
-			} else if (!part.filename.empty()) {
-				const std::string filename = resources_dir() + "/images/" + part.filename;
-				if (boost::filesystem::exists(filename)) {
-					part.texture = new GLTexture();
-					if (!part.texture->load_from_svg_file(filename, true, false, false, logo_tex_size)) {
-						BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(": load logo texture from %1% failed!") % filename;
-						delete part.texture;
-						part.texture = nullptr;
-					} else if (part.preserve_aspect_ratio) {
-						part.adjust_to_texture_ratio(static_cast<float>(part.texture->get_width()),
-							static_cast<float>(part.texture->get_height()));
-					}
-				} else {
-					BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(": load logo texture from %1% failed!") % filename;
-				}
-			} else {
-				BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << ": Bed texture part missing both filename and text";
+				continue;
+			}
+
+			if (part.filename.empty())
+				continue;
+
+			const std::string filename = resources_dir() + "/images/" + part.filename;
+			if (!boost::filesystem::exists(filename))
+				continue;
+
+			part.texture = new GLTexture();
+			if (!part.texture->load_from_svg_file(filename, true, false, false, logo_tex_size)) {
+				delete part.texture;
+				part.texture = nullptr;
+				continue;
+			}
+			if (part.preserve_aspect_ratio) {
+				part.adjust_to_texture_ratio(static_cast<float>(part.texture->get_width()),
+					static_cast<float>(part.texture->get_height()));
 			}
 		}
 	}

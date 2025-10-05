@@ -608,7 +608,7 @@ bool GLTexture::generate_texture_from_text(const std::string& text_str, wxFont& 
         memDC.SelectObject(bitmap);
         memDC.SetBackground(wxBrush(background));
         memDC.Clear();
-        memDC.SetTextForeground(*wxWHITE);
+        memDC.SetTextForeground(foreground);
         memDC.SetFont(font);
         memDC.DrawLabel(msg, wxRect(0, 0, texture_w, texture_h), wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
         memDC.SelectObject(wxNullBitmap);
@@ -673,7 +673,7 @@ bool GLTexture::generate_texture_from_text(const std::string& text_str, wxFont& 
         canvas_dc.SetBackground(wxBrush(background));
         canvas_dc.Clear();
         canvas_dc.SetFont(font);
-        canvas_dc.SetTextForeground(*wxWHITE);
+        canvas_dc.SetTextForeground(foreground);
 
         double cursor_y = 0.0;
         first_in_segment = true;
@@ -696,7 +696,7 @@ bool GLTexture::generate_texture_from_text(const std::string& text_str, wxFont& 
             glyph_dc.SetBackground(wxBrush(background));
             glyph_dc.Clear();
             glyph_dc.SetFont(font);
-            glyph_dc.SetTextForeground(*wxWHITE);
+            glyph_dc.SetTextForeground(foreground);
             glyph_dc.DrawText(glyph.glyph, 0, 0);
             glyph_dc.SelectObject(wxNullBitmap);
 
