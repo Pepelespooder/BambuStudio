@@ -330,6 +330,9 @@ void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit
         
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(1);
+    }
+    
+    GizmoImguiEnd();
 }
 
 bool GLGizmoVoronoi::on_is_activable() const
