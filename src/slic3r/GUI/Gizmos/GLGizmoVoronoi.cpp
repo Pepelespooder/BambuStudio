@@ -10,13 +10,11 @@
 
 #include <GL/glew.h>
 #include <thread>
-#include <ctime>
 #include <random>
 #include <cmath>
 #include <memory>
 #include <algorithm>
 #include <cfloat>
-#include <cstring>
 #include <limits>
 #include <wx/string.h>
 #include <boost/log/trivial.hpp>
@@ -79,7 +77,6 @@ namespace Slic3r::GUI {
     GLGizmoVoronoi::GLGizmoVoronoi(GLCanvas3D& parent, unsigned int sprite_id)
         : GLGizmoPainterBase(parent, sprite_id)
         , m_volume(nullptr)
-        , m_show_wireframe(false)
         , m_move_to_center(false)
         , tr_mesh_name(_u8L("Mesh name"))
         , tr_seed_type(_u8L("Seed type"))
@@ -1216,83 +1213,64 @@ namespace Slic3r::GUI {
                 }
             }
         }
+        catch (const std::exception& e) {
+            BOOST_LOG_TRIVIAL(error) << "Error in generate_fallback_hexagonal_preview: " << e.what();
+        }
         catch (...) {
-            m_2d_voronoi_cells.clear();
-            m_2d_delaunay_edges.clear();
+            BOOST_LOG_TRIVIAL(error) << "Unknown error in generate_fallback_hexagonal_preview";
         }
     }
 
-    void GLGizmoVoronoi::render_2d_voronoi_preview()
+
+
+    bool GLGizmoVoronoi::on_init()
     {
-        if (m_2d_voronoi_cells.empty()) {
-            ImGui::Text("%s", into_u8(_u8L("No preview available")).c_str());
+        if (!GLGizmoPainterBase::on_init())
+            return false;
+        
+        m_cursor_radius = 2.0f;
+        return true;
+    }
+
+    void GLGizmoVoronoi::on_opening()
+    {
+        // Only update previews if we have a valid volume
+        if (m_volume && m_configuration.show_seed_preview) {
+            try {
+                update_seed_preview();
+                update_2d_voronoi_preview();
+            } catch (...) {
+                // Silently fail on preview generation
+            }
+        }
+        request_rerender();
+    }
+
+    void GLGizmoVoronoi::update_model_object()
+    {
+        // Implementation for updating model object with painted triangles
+        if (!m_c || !m_volume)
             return;
-        }
 
-        // Create a canvas for drawing
-        ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
-        ImVec2 canvas_size = ImVec2(200, 200);
-        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        // This would typically update the model with painted triangle information
+        // For now, just trigger a rerender
+        request_rerender();
+    }
 
-        // Draw background
-        ImU32 bg_color = m_is_dark_mode ? IM_COL32(40, 40, 40, 255) : IM_COL32(240, 240, 240, 255);
-        draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), bg_color);
+    void GLGizmoVoronoi::update_from_model_object(bool first_update)
+    {
+        // Implementation for updating from model object
+        if (!m_c || !m_volume)
+            return;
 
-        // Draw border
-        ImU32 border_color = m_is_dark_mode ? IM_COL32(80, 80, 80, 255) : IM_COL32(160, 160, 160, 255);
-        draw_list->AddRect(canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), border_color, 0.0f, 0, 2.0f);
-
-        // Draw Delaunay edges underneath the filled polygons
-        if (!m_2d_delaunay_edges.empty()) {
-            ImU32 delaunay_color = m_is_dark_mode ? IM_COL32(120, 200, 255, 160) : IM_COL32(40, 120, 200, 160);
-            for (const auto& edge : m_2d_delaunay_edges) {
-                ImVec2 a(canvas_pos.x + edge.a.x() * canvas_size.x,
-                    canvas_pos.y + edge.a.y() * canvas_size.y);
-                ImVec2 b(canvas_pos.x + edge.b.x() * canvas_size.x,
-                    canvas_pos.y + edge.b.y() * canvas_size.y);
-                draw_list->AddLine(a, b, delaunay_color, 1.5f);
+        // Update internal state from model object if needed
+        if (first_update) {
+            // Initial setup based on model object state
+            if (m_configuration.show_seed_preview) {
+                update_seed_preview();
+                update_2d_voronoi_preview();
             }
         }
-
-        // Draw Voronoi cells
-        for (const auto& cell : m_2d_voronoi_cells) {
-            if (cell.vertices.size() >= 3) {
-                // Convert vertices to screen coordinates
-                std::vector<ImVec2> screen_vertices;
-                screen_vertices.reserve(cell.vertices.size());
-
-                for (const auto& vertex : cell.vertices) {
-                    ImVec2 screen_pos;
-                    screen_pos.x = canvas_pos.x + vertex.x() * canvas_size.x;
-                    screen_pos.y = canvas_pos.y + vertex.y() * canvas_size.y;
-                    screen_vertices.push_back(screen_pos);
-                }
-
-                // Draw filled polygon
-                draw_list->AddConvexPolyFilled(screen_vertices.data(), (int)screen_vertices.size(), cell.color);
-
-                // Draw cell outline
-                ImU32 outline_color = m_is_dark_mode ? IM_COL32(200, 200, 200, 150) : IM_COL32(80, 80, 80, 150);
-                for (size_t i = 0; i < screen_vertices.size(); ++i) {
-                    size_t next_i = (i + 1) % screen_vertices.size();
-                    draw_list->AddLine(screen_vertices[i], screen_vertices[next_i], outline_color, 1.0f);
-                }
-            }
-
-            // Draw seed point
-            ImVec2 seed_screen_pos;
-            seed_screen_pos.x = canvas_pos.x + cell.seed_point.x() * canvas_size.x;
-            seed_screen_pos.y = canvas_pos.y + cell.seed_point.y() * canvas_size.y;
-
-            ImU32 seed_color = m_is_dark_mode ? IM_COL32(255, 255, 255, 255) : IM_COL32(0, 0, 0, 255);
-            draw_list->AddCircleFilled(seed_screen_pos, 3.0f, seed_color);
-        }
-
-        // Reserve space for the canvas
-        ImGui::Dummy(canvas_size);
-
-        // Add info text
-        ImGui::Text("%s: %zu", into_u8(_u8L("Cells")).c_str(), m_2d_voronoi_cells.size());
     }
 
 } // namespace Slic3r::GUI

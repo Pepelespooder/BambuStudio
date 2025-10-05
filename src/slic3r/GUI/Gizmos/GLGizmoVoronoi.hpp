@@ -128,7 +128,6 @@ namespace Slic3r {
 
             bool m_move_to_center;
             const ModelVolume* m_volume;
-            bool m_show_wireframe;
             GLModel m_glmodel;
 
             struct State {

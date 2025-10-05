@@ -14,7 +14,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Delaunay_triangulation_3.h>
 #include <CGAL/Triangulation_vertex_base_with_info_3.h>
-#include <CGAL/Delaunay_triangulation_cell_base_with_circumcenter_3.h>
+#include <CGAL/Triangulation_cell_base_3.h>
 #include <CGAL/convex_hull_3.h>
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/Surface_mesh.h>
@@ -30,7 +30,7 @@ namespace Slic3r {
     // CGAL type definitions for 3D Delaunay/Voronoi
     using K = CGAL::Exact_predicates_inexact_constructions_kernel;
     using Vb = CGAL::Triangulation_vertex_base_with_info_3<int, K>;
-    using Cb = CGAL::Delaunay_triangulation_cell_base_with_circumcenter_3<K>;
+    using Cb = CGAL::Triangulation_cell_base_3<K>;
     using Tds = CGAL::Triangulation_data_structure_3<Vb, Cb>;
     using Delaunay = CGAL::Delaunay_triangulation_3<K, Tds>;
     using Point_3 = K::Point_3;
@@ -346,8 +346,9 @@ namespace Slic3r {
             std::vector<Point_3> voronoi_verts;
             for (const auto& cell : incident_cells) {
                 if (!dt.is_infinite(cell)) {
-                    Point_3 cc = cell->circumcenter();  // Fixed: use cell->circumcenter()
-
+                    // Get the dual point (circumcenter) using the dual method
+                    Point_3 cc = dt.dual(cell);
+                    
                     // Basic bounds check
                     if (cc.x() >= bounds.min.x() - 1.0 && cc.x() <= bounds.max.x() + 1.0 &&
                         cc.y() >= bounds.min.y() - 1.0 && cc.y() <= bounds.max.y() + 1.0 &&
