@@ -71,6 +71,8 @@ private:
     // 2D Voronoi preview
     void render_2d_voronoi_preview();
     void update_2d_voronoi_preview();
+    void generate_fallback_hexagonal_preview();
+    
     struct VoronoiCell2D {
         std::vector<Vec2f> vertices;
         Vec2f seed_point;
