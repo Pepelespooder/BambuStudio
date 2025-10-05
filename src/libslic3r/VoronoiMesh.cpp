@@ -344,7 +344,7 @@ namespace Slic3r {
             std::vector<Point_3> voronoi_verts;
             for (const auto& cell : incident_cells) {
                 if (!dt.is_infinite(cell)) {
-                    Point_3 cc = dt.circumcenter(cell);
+                    Point_3 cc = cell->circumcenter();  // Fixed: use cell->circumcenter()
 
                     // Basic bounds check
                     if (cc.x() >= bounds.min.x() - 1.0 && cc.x() <= bounds.max.x() + 1.0 &&
