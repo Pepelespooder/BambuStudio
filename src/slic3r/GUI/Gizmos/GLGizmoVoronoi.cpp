@@ -454,8 +454,8 @@ namespace Slic3r::GUI {
         try {
             std::unique_ptr<indexed_triangle_set> result;
 
-            // Get the input mesh
-            const indexed_triangle_set* input_mesh = nullptr;
+            // Get the input mesh with proper copying for thread safety
+            indexed_triangle_set input_mesh_copy;
             VoronoiMesh::Config voronoi_config;
 
             {
@@ -463,7 +463,8 @@ namespace Slic3r::GUI {
                 if (m_state.status != State::running || !m_state.mv)
                     return;
 
-                input_mesh = &m_state.mv->mesh().its;
+                // Make a copy of the input mesh for thread safety
+                input_mesh_copy = m_state.mv->mesh().its;
 
                 // Convert configuration
                 voronoi_config.seed_type = static_cast<VoronoiMesh::SeedType>(m_state.config.seed_type);
@@ -481,18 +482,49 @@ namespace Slic3r::GUI {
                     };
             }
 
-            // Generate Voronoi mesh
-            result = VoronoiMesh::generate(*input_mesh, voronoi_config);
-
-            if (result) {
+            // Validate input mesh
+            if (input_mesh_copy.vertices.empty() || input_mesh_copy.indices.empty()) {
+                BOOST_LOG_TRIVIAL(error) << "Invalid input mesh for Voronoi generation";
                 std::lock_guard<std::mutex> lock(m_state_mutex);
-                m_state.result = std::move(result);
-                m_state.progress = 100;
+                m_state.status = State::idle;
+                return;
             }
 
-            call_after_if_active(this, [](GLGizmoVoronoi& gizmo) {
-                gizmo.worker_finished();
-                });
+            // Generate Voronoi mesh
+            result = VoronoiMesh::generate(input_mesh_copy, voronoi_config);
+
+            if (result && !result->vertices.empty() && !result->indices.empty()) {
+                // Validate result before storing
+                bool valid = true;
+                for (const auto& face : result->indices) {
+                    if (face[0] < 0 || face[0] >= result->vertices.size() ||
+                        face[1] < 0 || face[1] >= result->vertices.size() ||
+                        face[2] < 0 || face[2] >= result->vertices.size()) {
+                        valid = false;
+                        break;
+                    }
+                }
+
+                if (valid) {
+                    std::lock_guard<std::mutex> lock(m_state_mutex);
+                    m_state.result = std::move(result);
+                    m_state.progress = 100;
+
+                    call_after_if_active(this, [](GLGizmoVoronoi& gizmo) {
+                        gizmo.worker_finished();
+                        });
+                }
+                else {
+                    BOOST_LOG_TRIVIAL(error) << "Invalid Voronoi mesh generated";
+                    std::lock_guard<std::mutex> lock(m_state_mutex);
+                    m_state.status = State::idle;
+                }
+            }
+            else {
+                BOOST_LOG_TRIVIAL(warning) << "Voronoi generation produced empty result";
+                std::lock_guard<std::mutex> lock(m_state_mutex);
+                m_state.status = State::idle;
+            }
 
         }
         catch (const VoronoiCanceledException&) {
@@ -500,8 +532,13 @@ namespace Slic3r::GUI {
             std::lock_guard<std::mutex> lock(m_state_mutex);
             m_state.status = State::idle;
         }
+        catch (const std::exception& e) {
+            BOOST_LOG_TRIVIAL(error) << "Exception in Voronoi processing: " << e.what();
+            std::lock_guard<std::mutex> lock(m_state_mutex);
+            m_state.status = State::idle;
+        }
         catch (...) {
-            // Error occurred
+            BOOST_LOG_TRIVIAL(error) << "Unknown error in Voronoi processing";
             std::lock_guard<std::mutex> lock(m_state_mutex);
             m_state.status = State::idle;
         }
@@ -630,47 +667,150 @@ namespace Slic3r::GUI {
 
             const indexed_triangle_set& mesh = m_volume->mesh().its;
 
+            // Validate mesh
+            if (mesh.vertices.empty()) {
+                BOOST_LOG_TRIVIAL(warning) << "Empty mesh for seed preview";
+                return;
+            }
+
             // Compute bounding box for generated points
             BoundingBoxf3 bbox;
             for (const auto& v : mesh.vertices) {
                 bbox.merge(v.cast<double>());
             }
 
+            // Ensure valid bounding box
+            if (!bbox.defined || bbox.size().minCoeff() <= 0) {
+                BOOST_LOG_TRIVIAL(warning) << "Invalid bounding box for seed preview";
+                return;
+            }
+
             if (m_configuration.seed_type == Configuration::SEED_GRID) {
-                // Grid seeds
+                // Grid seeds - ensure proper distribution
                 int seeds_per_axis = static_cast<int>(std::ceil(std::cbrt(m_configuration.num_seeds)));
-                Vec3d step = bbox.size().cwiseQuotient(Vec3d(seeds_per_axis, seeds_per_axis, seeds_per_axis));
+                seeds_per_axis = std::max(2, seeds_per_axis); // At least 2x2x2 grid
+
+                Vec3d step = bbox.size() / double(seeds_per_axis);
+                Vec3d offset = step * 0.5; // Center points in cells
 
                 for (int x = 0; x < seeds_per_axis; ++x) {
                     for (int y = 0; y < seeds_per_axis; ++y) {
                         for (int z = 0; z < seeds_per_axis; ++z) {
                             Vec3d pt = bbox.min + Vec3d(
-                                (x + 0.5) * step.x(),
-                                (y + 0.5) * step.y(),
-                                (z + 0.5) * step.z()
+                                offset.x() + x * step.x(),
+                                offset.y() + y * step.y(),
+                                offset.z() + z * step.z()
                             );
-                            m_seed_preview_points.push_back(pt.cast<float>());
+
+                            // Only add if within actual mesh bounds
+                            if (pt.x() >= bbox.min.x() && pt.x() <= bbox.max.x() &&
+                                pt.y() >= bbox.min.y() && pt.y() <= bbox.max.y() &&
+                                pt.z() >= bbox.min.z() && pt.z() <= bbox.max.z()) {
+                                m_seed_preview_points.push_back(pt.cast<float>());
+
+                                if (m_seed_preview_points.size() >= m_configuration.num_seeds)
+                                    break;
+                            }
                         }
+                        if (m_seed_preview_points.size() >= m_configuration.num_seeds)
+                            break;
                     }
+                    if (m_seed_preview_points.size() >= m_configuration.num_seeds)
+                        break;
                 }
             }
             else if (m_configuration.seed_type == Configuration::SEED_RANDOM) {
-                // Random seeds with configurable seed
+                // Random seeds with better distribution using Poisson disk sampling approximation
                 std::mt19937 rng(m_configuration.random_seed);
+
+                // Calculate minimum distance between points for better distribution
+                float volume = bbox.size().x() * bbox.size().y() * bbox.size().z();
+                float cell_volume = volume / m_configuration.num_seeds;
+                float min_distance = std::cbrt(cell_volume) * 0.5f; // Half the average cell size
+
                 std::uniform_real_distribution<double> dist_x(bbox.min.x(), bbox.max.x());
                 std::uniform_real_distribution<double> dist_y(bbox.min.y(), bbox.max.y());
                 std::uniform_real_distribution<double> dist_z(bbox.min.z(), bbox.max.z());
 
-                for (int i = 0; i < m_configuration.num_seeds; ++i) {
+                int max_attempts = m_configuration.num_seeds * 50;
+                int attempts = 0;
+
+                while (m_seed_preview_points.size() < m_configuration.num_seeds && attempts < max_attempts) {
+                    Vec3d pt(dist_x(rng), dist_y(rng), dist_z(rng));
+
+                    // Check minimum distance from existing points
+                    bool too_close = false;
+                    for (const auto& existing : m_seed_preview_points) {
+                        if ((existing.cast<double>() - pt).norm() < min_distance) {
+                            too_close = true;
+                            break;
+                        }
+                    }
+
+                    if (!too_close) {
+                        m_seed_preview_points.push_back(pt.cast<float>());
+                    }
+
+                    attempts++;
+                }
+
+                // Fill remaining if we couldn't maintain minimum distance
+                while (m_seed_preview_points.size() < m_configuration.num_seeds) {
                     Vec3d pt(dist_x(rng), dist_y(rng), dist_z(rng));
                     m_seed_preview_points.push_back(pt.cast<float>());
                 }
             }
             else {
-                // Vertex seeds - subsample vertices
-                int step = std::max(1, static_cast<int>(mesh.vertices.size()) / m_configuration.num_seeds);
-                for (size_t i = 0; i < mesh.vertices.size() && m_seed_preview_points.size() < static_cast<size_t>(m_configuration.num_seeds); i += step) {
-                    m_seed_preview_points.push_back(mesh.vertices[i]);
+                // Vertex seeds - use farthest point sampling for better distribution
+                if (mesh.vertices.size() <= m_configuration.num_seeds) {
+                    // Use all vertices if we have fewer than requested
+                    for (const auto& v : mesh.vertices) {
+                        m_seed_preview_points.push_back(v);
+                    }
+                }
+                else {
+                    // Farthest point sampling
+                    std::vector<bool> selected(mesh.vertices.size(), false);
+                    std::vector<float> min_distances(mesh.vertices.size(), std::numeric_limits<float>::max());
+
+                    // Start with a random vertex
+                    std::mt19937 rng(m_configuration.random_seed);
+                    std::uniform_int_distribution<size_t> dist(0, mesh.vertices.size() - 1);
+                    size_t first_idx = dist(rng);
+                    selected[first_idx] = true;
+                    m_seed_preview_points.push_back(mesh.vertices[first_idx]);
+
+                    // Update distances from first point
+                    for (size_t i = 0; i < mesh.vertices.size(); ++i) {
+                        float d = (mesh.vertices[i] - mesh.vertices[first_idx]).norm();
+                        min_distances[i] = std::min(min_distances[i], d);
+                    }
+
+                    // Select remaining points
+                    for (int k = 1; k < m_configuration.num_seeds; ++k) {
+                        // Find vertex with maximum minimum distance
+                        size_t best_idx = 0;
+                        float max_min_dist = -1.0f;
+
+                        for (size_t i = 0; i < mesh.vertices.size(); ++i) {
+                            if (!selected[i] && min_distances[i] > max_min_dist) {
+                                max_min_dist = min_distances[i];
+                                best_idx = i;
+                            }
+                        }
+
+                        // Add the selected vertex
+                        selected[best_idx] = true;
+                        m_seed_preview_points.push_back(mesh.vertices[best_idx]);
+
+                        // Update distances
+                        for (size_t i = 0; i < mesh.vertices.size(); ++i) {
+                            if (!selected[i]) {
+                                float d = (mesh.vertices[i] - mesh.vertices[best_idx]).norm();
+                                min_distances[i] = std::min(min_distances[i], d);
+                            }
+                        }
+                    }
                 }
             }
 

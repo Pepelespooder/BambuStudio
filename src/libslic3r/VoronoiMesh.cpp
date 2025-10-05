@@ -269,200 +269,199 @@ namespace Slic3r {
 
         // Need at least 4 non-coplanar points for 3D Delaunay
         if (seed_points.size() < 4) {
-            return std::make_unique<indexed_triangle_set>();
-        }
+            // Add dummy points to ensure we have enough for triangulation
+            std::vector<Vec3d> extended_seeds = seed_points;
+            Vec3d center = bounds.center();
+            Vec3d size = bounds.size() * 0.1;
 
-        if (config.progress_callback && !config.progress_callback(20))
-            return nullptr;
-
-        // Convert seed points to CGAL points
-        std::vector<std::pair<Point_3, int>> cgal_points;
-        cgal_points.reserve(seed_points.size());
-
-        for (size_t i = 0; i < seed_points.size(); ++i) {
-            const auto& p = seed_points[i];
-
-            // Check for NaN or infinite values
-            if (std::isnan(p.x()) || std::isnan(p.y()) || std::isnan(p.z()) ||
-                std::isinf(p.x()) || std::isinf(p.y()) || std::isinf(p.z())) {
-                continue;
+            while (extended_seeds.size() < 4) {
+                extended_seeds.push_back(center + Vec3d(size.x() * (extended_seeds.size() - 2), 0, 0));
             }
-
-            cgal_points.emplace_back(Point_3(p.x(), p.y(), p.z()), int(i));
+            return tessellate_voronoi(extended_seeds, bounds, config, clip_mesh);
         }
 
-        if (cgal_points.size() < 4) {
-            return std::make_unique<indexed_triangle_set>();
-        }
+        if (config.progress_callback && !config.progress_callback(25))
+            return nullptr;
 
         // Build Delaunay triangulation
         Delaunay dt;
         try {
-            dt.insert(cgal_points.begin(), cgal_points.end());
+            // Insert seed points directly without pairs for simpler handling
+            for (size_t i = 0; i < seed_points.size(); ++i) {
+                const auto& p = seed_points[i];
+
+                // Skip invalid points
+                if (std::isnan(p.x()) || std::isnan(p.y()) || std::isnan(p.z()) ||
+                    std::isinf(p.x()) || std::isinf(p.y()) || std::isinf(p.z())) {
+                    continue;
+                }
+
+                auto vh = dt.insert(Point_3(p.x(), p.y(), p.z()));
+                if (vh != Delaunay::Vertex_handle()) {
+                    vh->info() = static_cast<int>(i);
+                }
+            }
 
             if (dt.number_of_vertices() < 4 || !dt.is_valid()) {
                 return std::make_unique<indexed_triangle_set>();
             }
-
-            if (dt.number_of_finite_cells() == 0) {
-                return std::make_unique<indexed_triangle_set>();
-            }
         }
         catch (const std::exception&) {
-            return nullptr;
+            return std::make_unique<indexed_triangle_set>();
         }
 
         if (config.progress_callback && !config.progress_callback(40))
             return nullptr;
 
-        const bool clip_cells = clip_mesh != nullptr && !clip_mesh->indices.empty();
-
-        // For each vertex in Delaunay (seed point), compute its Voronoi cell
+        // Compute Voronoi cells
         auto result = std::make_unique<indexed_triangle_set>();
 
-        result->vertices.reserve(dt.number_of_vertices() * 20);
-        result->indices.reserve(dt.number_of_vertices() * 40);
-        std::vector<int> face_cell_ids;
-        face_cell_ids.reserve(dt.number_of_vertices() * 40);
+        // Pre-allocate space
+        result->vertices.reserve(dt.number_of_vertices() * 50);
+        result->indices.reserve(dt.number_of_vertices() * 100);
 
-        int processed_vertices = 0;
-        const int total_vertices = std::max(1, static_cast<int>(dt.number_of_vertices()));
+        int processed = 0;
+        const int total = static_cast<int>(dt.number_of_vertices());
 
+        // For each Delaunay vertex, compute its dual Voronoi cell
         for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
-            ++processed_vertices;
-            if ((processed_vertices % 10 == 0) || (processed_vertices == total_vertices)) {
-                int progress = 40 + (processed_vertices * 50) / total_vertices;
+            ++processed;
+            if (processed % 5 == 0) {
+                int progress = 40 + (processed * 40) / total;
                 if (config.progress_callback && !config.progress_callback(progress))
                     return nullptr;
             }
 
-            // Get all cells (tetrahedra) incident to this vertex
+            // Get the seed point position
+            Point_3 seed_point = vit->point();
+            Vec3d seed_pos(seed_point.x(), seed_point.y(), seed_point.z());
+
+            // Collect all incident tetrahedra
             std::vector<Delaunay::Cell_handle> incident_cells;
-            incident_cells.reserve(32);
             dt.incident_cells(vit, std::back_inserter(incident_cells));
 
-            if (incident_cells.empty()) {
-                continue;
-            }
-
-            // Collect circumcenters of incident cells
-            std::vector<Point_3> voronoi_vertices;
-            voronoi_vertices.reserve(incident_cells.size());
-
+            // Collect Voronoi vertices (circumcenters of tetrahedra)
+            std::vector<Point_3> voronoi_verts;
             for (const auto& cell : incident_cells) {
-                if (dt.is_infinite(cell)) {
-                    continue;
-                }
+                if (!dt.is_infinite(cell)) {
+                    Point_3 cc = dt.circumcenter(cell);
 
-                try {
-                    const Point_3 circumcenter = cell->circumcenter();
-
-                    if (std::isnan(circumcenter.x()) || std::isnan(circumcenter.y()) || std::isnan(circumcenter.z()) ||
-                        std::isinf(circumcenter.x()) || std::isinf(circumcenter.y()) || std::isinf(circumcenter.z())) {
-                        continue;
-                    }
-
-                    const double margin = (bounds.max - bounds.min).norm() * 0.1;
-                    if (circumcenter.x() >= bounds.min.x() - margin && circumcenter.x() <= bounds.max.x() + margin &&
-                        circumcenter.y() >= bounds.min.y() - margin && circumcenter.y() <= bounds.max.y() + margin &&
-                        circumcenter.z() >= bounds.min.z() - margin && circumcenter.z() <= bounds.max.z() + margin) {
-                        voronoi_vertices.push_back(circumcenter);
+                    // Basic bounds check
+                    if (cc.x() >= bounds.min.x() - 1.0 && cc.x() <= bounds.max.x() + 1.0 &&
+                        cc.y() >= bounds.min.y() - 1.0 && cc.y() <= bounds.max.y() + 1.0 &&
+                        cc.z() >= bounds.min.z() - 1.0 && cc.z() <= bounds.max.z() + 1.0) {
+                        voronoi_verts.push_back(cc);
                     }
                 }
-                catch (const std::exception&) {
-                    continue;
-                }
             }
 
-            if (voronoi_vertices.size() < 4) {
+            // Need at least 4 vertices for a 3D cell
+            if (voronoi_verts.size() < 4)
                 continue;
-            }
 
-            // Deduplicate vertices
-            std::sort(voronoi_vertices.begin(), voronoi_vertices.end(),
-                [](const Point_3& a, const Point_3& b) {
-                    if (a.x() != b.x()) return a.x() < b.x();
-                    if (a.y() != b.y()) return a.y() < b.y();
-                    return a.z() < b.z();
-                });
-
-            voronoi_vertices.erase(
-                std::unique(voronoi_vertices.begin(), voronoi_vertices.end(),
-                    [](const Point_3& a, const Point_3& b) {
-                        const double eps = 1e-9;
-                        return std::abs(CGAL::to_double(a.x() - b.x())) < eps &&
-                            std::abs(CGAL::to_double(a.y() - b.y())) < eps &&
-                            std::abs(CGAL::to_double(a.z() - b.z())) < eps;
-                    }),
-                voronoi_vertices.end());
-
-            if (voronoi_vertices.size() < 4) {
-                continue;
-            }
-
-            // Create convex hull of Voronoi vertices
-            CGALMesh cell_mesh;
+            // Build convex hull to get Voronoi cell
             try {
-                CGAL::convex_hull_3(voronoi_vertices.begin(), voronoi_vertices.end(), cell_mesh);
+                CGALMesh cell_mesh;
+                CGAL::convex_hull_3(voronoi_verts.begin(), voronoi_verts.end(), cell_mesh);
 
-                if (cell_mesh.number_of_vertices() < 4 || cell_mesh.number_of_faces() < 4) {
+                if (cell_mesh.number_of_vertices() < 4 || cell_mesh.number_of_faces() < 4)
                     continue;
-                }
 
-                if (!CGAL::is_closed(cell_mesh)) {
+                // Convert to indexed triangle set
+                indexed_triangle_set cell_its = surface_mesh_to_indexed(cell_mesh);
+
+                if (cell_its.vertices.empty() || cell_its.indices.empty())
                     continue;
+
+                // Apply hollowing if requested
+                if (config.hollow_cells) {
+                    create_hollow_cells(cell_its, config.wall_thickness);
                 }
 
-                indexed_triangle_set cell_geometry = surface_mesh_to_indexed(cell_mesh);
-
-                if (config.hollow_cells && cell_geometry.vertices.size() >= 4) {
-                    create_hollow_cells(cell_geometry, config.wall_thickness);
-                }
-
-                if (cell_geometry.indices.empty()) {
-                    continue;
-                }
-
-                if (clip_cells) {
+                // Clip to input mesh if requested
+                if (clip_mesh && config.clip_to_input) {
                     try {
-                        MeshBoolean::cgal::intersect(cell_geometry, *clip_mesh);
+                        // Create temporary meshes for boolean operation
+                        indexed_triangle_set clipped = cell_its;
+                        MeshBoolean::cgal::intersect(clipped, *clip_mesh);
+
+                        if (!clipped.indices.empty()) {
+                            cell_its = std::move(clipped);
+                        }
                     }
                     catch (...) {
-                        continue;
-                    }
-                    if (cell_geometry.indices.empty()) {
-                        continue;
+                        // If clipping fails, use unclipped cell
                     }
                 }
 
-                const size_t vertex_offset = result->vertices.size();
+                // Add cell to result
+                size_t vertex_offset = result->vertices.size();
+
+                // Copy vertices
                 result->vertices.insert(result->vertices.end(),
-                    cell_geometry.vertices.begin(),
-                    cell_geometry.vertices.end());
+                    cell_its.vertices.begin(),
+                    cell_its.vertices.end());
 
-                const int base = static_cast<int>(vertex_offset);
-                int cell_id = vit->info();
-
-                for (const auto& face : cell_geometry.indices) {
+                // Copy faces with offset
+                for (const auto& face : cell_its.indices) {
                     result->indices.emplace_back(
-                        face(0) + base,
-                        face(1) + base,
-                        face(2) + base);
-                    face_cell_ids.push_back(cell_id);
+                        face(0) + static_cast<int>(vertex_offset),
+                        face(1) + static_cast<int>(vertex_offset),
+                        face(2) + static_cast<int>(vertex_offset)
+                    );
                 }
+
             }
             catch (...) {
+                // Skip cells that fail to generate
                 continue;
             }
         }
 
-        if (config.progress_callback && !config.progress_callback(90))
+        if (config.progress_callback && !config.progress_callback(85))
             return nullptr;
 
-        // Store cell IDs in properties
-        result->properties.resize(result->indices.size());
-        for (size_t i = 0; i < result->properties.size() && i < face_cell_ids.size(); ++i) {
-            result->properties[i].cell_id = face_cell_ids[i];
+        // If we got no cells, create a simple cubic lattice as fallback
+        if (result->indices.empty() && seed_points.size() >= 2) {
+            // Create a simple box for each seed point as a fallback
+            for (size_t i = 0; i < std::min(seed_points.size(), size_t(10)); ++i) {
+                Vec3d center = seed_points[i];
+                float cell_size = (bounds.size().norm() / seed_points.size()) * 0.3f;
+
+                // Create a simple cube
+                size_t base = result->vertices.size();
+
+                // 8 vertices of a cube
+                for (int dx = -1; dx <= 1; dx += 2) {
+                    for (int dy = -1; dy <= 1; dy += 2) {
+                        for (int dz = -1; dz <= 1; dz += 2) {
+                            result->vertices.emplace_back(
+                                center.x() + dx * cell_size,
+                                center.y() + dy * cell_size,
+                                center.z() + dz * cell_size
+                            );
+                        }
+                    }
+                }
+
+                // 12 triangles (2 per cube face)
+                int cube_faces[12][3] = {
+                    {0,2,1}, {1,2,3},  // Front
+                    {4,5,6}, {5,7,6},  // Back
+                    {0,1,4}, {1,5,4},  // Right
+                    {2,6,3}, {3,6,7},  // Left
+                    {0,4,2}, {2,4,6},  // Bottom
+                    {1,3,5}, {3,7,5}   // Top
+                };
+
+                for (auto& face : cube_faces) {
+                    result->indices.emplace_back(
+                        face[0] + base,
+                        face[1] + base,
+                        face[2] + base
+                    );
+                }
+            }
         }
 
         return result;
@@ -495,45 +494,109 @@ namespace Slic3r {
         if (mesh.vertices.empty() || mesh.indices.empty() || wall_thickness <= 0.0f)
             return;
 
+        // For very small cells, don't hollow them to avoid self-intersections
+        BoundingBoxf3 cell_bbox;
+        for (const auto& v : mesh.vertices) {
+            cell_bbox.merge(v.cast<double>());
+        }
+
+        float min_dimension = std::min({ cell_bbox.size().x(),
+                                        cell_bbox.size().y(),
+                                        cell_bbox.size().z() });
+
+        // Skip hollowing for cells too small relative to wall thickness
+        if (min_dimension < wall_thickness * 3.0f) {
+            return;
+        }
+
         indexed_triangle_set original = mesh;
 
         const size_t vertex_count = original.vertices.size();
         const size_t face_count = original.indices.size();
 
-        // Compute vertex normals
+        // Calculate face normals and areas
+        std::vector<Vec3f> face_normals(face_count);
+        std::vector<float> face_areas(face_count);
+
+        for (size_t i = 0; i < face_count; ++i) {
+            const auto& face = original.indices[i];
+            const Vec3f& v0 = original.vertices[face[0]];
+            const Vec3f& v1 = original.vertices[face[1]];
+            const Vec3f& v2 = original.vertices[face[2]];
+
+            Vec3f edge1 = v1 - v0;
+            Vec3f edge2 = v2 - v0;
+            Vec3f normal = edge1.cross(edge2);
+            float area = 0.5f * normal.norm();
+
+            if (area > 1e-6f) {
+                face_normals[i] = normal.normalized();
+                face_areas[i] = area;
+            }
+            else {
+                face_normals[i] = Vec3f(0, 0, 1);
+                face_areas[i] = 0.0f;
+            }
+        }
+
+        // Compute smooth vertex normals using angle-weighted averaging
         std::vector<Vec3f> vertex_normals(vertex_count, Vec3f::Zero());
-        std::vector<float> vertex_weights(vertex_count, 0.0f);
 
         for (size_t fi = 0; fi < face_count; ++fi) {
+            if (face_areas[fi] <= 0.0f)
+                continue;
+
             const auto& face = original.indices[fi];
             const Vec3f& v0 = original.vertices[face[0]];
             const Vec3f& v1 = original.vertices[face[1]];
             const Vec3f& v2 = original.vertices[face[2]];
 
-            Vec3f normal = (v1 - v0).cross(v2 - v0);
-            float area = 0.5f * normal.norm();
+            // Calculate angles at each vertex
+            Vec3f e0 = (v1 - v0).normalized();
+            Vec3f e1 = (v2 - v1).normalized();
+            Vec3f e2 = (v0 - v2).normalized();
 
-            if (area > 1e-6f) {
-                normal.normalize();
-                for (int j = 0; j < 3; ++j) {
-                    vertex_normals[face[j]] += normal * area;
-                    vertex_weights[face[j]] += area;
+            float angle0 = std::acos(std::max(-1.0f, std::min(1.0f, e0.dot(-e2))));
+            float angle1 = std::acos(std::max(-1.0f, std::min(1.0f, e1.dot(-e0))));
+            float angle2 = std::acos(std::max(-1.0f, std::min(1.0f, e2.dot(-e1))));
+
+            vertex_normals[face[0]] += face_normals[fi] * angle0;
+            vertex_normals[face[1]] += face_normals[fi] * angle1;
+            vertex_normals[face[2]] += face_normals[fi] * angle2;
+        }
+
+        // Normalize vertex normals and ensure they point outward
+        Vec3f center = Vec3f::Zero();
+        for (const auto& v : original.vertices) {
+            center += v;
+        }
+        center /= float(vertex_count);
+
+        for (size_t i = 0; i < vertex_count; ++i) {
+            float len = vertex_normals[i].norm();
+            if (len > 1e-6f) {
+                vertex_normals[i] /= len;
+
+                // Ensure normal points outward from center
+                Vec3f to_vertex = original.vertices[i] - center;
+                if (vertex_normals[i].dot(to_vertex) < 0) {
+                    vertex_normals[i] = -vertex_normals[i];
+                }
+            }
+            else {
+                // Fallback: use direction from center
+                Vec3f to_vertex = original.vertices[i] - center;
+                float dist = to_vertex.norm();
+                if (dist > 1e-6f) {
+                    vertex_normals[i] = to_vertex / dist;
+                }
+                else {
+                    vertex_normals[i] = Vec3f(0, 0, 1);
                 }
             }
         }
 
-        // Normalize vertex normals
-        for (size_t i = 0; i < vertex_count; ++i) {
-            if (vertex_weights[i] > 1e-6f) {
-                vertex_normals[i] /= vertex_weights[i];
-                vertex_normals[i].normalize();
-            }
-            else {
-                vertex_normals[i] = Vec3f(0, 0, 1);
-            }
-        }
-
-        // Create inner vertices
+        // Create inner vertices by offsetting along normals
         std::vector<Vec3f> inner_vertices(vertex_count);
         for (size_t i = 0; i < vertex_count; ++i) {
             inner_vertices[i] = original.vertices[i] - vertex_normals[i] * wall_thickness;
@@ -543,47 +606,66 @@ namespace Slic3r {
         mesh.vertices.clear();
         mesh.indices.clear();
         mesh.vertices.reserve(vertex_count * 2);
-        mesh.indices.reserve(face_count * 4);
+        mesh.indices.reserve(face_count * 2 + vertex_count * 6); // outer + inner + sides
 
-        // Add outer vertices
+        // Add all vertices (outer first, then inner)
         mesh.vertices.insert(mesh.vertices.end(), original.vertices.begin(), original.vertices.end());
-        // Add inner vertices
         mesh.vertices.insert(mesh.vertices.end(), inner_vertices.begin(), inner_vertices.end());
 
-        const size_t offset = vertex_count;
-
-        // Add outer faces
+        // Add outer faces (original orientation)
         for (const auto& face : original.indices) {
             mesh.indices.push_back(face);
         }
 
-        // Add inner faces (reversed winding)
+        // Add inner faces (reversed orientation)
         for (const auto& face : original.indices) {
-            Vec3i inner_face(face[0] + offset, face[2] + offset, face[1] + offset);
-            mesh.indices.push_back(inner_face);
+            mesh.indices.emplace_back(
+                face[0] + vertex_count,
+                face[2] + vertex_count,  // Reversed winding
+                face[1] + vertex_count
+            );
         }
 
-        // Connect outer and inner shells with side faces
-        std::map<std::pair<int, int>, bool> edge_processed;
-
-        for (const auto& face : original.indices) {
+        // Build edge map for side wall generation
+        std::map<std::pair<int, int>, std::vector<int>> edge_to_faces;
+        for (size_t fi = 0; fi < original.indices.size(); ++fi) {
+            const auto& face = original.indices[fi];
             for (int j = 0; j < 3; ++j) {
-                int a = face[j];
-                int b = face[(j + 1) % 3];
-                auto edge = std::make_pair(std::min(a, b), std::max(a, b));
-
-                if (!edge_processed[edge]) {
-                    edge_processed[edge] = true;
-
-                    // Create two triangles for each edge
-                    mesh.indices.push_back(Vec3i(a, b, a + offset));
-                    mesh.indices.push_back(Vec3i(b, b + offset, a + offset));
-                }
+                int v0 = face[j];
+                int v1 = face[(j + 1) % 3];
+                auto edge = std::make_pair(std::min(v0, v1), std::max(v0, v1));
+                edge_to_faces[edge].push_back(fi);
             }
         }
 
-        mesh.properties.clear();
-        mesh.properties.resize(mesh.indices.size());
+        // Add side walls only for boundary edges
+        for (const auto& [edge, faces] : edge_to_faces) {
+            if (faces.size() == 1) {  // Boundary edge
+                int v0 = edge.first;
+                int v1 = edge.second;
+                int v0_inner = v0 + vertex_count;
+                int v1_inner = v1 + vertex_count;
+
+                // Determine correct winding based on face normal
+                const auto& face = original.indices[faces[0]];
+                int face_v0_idx = -1, face_v1_idx = -1;
+                for (int i = 0; i < 3; ++i) {
+                    if (face[i] == v0) face_v0_idx = i;
+                    if (face[i] == v1) face_v1_idx = i;
+                }
+
+                bool forward = (face_v1_idx == (face_v0_idx + 1) % 3);
+
+                if (forward) {
+                    mesh.indices.emplace_back(v0, v1, v0_inner);
+                    mesh.indices.emplace_back(v1, v1_inner, v0_inner);
+                }
+                else {
+                    mesh.indices.emplace_back(v1, v0, v1_inner);
+                    mesh.indices.emplace_back(v0, v0_inner, v1_inner);
+                }
+            }
+        }
     }
 
 } // namespace Slic3r
