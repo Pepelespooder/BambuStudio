@@ -73,6 +73,11 @@ private:
         ImU32 color;
     };
     std::vector<VoronoiCell2D> m_2d_voronoi_cells;
+    struct DelaunayEdge2D {
+        Vec2f a;
+        Vec2f b;
+    };
+    std::vector<DelaunayEdge2D> m_2d_delaunay_edges;
     struct Configuration
     {
         enum SeedType {

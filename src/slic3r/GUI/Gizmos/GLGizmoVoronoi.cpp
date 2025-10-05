@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <cstring>
+#include <limits>
 
 // 2D Voronoi library for preview
 #define JC_VORONOI_IMPLEMENTATION
@@ -794,6 +795,7 @@ bool GLGizmoVoronoi::on_init()
 void GLGizmoVoronoi::update_2d_voronoi_preview()
 {
     m_2d_voronoi_cells.clear();
+    m_2d_delaunay_edges.clear();
     
     if (m_seed_preview_points.empty()) {
         return;
@@ -886,7 +888,21 @@ void GLGizmoVoronoi::update_2d_voronoi_preview()
                 }
             }
         }
-        
+
+        // Capture Delaunay edges for the preview overlay
+        jcv_delauney_iter delaunay_iter;
+        jcv_delauney_begin(&diagram, &delaunay_iter);
+        jcv_delauney_edge delaunay_edge;
+        while (jcv_delauney_next(&delaunay_iter, &delaunay_edge)) {
+            Vec2f start(delaunay_edge.pos[0].x, delaunay_edge.pos[0].y);
+            Vec2f end(delaunay_edge.pos[1].x, delaunay_edge.pos[1].y);
+
+            if ((start - end).squaredNorm() < std::numeric_limits<float>::epsilon())
+                continue;
+
+            m_2d_delaunay_edges.push_back({ start, end });
+        }
+
         jcv_diagram_free(&diagram);
     } catch (...) {
         // Fallback to simple hexagonal approximation if Voronoi generation fails
@@ -935,7 +951,19 @@ void GLGizmoVoronoi::render_2d_voronoi_preview()
     // Draw border
     ImU32 border_color = m_is_dark_mode ? IM_COL32(80, 80, 80, 255) : IM_COL32(160, 160, 160, 255);
     draw_list->AddRect(canvas_pos, ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), border_color, 0.0f, 0, 2.0f);
-    
+
+    // Draw Delaunay edges underneath the filled polygons
+    if (!m_2d_delaunay_edges.empty()) {
+        ImU32 delaunay_color = m_is_dark_mode ? IM_COL32(120, 200, 255, 160) : IM_COL32(40, 120, 200, 160);
+        for (const auto& edge : m_2d_delaunay_edges) {
+            ImVec2 a(canvas_pos.x + edge.a.x() * canvas_size.x,
+                     canvas_pos.y + edge.a.y() * canvas_size.y);
+            ImVec2 b(canvas_pos.x + edge.b.x() * canvas_size.x,
+                     canvas_pos.y + edge.b.y() * canvas_size.y);
+            draw_list->AddLine(a, b, delaunay_color, 1.5f);
+        }
+    }
+
     // Draw Voronoi cells
     for (const auto& cell : m_2d_voronoi_cells) {
         if (cell.vertices.size() >= 3) {

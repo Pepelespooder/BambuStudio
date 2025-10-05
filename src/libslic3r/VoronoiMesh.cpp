@@ -92,7 +92,7 @@ bool indexed_to_surface_mesh(const indexed_triangle_set& its, CGALMesh& mesh)
     try {
         PMP::orient_polygon_soup(points, faces);
         PMP::polygon_soup_to_polygon_mesh(points, faces, mesh);
-        if (mesh.is_empty() || !PMP::is_closed(mesh))
+        if (mesh.is_empty() || !CGAL::is_closed(mesh))
             return false;
         PMP::orient_to_bound_a_volume(mesh);
     } catch (...) {
@@ -357,7 +357,7 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
     face_cell_ids.reserve(dt.number_of_vertices() * 40);
     
     int processed_vertices = 0;
-    const int total_vertices = std::max(1, dt.number_of_vertices());
+        const int total_vertices = std::max(1, static_cast<int>(dt.number_of_vertices()));
     
     for (auto vit = dt.finite_vertices_begin(); vit != dt.finite_vertices_end(); ++vit) {
         // Enhanced progress reporting
@@ -461,7 +461,7 @@ std::unique_ptr<indexed_triangle_set> VoronoiMesh::tessellate_voronoi(
             }
             
             // Validate mesh is manifold and properly oriented
-            if (!PMP::is_closed(cell_mesh)) {
+            if (!CGAL::is_closed(cell_mesh)) {
                 // Non-manifold mesh - skip
                 continue;
             }
