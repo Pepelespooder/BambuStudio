@@ -282,7 +282,7 @@ std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture
     };
 
     DarkmoonTexturePartInfo darkmoon_part1;
-    darkmoon_part1.x = 10.f;
+    darkmoon_part1.x = 4.f;
     darkmoon_part1.y = 52.f;
     darkmoon_part1.w = kPartBannerWidth;
     darkmoon_part1.h = kPartBannerHeight;

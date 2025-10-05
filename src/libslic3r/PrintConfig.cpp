@@ -2800,8 +2800,8 @@ void PrintConfigDef::init_fff_params()
     def->readonly=false;
 
     def = this->add("heat_soak_enable", coBool);
-    def->label = L("Enable heat soak");
-    def->tooltip = L("Insert a heat soak pause in the machine start G-code before leveling");
+    def->label = L("Enable heat soak (experimental)");
+    def->tooltip = L("Experimental: insert a heat soak pause in the machine start G-code before leveling");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
