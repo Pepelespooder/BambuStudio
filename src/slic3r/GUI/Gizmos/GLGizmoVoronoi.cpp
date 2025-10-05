@@ -1221,4 +1221,106 @@ namespace Slic3r::GUI {
         }
     }
 
+    void GLGizmoVoronoi::render_2d_voronoi_preview()
+    {
+        if (m_2d_voronoi_cells.empty()) {
+            return;
+        }
+
+        // Get ImGui draw list for drawing shapes
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        if (!draw_list) {
+            return;
+        }
+
+        // Get the available region for drawing
+        ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
+        ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+        
+        // Ensure minimum size
+        if (canvas_size.x < 50.0f) canvas_size.x = 200.0f;
+        if (canvas_size.y < 50.0f) canvas_size.y = 200.0f;
+        
+        // Limit maximum size for performance
+        if (canvas_size.x > 400.0f) canvas_size.x = 400.0f;
+        if (canvas_size.y > 400.0f) canvas_size.y = 400.0f;
+
+        // Draw background
+        ImU32 bg_color = m_is_dark_mode ? 
+            ImGui::ColorConvertFloat4ToU32(ImVec4(0.15f, 0.15f, 0.15f, 1.0f)) :
+            ImGui::ColorConvertFloat4ToU32(ImVec4(0.95f, 0.95f, 0.95f, 1.0f));
+        draw_list->AddRectFilled(canvas_pos, 
+            ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y), 
+            bg_color);
+
+        // Draw Voronoi cells (filled polygons)
+        for (const auto& cell : m_2d_voronoi_cells) {
+            if (cell.vertices.size() < 3) continue;
+
+            // Convert normalized coordinates [0,1] to screen coordinates
+            std::vector<ImVec2> screen_vertices;
+            screen_vertices.reserve(cell.vertices.size());
+            
+            for (const auto& vert : cell.vertices) {
+                ImVec2 screen_pos;
+                screen_pos.x = canvas_pos.x + vert.x() * canvas_size.x;
+                screen_pos.y = canvas_pos.y + vert.y() * canvas_size.y;
+                screen_vertices.push_back(screen_pos);
+            }
+
+            // Draw filled polygon
+            if (screen_vertices.size() >= 3) {
+                draw_list->AddConvexPolyFilled(screen_vertices.data(), 
+                    static_cast<int>(screen_vertices.size()), 
+                    cell.color);
+            }
+        }
+
+        // Draw Voronoi edges (cell boundaries)
+        ImU32 edge_color = m_is_dark_mode ?
+            ImGui::ColorConvertFloat4ToU32(ImVec4(0.7f, 0.7f, 0.7f, 1.0f)) :
+            ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.3f, 1.0f));
+        
+        for (const auto& cell : m_2d_voronoi_cells) {
+            if (cell.vertices.size() < 2) continue;
+
+            for (size_t i = 0; i < cell.vertices.size(); ++i) {
+                const Vec2f& v0 = cell.vertices[i];
+                const Vec2f& v1 = cell.vertices[(i + 1) % cell.vertices.size()];
+                
+                ImVec2 p0(canvas_pos.x + v0.x() * canvas_size.x, 
+                         canvas_pos.y + v0.y() * canvas_size.y);
+                ImVec2 p1(canvas_pos.x + v1.x() * canvas_size.x, 
+                         canvas_pos.y + v1.y() * canvas_size.y);
+                
+                draw_list->AddLine(p0, p1, edge_color, 1.0f);
+            }
+        }
+
+        // Draw Delaunay triangulation edges (if any)
+        if (!m_2d_delaunay_edges.empty()) {
+            ImU32 delaunay_color = ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.8f, 0.5f));
+            
+            for (const auto& edge : m_2d_delaunay_edges) {
+                ImVec2 p0(canvas_pos.x + edge.a.x() * canvas_size.x,
+                         canvas_pos.y + edge.a.y() * canvas_size.y);
+                ImVec2 p1(canvas_pos.x + edge.b.x() * canvas_size.x,
+                         canvas_pos.y + edge.b.y() * canvas_size.y);
+                
+                draw_list->AddLine(p0, p1, delaunay_color, 1.0f);
+            }
+        }
+
+        // Draw seed points
+        ImU32 seed_color = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        for (const auto& cell : m_2d_voronoi_cells) {
+            ImVec2 seed_pos(canvas_pos.x + cell.seed_point.x() * canvas_size.x,
+                           canvas_pos.y + cell.seed_point.y() * canvas_size.y);
+            draw_list->AddCircleFilled(seed_pos, 2.0f, seed_color);
+        }
+
+        // Reserve space in ImGui layout for the canvas
+        ImGui::Dummy(canvas_size);
+    }
+
 } // namespace Slic3r::GUI
