@@ -92,47 +92,20 @@ add_library(libslic3r STATIC
 )
 ```
 
-## Step 3: Create Icon Resources
+## Step 3: ✅ Icon Resources (Already Included!)
 
-Create two SVG icon files in `resources/icons/`:
+**Good news!** The toolbar icons are already included in this PR:
 
-### voronoi.svg (Light Mode)
-```svg
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <g fill="none" stroke="#666666" stroke-width="2">
-    <!-- Simple Voronoi pattern representation -->
-    <polygon points="32,8 48,20 48,44 32,56 16,44 16,20" />
-    <line x1="32" y1="8" x2="32" y2="32" />
-    <line x1="48" y1="20" x2="32" y2="32" />
-    <line x1="48" y1="44" x2="32" y2="32" />
-    <line x1="32" y1="56" x2="32" y2="32" />
-    <line x1="16" y1="44" x2="32" y2="32" />
-    <line x1="16" y1="20" x2="32" y2="32" />
-    <circle cx="32" cy="32" r="3" fill="#666666" />
-  </g>
-</svg>
-```
+- ✅ `resources/images/toolbar_voronoi.svg` (light mode)
+- ✅ `resources/images/toolbar_voronoi_dark.svg` (dark mode)
 
-### voronoi_dark.svg (Dark Mode)
-```svg
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <g fill="none" stroke="#CCCCCC" stroke-width="2">
-    <!-- Same pattern as light mode, different color -->
-    <polygon points="32,8 48,20 48,44 32,56 16,44 16,20" />
-    <line x1="32" y1="8" x2="32" y2="32" />
-    <line x1="48" y1="20" x2="32" y2="32" />
-    <line x1="48" y1="44" x2="32" y2="32" />
-    <line x1="32" y1="56" x2="32" y2="32" />
-    <line x1="16" y1="44" x2="32" y2="32" />
-    <line x1="16" y1="20" x2="32" y2="32" />
-    <circle cx="32" cy="32" r="3" fill="#CCCCCC" />
-  </g>
-</svg>
-```
+The icons follow BambuStudio's design language:
+- Cube outline representing the model boundary
+- Cellular Voronoi structure inside (green lines)
+- Seed points shown as small green dots
+- Matches existing toolbar icon style
 
-Place these files in: `resources/icons/voronoi.svg` and `resources/icons/voronoi_dark.svg`
+**No action needed** - icons are ready to use!
 
 ## Step 4: Build the Project
 
