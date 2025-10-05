@@ -94,8 +94,7 @@ bool GLGizmoVoronoi::on_esc_key_down()
 
 std::string GLGizmoVoronoi::get_icon_filename(bool is_dark_mode) const
 {
-    // For now, return empty - we'll need to create an icon later
-    return is_dark_mode ? "voronoi_dark.svg" : "voronoi.svg";
+    return is_dark_mode ? "toolbar_voronoi_dark.svg" : "toolbar_voronoi.svg";
 }
 
 std::string GLGizmoVoronoi::on_get_name() const
