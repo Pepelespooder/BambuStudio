@@ -18,6 +18,7 @@
 #include <vector>
 #include <algorithm>
 #include <thread>
+#include <cmath>
 #include "FileHelp.hpp"
 #define STB_DXT_IMPLEMENTATION
 #include "stb_dxt/stb_dxt.h"
@@ -569,7 +570,7 @@ bool GLTexture::generate_from_text(const std::string &text_str, wxFont &font, wx
     return true;
 }
 
-bool GLTexture::generate_texture_from_text(const std::string& text_str, wxFont& font, int& ww, int& hh, int& hl, wxColor background, wxColor foreground)
+bool GLTexture::generate_texture_from_text(const std::string& text_str, wxFont& font, int& ww, int& hh, int& hl, wxColor background, wxColor foreground, bool rotate_clockwise)
 {
     if (text_str.empty())
     {
@@ -578,63 +579,170 @@ bool GLTexture::generate_texture_from_text(const std::string& text_str, wxFont& 
     }
 
     wxString msg = _(text_str);
-    wxMemoryDC memDC;
-
-    memDC.SetFont(font);
-
-    // calculates texture size
-    wxCoord w, h, ll;
     wxClientDC dc(wxGetApp().GetTopWindow());
     dc.SetFont(font);
-    dc.GetMultiLineTextExtent(msg, &w, &h, &ll, &font);
 
+    wxImage image;
+    int texture_w = 0;
+    int texture_h = 0;
+    int original_w = 0;
+    int original_h = 0;
+    hl = 0;
 
-    m_original_width = (int)w;
-    m_original_height = (int)h;
-    m_width = (int)next_highest_power_of_2((uint32_t)w);
-    m_height = (int)next_highest_power_of_2((uint32_t)h);
-    ww = m_width;
-    hh = m_height;
-    hl = ll;
-    // generates bitmap
-    wxBitmap bitmap(m_width, m_height);
+    if (!rotate_clockwise) {
+        wxCoord text_w = 0;
+        wxCoord text_h = 0;
+        wxCoord ll     = 0;
+        dc.GetMultiLineTextExtent(msg, &text_w, &text_h, &ll, &font);
 
-    memDC.SelectObject(bitmap);
-    memDC.SetBackground(wxBrush(background));
-    memDC.Clear();
+        original_w = (int)text_w;
+        original_h = (int)text_h;
+        texture_w  = (int)next_highest_power_of_2((uint32_t)std::max<wxCoord>(1, text_w));
+        texture_h  = (int)next_highest_power_of_2((uint32_t)std::max<wxCoord>(1, text_h));
+        ww = texture_w;
+        hh = texture_h;
+        hl = ll;
 
-    // draw message
-    memDC.SetTextForeground(*wxWHITE);
-    memDC.DrawLabel(msg, wxRect(0, 0, m_width, m_height), wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
+        wxBitmap bitmap(texture_w, texture_h);
+        wxMemoryDC memDC;
+        memDC.SelectObject(bitmap);
+        memDC.SetBackground(wxBrush(background));
+        memDC.Clear();
+        memDC.SetTextForeground(*wxWHITE);
+        memDC.SetFont(font);
+        memDC.DrawLabel(msg, wxRect(0, 0, texture_w, texture_h), wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
+        memDC.SelectObject(wxNullBitmap);
 
-    memDC.SelectObject(wxNullBitmap);
+        image = bitmap.ConvertToImage();
+    } else {
+        struct GlyphInfo {
+            wxString glyph;
+            int      width;
+            int      height;
+            bool     newline;
+        };
 
-    // Convert the bitmap into a linear data ready to be loaded into the GPU.
-    wxImage image = bitmap.ConvertToImage();
+        std::vector<GlyphInfo> glyphs;
+        glyphs.reserve(msg.length());
 
-    // prepare buffer
+        int max_rotated_width = 0;
+        const int glyph_spacing = std::max(1, font.GetPointSize() / 2);
+        const int line_spacing  = glyph_spacing * 2;
+
+        for (wxUniChar ch : msg) {
+            if (ch == '\n') {
+                glyphs.push_back({ wxString(), 0, 0, true });
+                continue;
+            }
+
+            wxCoord w = 0;
+            wxCoord h = 0;
+            dc.GetTextExtent(wxString(ch), &w, &h);
+            max_rotated_width = std::max(max_rotated_width, (int)h);
+            glyphs.push_back({ wxString(ch), (int)w, (int)h, false });
+        }
+
+        if (glyphs.empty())
+            return false;
+
+        double total_height = 0.0;
+        bool first_in_segment = true;
+        for (const GlyphInfo &glyph : glyphs) {
+            if (glyph.newline) {
+                total_height   += line_spacing;
+                first_in_segment = true;
+                continue;
+            }
+
+            if (!first_in_segment)
+                total_height += glyph_spacing;
+            total_height += std::max(1, glyph.width);
+            first_in_segment = false;
+        }
+
+        original_w = std::max(1, max_rotated_width);
+        original_h = std::max(1, (int)std::ceil(total_height));
+        texture_w  = (int)next_highest_power_of_2((uint32_t)original_w);
+        texture_h  = (int)next_highest_power_of_2((uint32_t)original_h);
+        ww = texture_w;
+        hh = texture_h;
+
+        wxBitmap canvas(texture_w, texture_h);
+        wxMemoryDC canvas_dc;
+        canvas_dc.SelectObject(canvas);
+        canvas_dc.SetBackground(wxBrush(background));
+        canvas_dc.Clear();
+        canvas_dc.SetFont(font);
+        canvas_dc.SetTextForeground(*wxWHITE);
+
+        double cursor_y = 0.0;
+        first_in_segment = true;
+        for (const GlyphInfo &glyph : glyphs) {
+            if (glyph.newline) {
+                cursor_y += line_spacing;
+                first_in_segment = true;
+                continue;
+            }
+
+            if (!first_in_segment)
+                cursor_y += glyph_spacing;
+
+            const int glyph_width  = std::max(1, glyph.width);
+            const int glyph_height = std::max(1, glyph.height);
+
+            wxBitmap glyph_bitmap(glyph_width, glyph_height);
+            wxMemoryDC glyph_dc;
+            glyph_dc.SelectObject(glyph_bitmap);
+            glyph_dc.SetBackground(wxBrush(background));
+            glyph_dc.Clear();
+            glyph_dc.SetFont(font);
+            glyph_dc.SetTextForeground(*wxWHITE);
+            glyph_dc.DrawText(glyph.glyph, 0, 0);
+            glyph_dc.SelectObject(wxNullBitmap);
+
+            wxImage glyph_image = glyph_bitmap.ConvertToImage();
+            glyph_image = glyph_image.Rotate90(true);
+            wxBitmap rotated_bmp(glyph_image);
+
+            const int dest_x = std::max(0, (original_w - rotated_bmp.GetWidth()) / 2);
+            const int dest_y = std::max(0, (int)std::round(cursor_y));
+
+            canvas_dc.DrawBitmap(rotated_bmp, dest_x, dest_y, false);
+
+            cursor_y += glyph_width;
+            first_in_segment = false;
+        }
+
+        canvas_dc.SelectObject(wxNullBitmap);
+        image = canvas.ConvertToImage();
+    }
+
+    if (!image.IsOk())
+        return false;
+
+    m_original_width  = original_w;
+    m_original_height = original_h;
+    m_width           = texture_w;
+    m_height          = texture_h;
+
     std::vector<unsigned char> data(4 * m_width * m_height, 0);
     const unsigned char* src = image.GetData();
     if (!src) {
         BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << ":font ConvertToImage error:\n" << text_str << "," << font.GetBaseFont().GetNativeFontInfoDesc().ToStdString();
         return false;
     }
-    /* for debug use
-    std::ofstream fout;
-    fout.open(text_str+std::to_string(m_width)+"_"+std::to_string(m_height)+".rgb", std::ios::out);
-    fout.write((const char*)src, 3 * m_width * m_height);
-    fout.close();*/
+
     bool found = false;
-    for (int h = 0; h < m_height; ++h) {
-        unsigned char* dst = data.data() + 4 * h * m_width;
-        for (int w = 0; w < m_width; ++w) {
+    for (int y = 0; y < m_height; ++y) {
+        unsigned char* dst = data.data() + 4 * y * m_width;
+        for (int x = 0; x < m_width; ++x) {
             *dst++ = foreground.Red();
             *dst++ = foreground.Green();
             *dst++ = foreground.Blue();
             *dst++ = (unsigned char)std::min<int>(255, *src);
             if ((*src) != background.Red() && !found) {
                 found = true;
-                if (m_height - h < font.GetPointSize())
+                if (m_height - y < font.GetPointSize())
                     return false;
             }
             src += 3;
@@ -645,11 +753,11 @@ bool GLTexture::generate_texture_from_text(const std::string& text_str, wxFont& 
 
     found = false;
     src -= 3;
-    for (int h = m_height; h > 0; --h) {
-        for (int w = m_width; w > 0; --w) {
+    for (int y = m_height; y > 0; --y) {
+        for (int x = m_width; x > 0; --x) {
             if ((*src) != background.Red() && !found) {
                 found = true;
-                if (h < font.GetPointSize())
+                if (y < font.GetPointSize())
                     return false;
             }
             src -= 3;
@@ -658,7 +766,6 @@ bool GLTexture::generate_texture_from_text(const std::string& text_str, wxFont& 
     if (!found)
         return false;
 
-    // sends buffer to gpu
     glsafe(::glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
     glsafe(::glGenTextures(1, &m_id));
     glsafe(::glBindTexture(GL_TEXTURE_2D, (GLuint)m_id));

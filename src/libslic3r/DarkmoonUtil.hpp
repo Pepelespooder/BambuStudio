@@ -81,6 +81,7 @@ struct DarkmoonTexturePartInfo {
     bool bold { true };
     std::array<uint8_t, 4> text_color { { 179, 179, 179, 255 } };
     std::array<uint8_t, 4> background_color { { 0, 0, 0, 0 } };
+    bool rotate_clockwise { false };
 };
 
 void append_darkmoon_plate_slugs(std::vector<std::string> &slugs);

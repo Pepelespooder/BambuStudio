@@ -704,6 +704,7 @@ public:
             bool text_bold { true };
             std::array<uint8_t, 4> text_color { { 179, 179, 179, 255 } };
             std::array<uint8_t, 4> background_color { { 0, 0, 0, 0 } };
+            bool rotate_clockwise { false };
 
             TexturePart(float xx, float yy, float ww, float hh, std::string file,
                         bool preserve = false,
@@ -746,6 +747,7 @@ public:
                 this->text_bold             = part.text_bold;
                 this->text_color            = part.text_color;
                 this->background_color      = part.background_color;
+                this->rotate_clockwise      = part.rotate_clockwise;
             }
 
             void update_buffer();

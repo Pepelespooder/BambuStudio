@@ -279,14 +279,8 @@ std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture
 
     constexpr float kHorizontalGap = 4.f;
 
-    auto make_vertical_label = [](const char *label) {
-        std::string result;
-        for (const char *c = label; *c != '\0'; ++c) {
-            if (!result.empty())
-                result.push_back('\n');
-            result.push_back(*c);
-        }
-        return result;
+    auto make_label = [](const char *label) {
+        return std::string(label);
     };
 
     DarkmoonTexturePartInfo darkmoon_part1;
@@ -294,9 +288,10 @@ std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture
     darkmoon_part1.y = 52.f;
     darkmoon_part1.w = kPartBannerWidth;
     darkmoon_part1.h = kPartBannerHeight;
-    darkmoon_part1.text = make_vertical_label("DARKMOON");
+    darkmoon_part1.text = make_label("DARKMOON");
     darkmoon_part1.font_point_size = 20.f;
     darkmoon_part1.bold = true;
+    darkmoon_part1.rotate_clockwise = true;
 
     auto part2_for = [&](const char *label) {
         DarkmoonTexturePartInfo part2;
@@ -304,9 +299,10 @@ std::pair<DarkmoonTexturePartInfo, DarkmoonTexturePartInfo> get_darkmoon_texture
         part2.y = darkmoon_part1.y;
         part2.w = kPartBannerWidth;
         part2.h = kPartBannerHeight;
-        part2.text = make_vertical_label(label);
+        part2.text = make_label(label);
         part2.font_point_size = 22.f;
         part2.bold = true;
+        part2.rotate_clockwise = true;
         // Leave filename empty so the GUI knows to render text instead of an SVG asset.
         return part2;
     };

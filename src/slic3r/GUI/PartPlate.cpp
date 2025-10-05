@@ -6440,6 +6440,7 @@ void PartPlateList::init_bed_type_info()
             darkmoon_part1.text_bold        = texture_parts.first.bold;
             darkmoon_part1.text_color       = texture_parts.first.text_color;
             darkmoon_part1.background_color = texture_parts.first.background_color;
+            darkmoon_part1.rotate_clockwise = texture_parts.first.rotate_clockwise;
         }
 
         const bool part2_has_text = !texture_parts.second.text.empty();
@@ -6453,6 +6454,7 @@ void PartPlateList::init_bed_type_info()
             darkmoon_part2.text_bold        = texture_parts.second.bold;
             darkmoon_part2.text_color       = texture_parts.second.text_color;
             darkmoon_part2.background_color = texture_parts.second.background_color;
+            darkmoon_part2.rotate_clockwise = texture_parts.second.rotate_clockwise;
         }
         
         bed_texture_info[plate.bed_type].parts.push_back(darkmoon_part1);
@@ -6605,7 +6607,7 @@ void PartPlateList::load_bedtype_textures()
 				int tex_w = 0;
 				int tex_h = 0;
 				int baseline = 0;
-				if (!part.texture->generate_texture_from_text(part.text, font, tex_w, tex_h, baseline, background, foreground)) {
+					if (!part.texture->generate_texture_from_text(part.text, font, tex_w, tex_h, baseline, background, foreground, part.rotate_clockwise)) {
 					BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << ": failed to generate Darkmoon label texture";
 					delete part.texture;
 					part.texture = nullptr;
@@ -6616,7 +6618,7 @@ void PartPlateList::load_bedtype_textures()
 						static_cast<float>(part.texture->get_original_height()));
 				}
 			} else if (!part.filename.empty()) {
-				std::string filename = resources_dir() + "/images/" + part.filename;
+				const std::string filename = resources_dir() + "/images/" + part.filename;
 				if (boost::filesystem::exists(filename)) {
 					part.texture = new GLTexture();
 					if (!part.texture->load_from_svg_file(filename, true, false, false, logo_tex_size)) {
