@@ -467,22 +467,6 @@ namespace Slic3r::GUI {
         ImGui::PopStyleVar(1);
     }
 
-    bool GLGizmoVoronoi::on_is_activable() const
-    {
-        fprintf(stderr, "GLGizmoVoronoi: on_is_activable() CALLED\n");
-        fflush(stderr);
-        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_is_activable() CALLED";
-
-        const Selection& selection = m_parent.get_selection();
-        bool result = selection.is_single_full_instance() && !selection.is_wipe_tower();
-
-        fprintf(stderr, "GLGizmoVoronoi: on_is_activable() returning %d\n", result);
-        fflush(stderr);
-        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_is_activable() returning " << result;
-
-        return result;
-    }
-
     void GLGizmoVoronoi::on_set_state()
     {
         fprintf(stderr, "GLGizmoVoronoi: on_set_state() ENTRY\n");
@@ -490,6 +474,26 @@ namespace Slic3r::GUI {
         BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() START - state: " << (int)get_state();
 
         try {
+            // CRITICAL: Grab volume BEFORE calling base class, because base class may affect selection
+            if (get_state() == GLGizmoBase::EState::On) {
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - activating gizmo, capturing volume BEFORE base class";
+
+                // Check if plater is available
+                Plater* plater = wxGetApp().plater();
+                if (plater) {
+                    const Selection& selection = m_parent.get_selection();
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - selection obtained BEFORE base class";
+
+                    Model& model = plater->model();
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - model obtained BEFORE base class";
+
+                    m_volume = get_model_volume(selection, model);
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - volume captured BEFORE base class: " << (m_volume ? "VALID" : "NULL");
+                } else {
+                    BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: on_set_state() - plater is NULL, can't capture volume";
+                }
+            }
+
             fprintf(stderr, "GLGizmoVoronoi: on_set_state() calling BASE CLASS\n");
             fflush(stderr);
             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - calling base class";
@@ -508,25 +512,8 @@ namespace Slic3r::GUI {
             }
 
             if (get_state() == GLGizmoBase::EState::On) {
-                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - activating gizmo";
-                
-                // Check if plater is available
-                Plater* plater = wxGetApp().plater();
-                if (!plater) {
-                    BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: on_set_state() - plater is NULL, returning";
-                    return;
-                }
-                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - plater OK";
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - post-base-class activation";
 
-                const Selection& selection = m_parent.get_selection();
-                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - selection obtained";
-                
-                Model& model = plater->model();
-                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - model obtained";
-                
-                m_volume = get_model_volume(selection, model);
-                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - volume: " << (m_volume ? "VALID" : "NULL");
-                
                 m_move_to_center = true;
 
                 // Initialize seed preview if enabled

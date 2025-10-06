@@ -31,7 +31,6 @@ namespace Slic3r {
             virtual std::string on_get_name() const override;
             virtual std::string on_get_name_str() override { return "Voronoi"; }
             virtual void on_render_input_window(float x, float y, float bottom_limit) override;
-            virtual bool on_is_activable() const override;
             virtual bool on_is_selectable() const override { return GLGizmoPainterBase::on_is_selectable(); }
             virtual void on_set_state() override;
 
