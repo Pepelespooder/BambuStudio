@@ -8,6 +8,7 @@
 
 #include <mutex>
 #include <thread>
+#include <map>
 #include <wx/string.h>
 
 namespace Slic3r {
@@ -166,6 +167,8 @@ namespace Slic3r {
             const std::string tr_wall_thickness;
             const std::string tr_random_seed;
             const std::string tr_seed_preview;
+
+            std::map<std::string, wxString> m_desc;
 
             class VoronoiCanceledException : public std::exception
             {

@@ -346,9 +346,9 @@ namespace Slic3r {
             std::vector<Point_3> voronoi_verts;
             for (const auto& cell : incident_cells) {
                 if (!dt.is_infinite(cell)) {
-                    // Get the dual point (circumcenter) using the dual method
-                    Point_3 cc = dt.dual(cell);
-                    
+                    // Get the circumcenter of the cell (this is the Voronoi vertex)
+                    Point_3 cc = cell->circumcenter();
+
                     // Basic bounds check
                     if (cc.x() >= bounds.min.x() - 1.0 && cc.x() <= bounds.max.x() + 1.0 &&
                         cc.y() >= bounds.min.y() - 1.0 && cc.y() <= bounds.max.y() + 1.0 &&
