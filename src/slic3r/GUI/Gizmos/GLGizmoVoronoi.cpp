@@ -411,8 +411,8 @@ namespace Slic3r::GUI {
             // Initialize seed preview if enabled
             if (m_configuration.show_seed_preview) {
                 update_seed_preview();
+                update_2d_voronoi_preview();
             }
-            update_2d_voronoi_preview();
         }
         else {
             m_volume = nullptr;
@@ -1001,10 +1001,14 @@ namespace Slic3r::GUI {
         // Initialize shortcut key and descriptions (similar to other painter gizmos)
         m_shortcut_key = WXK_CONTROL_V;
         
+        // Get shortkey prefixes
+        const wxString ctrl = GUI::shortkey_ctrl_prefix();
+        const wxString alt = GUI::shortkey_alt_prefix();
+        
         // Set up tool descriptions
-        m_desc["clipping_of_view_caption"] = GUI::shortkey_alt_prefix() + _L("Mouse wheel");
+        m_desc["clipping_of_view_caption"] = alt + _L("Mouse wheel");
         m_desc["clipping_of_view"] = _L("Section view");
-        m_desc["cursor_size_caption"] = _L("Ctrl + Mouse wheel");
+        m_desc["cursor_size_caption"] = ctrl + _L("Mouse wheel");
         m_desc["cursor_size"] = _L("Pen size");
         m_desc["remove_caption"] = _L("Shift + Left mouse button");
         m_desc["remove"] = _L("Erase");
