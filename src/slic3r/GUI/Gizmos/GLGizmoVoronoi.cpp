@@ -501,6 +501,13 @@ namespace Slic3r::GUI {
             fflush(stderr);
             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - base class returned";
 
+            // Disable clipping plane immediately after base class (which may have enabled it)
+            // Only enable clipping when user explicitly enters painting mode
+            if (m_c && m_c->object_clipper() && !m_configuration.enable_triangle_painting) {
+                m_c->object_clipper()->set_position(0, false);
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - disabled clipping plane after base class";
+            }
+
             if (get_state() == GLGizmoBase::EState::On) {
                 BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - activating gizmo";
                 
