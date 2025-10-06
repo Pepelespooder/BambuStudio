@@ -23,6 +23,11 @@ namespace Slic3r {
             SeedType seed_type = SeedType::Vertices;
             int num_seeds = 50;
             float wall_thickness = 1.0f;
+            float edge_thickness = 1.0f;  // Thickness of wireframe edges/struts connecting Voronoi vertices
+            EdgeShape edge_shape = EdgeShape::Cylinder;
+            int edge_segments = 8;
+            float edge_curvature = 0.0f;  // 0 = straight, 1 = maximum curve
+            int edge_subdivisions = 0;  // 0 = straight line, 1+ = curved segments
             bool hollow_cells = true;
             bool clip_to_input = false;
             int random_seed = 42;  // For reproducible random generation
@@ -82,6 +87,26 @@ namespace Slic3r {
         static void create_hollow_cells(
             indexed_triangle_set& mesh,
             float wall_thickness
+        );
+
+        // Edge shape types
+        enum class EdgeShape {
+            Cylinder,
+            Square,
+            Hexagon,
+            Octagon,
+            Star
+        };
+
+        // Create wireframe structure from Voronoi edges
+        static void create_edge_structure(
+            indexed_triangle_set& result,
+            const std::vector<Vec3d>& seed_points,
+            const BoundingBoxf3& bounds,
+            float edge_thickness,
+            EdgeShape edge_shape,
+            int edge_segments,
+            const Config& config
         );
     };
 

@@ -137,10 +137,12 @@ namespace Slic3r {
         if (config.progress_callback && !config.progress_callback(20))
             return nullptr;
 
-        // Step 3: Perform Voronoi tessellation
-        const indexed_triangle_set* clip_mesh = config.clip_to_input ? &input_mesh : nullptr;
-        auto result = tessellate_voronoi(seed_points, bbox, config, clip_mesh);
-        if (!result)
+        // Step 3: Create wireframe structure from Voronoi edges
+        auto result = std::make_unique<indexed_triangle_set>();
+        create_edge_structure(*result, seed_points, bbox, config.edge_thickness,
+                            config.edge_shape, config.edge_segments, config);
+
+        if (!result || result->vertices.empty())
             return nullptr;
 
         if (config.progress_callback && !config.progress_callback(90))
@@ -669,6 +671,238 @@ namespace Slic3r {
                 }
             }
         }
+    }
+
+    void VoronoiMesh::create_edge_structure(
+        indexed_triangle_set& result,
+        const std::vector<Vec3d>& seed_points,
+        const BoundingBoxf3& bounds,
+        float edge_thickness,
+        EdgeShape edge_shape,
+        int edge_segments,
+        const Config& config)
+    {
+        if (seed_points.size() < 4 || edge_thickness <= 0.0f)
+            return;
+
+        // Build Delaunay triangulation to get Voronoi edges
+        Delaunay dt;
+        try {
+            for (size_t i = 0; i < seed_points.size(); ++i) {
+                const auto& p = seed_points[i];
+                if (std::isnan(p.x()) || std::isnan(p.y()) || std::isnan(p.z()) ||
+                    std::isinf(p.x()) || std::isinf(p.y()) || std::isinf(p.z())) {
+                    continue;
+                }
+                auto vh = dt.insert(Point_3(p.x(), p.y(), p.z()));
+                if (vh != Delaunay::Vertex_handle()) {
+                    vh->info() = static_cast<int>(i);
+                }
+            }
+
+            if (dt.number_of_vertices() < 4 || !dt.is_valid())
+                return;
+        }
+        catch (...) {
+            return;
+        }
+
+        // Extract unique Voronoi edges (circumcenters of adjacent tetrahedra)
+        std::set<std::pair<Point_3, Point_3>> unique_edges;
+
+        for (auto eit = dt.finite_edges_begin(); eit != dt.finite_edges_end(); ++eit) {
+            auto cell1 = eit->first;
+            auto cell2 = eit->first->neighbor(eit->second);
+
+            if (!dt.is_infinite(cell1) && !dt.is_infinite(cell2)) {
+                Point_3 cc1 = cell1->circumcenter();
+                Point_3 cc2 = cell2->circumcenter();
+
+                // Bounds check
+                if (cc1.x() >= bounds.min.x() - 1.0 && cc1.x() <= bounds.max.x() + 1.0 &&
+                    cc1.y() >= bounds.min.y() - 1.0 && cc1.y() <= bounds.max.y() + 1.0 &&
+                    cc1.z() >= bounds.min.z() - 1.0 && cc1.z() <= bounds.max.z() + 1.0 &&
+                    cc2.x() >= bounds.min.x() - 1.0 && cc2.x() <= bounds.max.x() + 1.0 &&
+                    cc2.y() >= bounds.min.y() - 1.0 && cc2.y() <= bounds.max.y() + 1.0 &&
+                    cc2.z() >= bounds.min.z() - 1.0 && cc2.z() <= bounds.max.z() + 1.0) {
+
+                    // Store edge (ensure consistent ordering)
+                    auto edge = (cc1 < cc2) ? std::make_pair(cc1, cc2) : std::make_pair(cc2, cc1);
+                    unique_edges.insert(edge);
+                }
+            }
+        }
+
+        if (config.progress_callback && !config.progress_callback(50))
+            return;
+
+        // Generate cross-section profile based on shape type
+        auto get_profile_point = [&](int i, float radius) -> Vec3d {
+            float angle = (2.0f * M_PI * i) / edge_segments;
+            float r = radius;
+
+            switch (edge_shape) {
+                case EdgeShape::Square: {
+                    // Square cross-section
+                    float t = fmod(angle / (M_PI / 2.0f), 4.0f);
+                    int side = int(t);
+                    float blend = t - side;
+                    float x, y;
+                    switch (side) {
+                        case 0: x = 1.0f; y = blend * 2.0f - 1.0f; break;
+                        case 1: x = 1.0f - blend * 2.0f; y = 1.0f; break;
+                        case 2: x = -1.0f; y = 1.0f - blend * 2.0f; break;
+                        default: x = blend * 2.0f - 1.0f; y = -1.0f; break;
+                    }
+                    return Vec3d(x * r, y * r, 0);
+                }
+
+                case EdgeShape::Hexagon:
+                case EdgeShape::Octagon: {
+                    // Regular polygon
+                    int sides = (edge_shape == EdgeShape::Hexagon) ? 6 : 8;
+                    float snap_angle = std::round(angle / (2.0f * M_PI / sides)) * (2.0f * M_PI / sides);
+                    return Vec3d(r * std::cos(snap_angle), r * std::sin(snap_angle), 0);
+                }
+
+                case EdgeShape::Star: {
+                    // 5-pointed star
+                    int point = int(angle / (2.0f * M_PI / 10.0f));
+                    float point_angle = point * (2.0f * M_PI / 10.0f);
+                    float next_angle = (point + 1) * (2.0f * M_PI / 10.0f);
+                    float blend = (angle - point_angle) / (next_angle - point_angle);
+
+                    float r1 = (point % 2 == 0) ? r : r * 0.4f;  // Outer/inner radius
+                    float r2 = (point % 2 == 0) ? r * 0.4f : r;
+
+                    float current_r = r1 * (1.0f - blend) + r2 * blend;
+                    return Vec3d(current_r * std::cos(angle), current_r * std::sin(angle), 0);
+                }
+
+                default: // Cylinder
+                    return Vec3d(r * std::cos(angle), r * std::sin(angle), 0);
+            }
+        };
+
+        const float radius = edge_thickness * 0.5f;
+
+        for (const auto& edge : unique_edges) {
+            Vec3d p1(edge.first.x(), edge.first.y(), edge.first.z());
+            Vec3d p2(edge.second.x(), edge.second.y(), edge.second.z());
+
+            Vec3d dir = (p2 - p1).normalized();
+            float length = (p2 - p1).norm();
+
+            if (length < 1e-6)
+                continue;
+
+            // Generate curve points along the edge
+            std::vector<Vec3d> curve_points;
+            int num_curve_segments = config.edge_subdivisions + 1;
+
+            if (config.edge_subdivisions == 0 || config.edge_curvature <= 0.0f) {
+                // Straight line
+                curve_points.push_back(p1);
+                curve_points.push_back(p2);
+            } else {
+                // Create curved path using perpendicular offset
+                Vec3d midpoint = (p1 + p2) * 0.5;
+
+                // Find perpendicular direction for curve offset
+                Vec3d curve_perp;
+                if (std::abs(dir.z()) < 0.9) {
+                    curve_perp = dir.cross(Vec3d(0, 0, 1)).normalized();
+                } else {
+                    curve_perp = dir.cross(Vec3d(1, 0, 0)).normalized();
+                }
+
+                // Offset amount based on curvature and edge length
+                float offset_amount = length * config.edge_curvature * 0.5f;
+
+                // Generate curve points using quadratic Bezier
+                for (int s = 0; s <= num_curve_segments; ++s) {
+                    float t = float(s) / float(num_curve_segments);
+
+                    // Quadratic Bezier: B(t) = (1-t)²P0 + 2(1-t)t*P1 + t²P2
+                    Vec3d control_point = midpoint + curve_perp * offset_amount;
+
+                    float b0 = (1.0f - t) * (1.0f - t);
+                    float b1 = 2.0f * (1.0f - t) * t;
+                    float b2 = t * t;
+
+                    Vec3d point = p1 * b0 + control_point * b1 + p2 * b2;
+                    curve_points.push_back(point);
+                }
+            }
+
+            // Create strut geometry along the curve
+            for (size_t seg = 0; seg < curve_points.size() - 1; ++seg) {
+                Vec3d seg_p1 = curve_points[seg];
+                Vec3d seg_p2 = curve_points[seg + 1];
+                Vec3d seg_dir = (seg_p2 - seg_p1).normalized();
+
+                // Find perpendicular vectors for this segment
+                Vec3d perp1;
+                if (std::abs(seg_dir.z()) < 0.9) {
+                    perp1 = seg_dir.cross(Vec3d(0, 0, 1)).normalized();
+                } else {
+                    perp1 = seg_dir.cross(Vec3d(1, 0, 0)).normalized();
+                }
+                Vec3d perp2 = seg_dir.cross(perp1).normalized();
+
+                size_t base_idx = result.vertices.size();
+
+                // Create strut vertices using the profile
+                for (int i = 0; i <= edge_segments; ++i) {
+                    Vec3d profile = get_profile_point(i, radius);
+                    Vec3d offset = perp1 * profile.x() + perp2 * profile.y();
+
+                    result.vertices.emplace_back((seg_p1 + offset).cast<float>());
+                    result.vertices.emplace_back((seg_p2 + offset).cast<float>());
+                }
+
+                // Create strut faces for this segment
+                for (int i = 0; i < edge_segments; ++i) {
+                    int i0 = base_idx + i * 2;
+                    int i1 = base_idx + i * 2 + 1;
+                    int i2 = base_idx + (i + 1) * 2;
+                    int i3 = base_idx + (i + 1) * 2 + 1;
+
+                    result.indices.emplace_back(i0, i2, i1);
+                    result.indices.emplace_back(i1, i2, i3);
+                }
+
+                // Add caps for first and last segments only
+                if (seg == 0) {
+                    // Cap at start
+                    Vec3f center1 = seg_p1.cast<float>();
+                    size_t cap1_idx = result.vertices.size();
+                    result.vertices.push_back(center1);
+
+                    for (int i = 0; i < edge_segments; ++i) {
+                        int i0 = base_idx + i * 2;
+                        int i2 = base_idx + ((i + 1) % edge_segments) * 2;
+                        result.indices.emplace_back(cap1_idx, i2, i0);
+                    }
+                }
+
+                if (seg == curve_points.size() - 2) {
+                    // Cap at end
+                    Vec3f center2 = seg_p2.cast<float>();
+                    size_t cap2_idx = result.vertices.size();
+                    result.vertices.push_back(center2);
+
+                    for (int i = 0; i < edge_segments; ++i) {
+                        int i1 = base_idx + i * 2 + 1;
+                        int i3 = base_idx + ((i + 1) % edge_segments) * 2 + 1;
+                        result.indices.emplace_back(cap2_idx, i1, i3);
+                    }
+                }
+            }
+        }
+
+        if (config.progress_callback)
+            config.progress_callback(80);
     }
 
 } // namespace Slic3r

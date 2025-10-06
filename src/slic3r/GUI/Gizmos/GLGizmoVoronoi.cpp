@@ -155,7 +155,7 @@ namespace Slic3r::GUI {
             m_configuration.seed_type = static_cast<Configuration::SeedType>(current_seed);
         }
 
-        // Number of seeds with manual input
+        // Number of seeds with manual input (controls wireframe density)
         ImGui::Text("%s:", tr_num_seeds.c_str());
         ImGui::SliderInt("##num_seeds", &m_configuration.num_seeds, 10, 500);
 
@@ -168,6 +168,42 @@ namespace Slic3r::GUI {
         // Wall thickness
         ImGui::Text("%s:", tr_wall_thickness.c_str());
         ImGui::SliderFloat("##wall_thickness", &m_configuration.wall_thickness, 0.1f, 5.0f);
+
+        // Edge thickness (branches/struts)
+        ImGui::Text("%s:", into_u8(_u8L("Edge thickness")).c_str());
+        ImGui::SliderFloat("##edge_thickness", &m_configuration.edge_thickness, 0.1f, 5.0f);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Thickness of wireframe edges between Voronoi vertices")).c_str());
+        }
+
+        // Edge shape selection
+        ImGui::Text("%s:", into_u8(_u8L("Edge shape")).c_str());
+        const char* edge_shapes[] = { "Cylinder", "Square", "Hexagon", "Octagon", "Star" };
+        int current_shape = static_cast<int>(m_configuration.edge_shape);
+        if (ImGui::Combo("##edge_shape", &current_shape, edge_shapes, IM_ARRAYSIZE(edge_shapes))) {
+            m_configuration.edge_shape = static_cast<Configuration::EdgeShape>(current_shape);
+        }
+
+        // Edge detail/segments (for custom complexity)
+        ImGui::Text("%s:", into_u8(_u8L("Edge detail")).c_str());
+        ImGui::SliderInt("##edge_segments", &m_configuration.edge_segments, 3, 32);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Number of segments for edge cross-section (higher = smoother)")).c_str());
+        }
+
+        // Edge curvature control
+        ImGui::Text("%s:", into_u8(_u8L("Edge curvature")).c_str());
+        ImGui::SliderFloat("##edge_curvature", &m_configuration.edge_curvature, 0.0f, 1.0f, "%.2f");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Amount of curve/bend in struts (0 = straight, 1 = maximum curve)")).c_str());
+        }
+
+        // Edge subdivisions control
+        ImGui::Text("%s:", into_u8(_u8L("Edge subdivisions")).c_str());
+        ImGui::SliderInt("##edge_subdivisions", &m_configuration.edge_subdivisions, 0, 10);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Number of curve segments per edge (0 = straight, higher = smoother curves)")).c_str());
+        }
 
         // Hollow / solid toggle
         ImGui::Text("Cells:");
@@ -183,9 +219,12 @@ namespace Slic3r::GUI {
 
         ImGui::Separator();
 
-        // Random seed control
+        // Random seed control (controls wireframe pattern/layout)
         ImGui::Text("%s:", tr_random_seed.c_str());
         ImGui::InputInt("##random_seed", &m_configuration.random_seed);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Controls the pattern/layout of the wireframe structure")).c_str());
+        }
         ImGui::SameLine();
 
         // Randomize button with secondary styling
@@ -196,6 +235,9 @@ namespace Slic3r::GUI {
 
         if (ImGui::Button(into_u8(_u8L("Randomize")).c_str())) {
             randomize_seed();
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Generate new random pattern")).c_str());
         }
 
         ImGui::PopStyleColor(3);
@@ -468,6 +510,11 @@ namespace Slic3r::GUI {
                 voronoi_config.seed_type = static_cast<VoronoiMesh::SeedType>(m_state.config.seed_type);
                 voronoi_config.num_seeds = m_state.config.num_seeds;
                 voronoi_config.wall_thickness = m_state.config.wall_thickness;
+                voronoi_config.edge_thickness = m_state.config.edge_thickness;
+                voronoi_config.edge_shape = static_cast<VoronoiMesh::EdgeShape>(m_state.config.edge_shape);
+                voronoi_config.edge_segments = m_state.config.edge_segments;
+                voronoi_config.edge_curvature = m_state.config.edge_curvature;
+                voronoi_config.edge_subdivisions = m_state.config.edge_subdivisions;
                 voronoi_config.hollow_cells = m_state.config.hollow_cells;
                 voronoi_config.clip_to_input = m_state.config.clip_to_input;
                 voronoi_config.random_seed = m_state.config.random_seed;
