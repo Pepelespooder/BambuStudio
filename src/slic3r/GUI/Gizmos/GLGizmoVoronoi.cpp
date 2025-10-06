@@ -144,6 +144,10 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit)
     {
+        fprintf(stderr, "GLGizmoVoronoi: on_render_input_window() CALLED\n");
+        fflush(stderr);
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_render_input_window() START";
+
         if (!m_gui_cfg.has_value())
             create_gui_cfg();
 
@@ -430,11 +434,20 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::on_set_state()
     {
+        fprintf(stderr, "GLGizmoVoronoi: on_set_state() ENTRY\n");
+        fflush(stderr);
         BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() START - state: " << (int)get_state();
-        
+
         try {
+            fprintf(stderr, "GLGizmoVoronoi: on_set_state() calling BASE CLASS\n");
+            fflush(stderr);
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - calling base class";
+
             GLGizmoPainterBase::on_set_state();
-            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - base class called";
+
+            fprintf(stderr, "GLGizmoVoronoi: on_set_state() BASE CLASS returned\n");
+            fflush(stderr);
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - base class returned";
 
             if (get_state() == GLGizmoBase::EState::On) {
                 BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - activating gizmo";
