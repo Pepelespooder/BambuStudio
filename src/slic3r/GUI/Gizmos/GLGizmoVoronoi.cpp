@@ -175,9 +175,23 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::render_ui_content()
     {
+        // Ensure m_volume is set before rendering UI
+        if (!m_volume) {
+            Plater* plater = wxGetApp().plater();
+            if (plater) {
+                Model& model = plater->model();
+                const Selection& selection = m_parent.get_selection();
+                m_volume = get_model_volume(selection, model);
+            }
+        }
+
         // Display selected volume info
         if (m_volume) {
             ImGui::Text("%s: %s", tr_mesh_name.c_str(), m_volume->name.c_str());
+            ImGui::Separator();
+        }
+        else {
+            ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "No model selected!");
             ImGui::Separator();
         }
 
@@ -395,12 +409,28 @@ namespace Slic3r::GUI {
             if (m_state.status == State::idle) {
                 // Generate button with primary styling
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
-                ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(0 / 255.0f, 174 / 255.0f, 66 / 255.0f, 1.0f) : ImVec4(0 / 255.0f, 174 / 255.0f, 66 / 255.0f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(26 / 255.0f, 190 / 255.0f, 92 / 255.0f, 1.0f) : ImVec4(26 / 255.0f, 190 / 255.0f, 92 / 255.0f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(0 / 255.0f, 158 / 255.0f, 54 / 255.0f, 1.0f) : ImVec4(0 / 255.0f, 158 / 255.0f, 54 / 255.0f, 1.0f));
 
+                // Disable button if no volume
+                bool has_volume = (m_volume != nullptr);
+                if (!has_volume) {
+                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
+                } else {
+                    ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(0 / 255.0f, 174 / 255.0f, 66 / 255.0f, 1.0f) : ImVec4(0 / 255.0f, 174 / 255.0f, 66 / 255.0f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(26 / 255.0f, 190 / 255.0f, 92 / 255.0f, 1.0f) : ImVec4(26 / 255.0f, 190 / 255.0f, 92 / 255.0f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(0 / 255.0f, 158 / 255.0f, 54 / 255.0f, 1.0f) : ImVec4(0 / 255.0f, 158 / 255.0f, 54 / 255.0f, 1.0f));
+                }
+
+                ImGui::BeginDisabled(!has_volume);
                 if (ImGui::Button(into_u8(_u8L("Generate Voronoi")).c_str())) {
                     apply_voronoi();
+                }
+                ImGui::EndDisabled();
+
+                if (!has_volume) {
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "(Select a model first)");
                 }
 
                 ImGui::PopStyleColor(3);
@@ -525,6 +555,16 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::on_render()
     {
+        // Ensure m_volume is set by fetching from selection if needed
+        if (!m_volume) {
+            Plater* plater = wxGetApp().plater();
+            if (plater) {
+                Model& model = plater->model();
+                const Selection& selection = m_parent.get_selection();
+                m_volume = get_model_volume(selection, model);
+            }
+        }
+
         // Render preview if available
         if (m_glmodel.is_initialized()) {
             glsafe(::glEnable(GL_BLEND));
@@ -561,8 +601,14 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::apply_voronoi()
     {
-        if (!m_volume)
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - START";
+
+        if (!m_volume) {
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi::apply_voronoi() - m_volume is NULL!";
             return;
+        }
+
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - m_volume is valid";
 
         // Copy mesh data immediately before starting thread to avoid dangling pointer
         indexed_triangle_set mesh_copy;
@@ -591,6 +637,7 @@ namespace Slic3r::GUI {
         if (m_worker.joinable())
             m_worker.join();
 
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - Starting worker thread";
         m_worker = std::thread([this]() { process(); });
     }
 
@@ -612,6 +659,8 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::process()
     {
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::process() - Worker thread started";
+
         try {
             std::unique_ptr<indexed_triangle_set> result;
 
@@ -657,7 +706,9 @@ namespace Slic3r::GUI {
             }
 
             // Generate Voronoi mesh
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::process() - Calling VoronoiMesh::generate()";
             result = VoronoiMesh::generate(input_mesh_copy, voronoi_config);
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::process() - VoronoiMesh::generate() returned, result is " << (result ? "valid" : "NULL");
 
             if (result && !result->vertices.empty() && !result->indices.empty()) {
                 // Validate result before storing
@@ -672,10 +723,12 @@ namespace Slic3r::GUI {
                 }
 
                 if (valid) {
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::process() - Result is valid, vertices: " << result->vertices.size() << ", faces: " << result->indices.size();
                     std::lock_guard<std::mutex> lock(m_state_mutex);
                     m_state.result = std::move(result);
                     m_state.progress = 100;
 
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::process() - Calling worker_finished()";
                     call_after_if_active(this, [](GLGizmoVoronoi& gizmo) {
                         gizmo.worker_finished();
                         });
@@ -719,6 +772,8 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::worker_finished()
     {
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::worker_finished() - START";
+
         std::unique_ptr<indexed_triangle_set> result_its;
         const ModelVolume* mv = nullptr;
 
@@ -726,11 +781,13 @@ namespace Slic3r::GUI {
             std::lock_guard<std::mutex> lock(m_state_mutex);
 
             if (m_state.result && m_state.status == State::running) {
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::worker_finished() - Result available, moving to result_its";
                 result_its = std::move(m_state.result);
                 mv = m_state.mv;
                 m_state.status = State::idle;
             }
             else {
+                BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi::worker_finished() - No result or not running, exiting";
                 m_state.status = State::idle;
                 return;
             }
@@ -738,10 +795,14 @@ namespace Slic3r::GUI {
 
         // Apply the result to the model (outside of lock)
         if (result_its && mv && !result_its->vertices.empty()) {
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::worker_finished() - Applying result to model, vertices: " << result_its->vertices.size();
+
             // Get the model and update the volume's mesh
             Plater* plater = wxGetApp().plater();
-            if (!plater)
+            if (!plater) {
+                BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi::worker_finished() - Plater is NULL!";
                 return;
+            }
 
             Model& model = plater->model();
             const Selection& selection = m_parent.get_selection();
@@ -767,16 +828,23 @@ namespace Slic3r::GUI {
                 return;
 
             // Replace the mesh
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::worker_finished() - Replacing mesh in volume";
             TriangleMesh new_mesh(*result_its);
             volume->set_mesh(std::move(new_mesh));
             volume->calculate_convex_hull();
 
             // Mark as modified and update
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::worker_finished() - Updating plater";
             obj->invalidate_bounding_box();
             plater->changed_object(cid.object_id);
             plater->update();
 
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::worker_finished() - COMPLETE, model replaced!";
             request_rerender();
+        }
+        else {
+            BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi::worker_finished() - Cannot apply: result_its="
+                << (result_its ? "valid" : "NULL") << ", mv=" << (mv ? "valid" : "NULL");
         }
     }
 
