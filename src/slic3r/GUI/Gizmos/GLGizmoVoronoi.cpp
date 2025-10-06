@@ -422,11 +422,10 @@ namespace Slic3r::GUI {
                     ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(0 / 255.0f, 158 / 255.0f, 54 / 255.0f, 1.0f) : ImVec4(0 / 255.0f, 158 / 255.0f, 54 / 255.0f, 1.0f));
                 }
 
-                ImGui::BeginDisabled(!has_volume);
-                if (ImGui::Button(into_u8(_u8L("Generate Voronoi")).c_str())) {
+                // Button is always rendered, but only clickable if has_volume
+                if (ImGui::Button(into_u8(_u8L("Generate Voronoi")).c_str()) && has_volume) {
                     apply_voronoi();
                 }
-                ImGui::EndDisabled();
 
                 if (!has_volume) {
                     ImGui::SameLine();
