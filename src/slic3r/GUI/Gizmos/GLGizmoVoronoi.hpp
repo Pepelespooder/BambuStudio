@@ -180,12 +180,12 @@ namespace Slic3r {
             };
             std::optional<GuiCfg> m_gui_cfg;
 
-            const std::string tr_mesh_name;
-            const std::string tr_seed_type;
-            const std::string tr_num_seeds;
-            const std::string tr_wall_thickness;
-            const std::string tr_random_seed;
-            const std::string tr_seed_preview;
+            std::string tr_mesh_name;
+            std::string tr_seed_type;
+            std::string tr_num_seeds;
+            std::string tr_wall_thickness;
+            std::string tr_random_seed;
+            std::string tr_seed_preview;
 
             std::map<std::string, wxString> m_desc;
 
