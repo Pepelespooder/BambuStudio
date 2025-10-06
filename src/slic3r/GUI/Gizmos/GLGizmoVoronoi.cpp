@@ -937,7 +937,7 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::render_triangles(const Selection& selection) const
     {
-        if (!m_configuration.enable_triangle_painting)
+        if (!m_configuration.enable_triangle_painting || !m_c)
             return;
 
         const ModelObject* mo = m_c->selection_info()->model_object();
@@ -948,7 +948,7 @@ namespace Slic3r::GUI {
                 if (mv->is_model_part()) {
                     auto it = std::find(mo->volumes.begin(), mo->volumes.end(), mv);
                     int mesh_id = std::distance(mo->volumes.begin(), it);
-                    if (mesh_id < (int)m_triangle_selectors.size() && m_triangle_selectors[mesh_id]) {
+                    if (m_imgui && mesh_id < (int)m_triangle_selectors.size() && m_triangle_selectors[mesh_id]) {
                         const Transform3d trafo_matrix = mo->instances[selection.get_instance_idx()]->get_transformation().get_matrix() * mv->get_matrix();
                         m_triangle_selectors[mesh_id]->render(m_imgui, trafo_matrix);
                     }
@@ -959,6 +959,10 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::update_model_object()
     {
+        // Safety check for m_c pointer
+        if (!m_c)
+            return;
+
         // Save painted triangle data to model volume
         const Selection& selection = m_parent.get_selection();
         const ModelObject* mo = m_c->selection_info()->model_object();
@@ -979,6 +983,10 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::update_from_model_object(bool first_update)
     {
+        // Safety check for m_c pointer
+        if (!m_c)
+            return;
+
         const ModelObject* mo = m_c->selection_info()->model_object();
         if (!mo)
             return;

@@ -19,6 +19,15 @@ namespace Slic3r {
             Random       // Use random points within bounding box
         };
 
+        // Edge shape types for wireframe edges
+        enum class EdgeShape {
+            Cylinder,
+            Square,
+            Hexagon,
+            Octagon,
+            Star
+        };
+
         struct Config {
             SeedType seed_type = SeedType::Vertices;
             int num_seeds = 50;
@@ -88,15 +97,6 @@ namespace Slic3r {
             indexed_triangle_set& mesh,
             float wall_thickness
         );
-
-        // Edge shape types
-        enum class EdgeShape {
-            Cylinder,
-            Square,
-            Hexagon,
-            Octagon,
-            Star
-        };
 
         // Create wireframe structure from Voronoi edges
         static void create_edge_structure(
