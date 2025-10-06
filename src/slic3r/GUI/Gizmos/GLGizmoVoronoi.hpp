@@ -159,7 +159,8 @@ namespace Slic3r {
                 Status status = idle;
                 int progress = 0;
                 Configuration config;
-                const ModelVolume* mv = nullptr;
+                const ModelVolume* mv = nullptr;  // Only for identity check, DO NOT dereference!
+                indexed_triangle_set mesh_copy;   // Safe copy of mesh data for worker thread
                 std::unique_ptr<indexed_triangle_set> result;
             };
 

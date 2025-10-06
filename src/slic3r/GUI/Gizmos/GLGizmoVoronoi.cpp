@@ -70,7 +70,8 @@ namespace Slic3r::GUI {
         if (cid.object_id < 0 || objs.size() <= static_cast<size_t>(cid.object_id))
             return nullptr;
         const ModelObject* obj = objs[cid.object_id];
-        if (cid.volume_id < 0 || obj->volumes.size() <= static_cast<size_t>(cid.volume_id))
+        // Check for null object before dereferencing
+        if (!obj || cid.volume_id < 0 || obj->volumes.size() <= static_cast<size_t>(cid.volume_id))
             return nullptr;
         return obj->volumes[cid.volume_id];
     }
@@ -79,13 +80,42 @@ namespace Slic3r::GUI {
         : GLGizmoPainterBase(parent, sprite_id)
         , m_volume(nullptr)
         , m_move_to_center(false)
-        , tr_mesh_name(_u8L("Mesh name"))
-        , tr_seed_type(_u8L("Seed type"))
-        , tr_num_seeds(_u8L("Number of seeds"))
-        , tr_wall_thickness(_u8L("Wall thickness"))
-        , tr_random_seed(_u8L("Random seed"))
-        , tr_seed_preview(_u8L("Preview seeds"))
+        , tr_mesh_name("Mesh name")  // Use plain string instead of _u8L during construction
+        , tr_seed_type("Seed type")
+        , tr_num_seeds("Number of seeds")
+        , tr_wall_thickness("Wall thickness")
+        , tr_random_seed("Random seed")
+        , tr_seed_preview("Preview seeds")
     {
+        try {
+            // Immediate logging to stderr AND boost log
+            fprintf(stderr, "GLGizmoVoronoi: Constructor START\n");
+            fflush(stderr);
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: Constructor called";
+            
+            // Initialize translations properly after construction
+            tr_mesh_name = _u8L("Mesh name");
+            tr_seed_type = _u8L("Seed type");
+            tr_num_seeds = _u8L("Number of seeds");
+            tr_wall_thickness = _u8L("Wall thickness");
+            tr_random_seed = _u8L("Random seed");
+            tr_seed_preview = _u8L("Preview seeds");
+            
+            fprintf(stderr, "GLGizmoVoronoi: Constructor END\n");
+            fflush(stderr);
+        }
+        catch (const std::exception& e) {
+            fprintf(stderr, "GLGizmoVoronoi: Constructor EXCEPTION: %s\n", e.what());
+            fflush(stderr);
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: Constructor EXCEPTION: " << e.what();
+            throw;
+        }
+        catch (...) {
+            fprintf(stderr, "GLGizmoVoronoi: Constructor UNKNOWN EXCEPTION\n");
+            fflush(stderr);
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: Constructor UNKNOWN EXCEPTION";
+            throw;
+        }
     }
 
     GLGizmoVoronoi::~GLGizmoVoronoi()
@@ -400,25 +430,61 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::on_set_state()
     {
-        GLGizmoPainterBase::on_set_state();
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() START - state: " << (int)get_state();
+        
+        try {
+            GLGizmoPainterBase::on_set_state();
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - base class called";
 
-        if (get_state() == GLGizmoBase::EState::On) {
-            const Selection& selection = m_parent.get_selection();
-            Model& model = wxGetApp().plater()->model();
-            m_volume = get_model_volume(selection, model);
-            m_move_to_center = true;
+            if (get_state() == GLGizmoBase::EState::On) {
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - activating gizmo";
+                
+                // Check if plater is available
+                Plater* plater = wxGetApp().plater();
+                if (!plater) {
+                    BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: on_set_state() - plater is NULL, returning";
+                    return;
+                }
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - plater OK";
 
-            // Initialize seed preview if enabled
-            if (m_configuration.show_seed_preview) {
-                update_seed_preview();
-                update_2d_voronoi_preview();
+                const Selection& selection = m_parent.get_selection();
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - selection obtained";
+                
+                Model& model = plater->model();
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - model obtained";
+                
+                m_volume = get_model_volume(selection, model);
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - volume: " << (m_volume ? "VALID" : "NULL");
+                
+                m_move_to_center = true;
+
+                // Initialize seed preview if enabled
+                if (m_configuration.show_seed_preview) {
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - updating seed preview";
+                    update_seed_preview();
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - updating 2D voronoi preview";
+                    update_2d_voronoi_preview();
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - preview updates complete";
+                }
+                
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - activation COMPLETE";
+            }
+            else {
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - deactivating gizmo";
+                m_volume = nullptr;
+                m_glmodel.reset();
+                m_seed_preview_model.reset();
+                m_seed_preview_points.clear();
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - deactivation COMPLETE";
             }
         }
-        else {
-            m_volume = nullptr;
-            m_glmodel.reset();
-            m_seed_preview_model.reset();
-            m_seed_preview_points.clear();
+        catch (const std::exception& e) {
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: on_set_state() EXCEPTION: " << e.what();
+            throw;
+        }
+        catch (...) {
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: on_set_state() UNKNOWN EXCEPTION";
+            throw;
         }
     }
 
@@ -460,6 +526,16 @@ namespace Slic3r::GUI {
         if (!m_volume)
             return;
 
+        // Copy mesh data immediately before starting thread to avoid dangling pointer
+        indexed_triangle_set mesh_copy;
+        try {
+            mesh_copy = m_volume->mesh().its;
+        }
+        catch (...) {
+            BOOST_LOG_TRIVIAL(error) << "Failed to copy mesh for Voronoi generation";
+            return;
+        }
+
         // Start worker thread
         {
             std::lock_guard<std::mutex> lock(m_state_mutex);
@@ -469,7 +545,8 @@ namespace Slic3r::GUI {
             m_state.status = State::running;
             m_state.progress = 0;
             m_state.config = m_configuration;
-            m_state.mv = m_volume;
+            m_state.mv = m_volume;  // Store pointer only for identity check in worker_finished
+            m_state.mesh_copy = std::move(mesh_copy);  // Store mesh copy
             m_state.result.reset();
         }
 
@@ -485,8 +562,14 @@ namespace Slic3r::GUI {
         if (m_worker.joinable())
             m_worker.join();
 
-        wxGetApp().plater()->canvas3D()->set_as_dirty();
-        wxGetApp().plater()->get_view3D_canvas3D()->set_as_dirty();
+        // Guard against null plater/canvas during shutdown
+        Plater* plater = wxGetApp().plater();
+        if (plater && plater->canvas3D()) {
+            plater->canvas3D()->set_as_dirty();
+        }
+        if (plater && plater->get_view3D_canvas3D()) {
+            plater->get_view3D_canvas3D()->set_as_dirty();
+        }
     }
 
     void GLGizmoVoronoi::process()
@@ -494,17 +577,17 @@ namespace Slic3r::GUI {
         try {
             std::unique_ptr<indexed_triangle_set> result;
 
-            // Get the input mesh with proper copying for thread safety
+            // Get the input mesh from safe copy (not from pointer!)
             indexed_triangle_set input_mesh_copy;
             VoronoiMesh::Config voronoi_config;
 
             {
                 std::lock_guard<std::mutex> lock(m_state_mutex);
-                if (m_state.status != State::running || !m_state.mv)
+                if (m_state.status != State::running)
                     return;
 
-                // Make a copy of the input mesh for thread safety
-                input_mesh_copy = m_state.mv->mesh().its;
+                // Use the mesh copy, NOT the ModelVolume pointer!
+                input_mesh_copy = m_state.mesh_copy;
 
                 // Convert configuration
                 voronoi_config.seed_type = static_cast<VoronoiMesh::SeedType>(m_state.config.seed_type);
@@ -675,8 +758,16 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::request_rerender()
     {
-        wxGetApp().plater()->canvas3D()->set_as_dirty();
-        wxGetApp().plater()->canvas3D()->request_extra_frame();
+        // Guard against null plater/canvas during shutdown or initialization
+        Plater* plater = wxGetApp().plater();
+        if (!plater)
+            return;
+
+        GLCanvas3D* canvas = plater->canvas3D();
+        if (canvas) {
+            canvas->set_as_dirty();
+            canvas->request_extra_frame();
+        }
     }
 
     void GLGizmoVoronoi::set_center_position()
@@ -701,34 +792,43 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::update_seed_preview()
     {
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() START";
+        
         // Safety checks
         if (!m_volume) {
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - no volume, returning";
             return;
         }
 
         try {
             m_seed_preview_points.clear();
             m_seed_preview_model.reset();
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - cleared previous data";
 
             const indexed_triangle_set& mesh = m_volume->mesh().its;
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - got mesh, vertices: " << mesh.vertices.size();
 
             // Validate mesh
             if (mesh.vertices.empty()) {
-                BOOST_LOG_TRIVIAL(warning) << "Empty mesh for seed preview";
+                BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: update_seed_preview() - Empty mesh for seed preview";
                 return;
             }
 
             // Compute bounding box for generated points
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - computing bounding box";
             BoundingBoxf3 bbox;
             for (const auto& v : mesh.vertices) {
                 bbox.merge(v.cast<double>());
             }
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - bbox computed";
 
             // Ensure valid bounding box
             if (!bbox.defined || bbox.size().minCoeff() <= 0) {
-                BOOST_LOG_TRIVIAL(warning) << "Invalid bounding box for seed preview";
+                BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: update_seed_preview() - Invalid bounding box for seed preview";
                 return;
             }
+
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - generating seeds, type: " << (int)m_configuration.seed_type << ", num: " << m_configuration.num_seeds;
 
             if (m_configuration.seed_type == Configuration::SEED_GRID) {
                 // Grid seeds - ensure proper distribution
@@ -861,6 +961,7 @@ namespace Slic3r::GUI {
 
             // Create OpenGL model for rendering seed points
             if (!m_seed_preview_points.empty()) {
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - creating OpenGL model for " << m_seed_preview_points.size() << " points";
                 GLModel::Geometry init_data;
                 init_data.format = { GLModel::PrimitiveType::Points, GLModel::Geometry::EVertexLayout::P3 };
 
@@ -868,19 +969,28 @@ namespace Slic3r::GUI {
                     init_data.add_vertex(pt);
                 }
 
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - initializing model";
                 m_seed_preview_model.init_from(std::move(init_data));
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - requesting rerender";
                 request_rerender();
 
                 // Also update 2D preview
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - updating 2D voronoi preview";
                 update_2d_voronoi_preview();
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - 2D preview updated";
             }
+            else {
+                BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: update_seed_preview() - no seed points generated!";
+            }
+            
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() COMPLETE";
         }
         catch (const std::exception& e) {
-            BOOST_LOG_TRIVIAL(error) << "Error in update_seed_preview: " << e.what();
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: update_seed_preview() EXCEPTION: " << e.what();
             m_seed_preview_points.clear();
         }
         catch (...) {
-            BOOST_LOG_TRIVIAL(error) << "Unknown error in update_seed_preview";
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: update_seed_preview() UNKNOWN EXCEPTION";
             m_seed_preview_points.clear();
         }
     }
@@ -1006,56 +1116,92 @@ namespace Slic3r::GUI {
 
     bool GLGizmoVoronoi::on_init()
     {
-        // Initialize shortcut key and descriptions (similar to other painter gizmos)
-        m_shortcut_key = WXK_CONTROL_V;
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_init() START";
         
-        // Get shortkey prefixes
-        const wxString ctrl = GUI::shortkey_ctrl_prefix();
-        const wxString alt = GUI::shortkey_alt_prefix();
-        
-        // Set up tool descriptions
-        m_desc["clipping_of_view_caption"] = alt + _L("Mouse wheel");
-        m_desc["clipping_of_view"] = _L("Section view");
-        m_desc["cursor_size_caption"] = ctrl + _L("Mouse wheel");
-        m_desc["cursor_size"] = _L("Pen size");
-        m_desc["remove_caption"] = _L("Shift + Left mouse button");
-        m_desc["remove"] = _L("Erase");
-        m_desc["remove_all"] = _L("Erase all painting");
+        try {
+            // Initialize shortcut key and descriptions (similar to other painter gizmos)
+            m_shortcut_key = WXK_CONTROL_V;
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_init() - shortcut key set";
+            
+            // Get shortkey prefixes
+            const wxString ctrl = GUI::shortkey_ctrl_prefix();
+            const wxString alt = GUI::shortkey_alt_prefix();
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_init() - shortkey prefixes obtained";
+            
+            // Set up tool descriptions
+            m_desc["clipping_of_view_caption"] = alt + _L("Mouse wheel");
+            m_desc["clipping_of_view"] = _L("Section view");
+            m_desc["cursor_size_caption"] = ctrl + _L("Mouse wheel");
+            m_desc["cursor_size"] = _L("Pen size");
+            m_desc["remove_caption"] = _L("Shift + Left mouse button");
+            m_desc["remove"] = _L("Erase");
+            m_desc["remove_all"] = _L("Erase all painting");
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_init() - descriptions set";
 
-        // Initialize painting system
-        m_cursor_radius = 2.0f;
-        m_is_dark_mode = false;
+            // Initialize painting system
+            m_cursor_radius = 2.0f;
+            m_is_dark_mode = false;
 
-        // Initialize volume pointer to null for safety
-        m_volume = nullptr;
-
-        return true;
+            // Initialize volume pointer to null for safety
+            m_volume = nullptr;
+            
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_init() COMPLETE - returning true";
+            return true;
+        }
+        catch (const std::exception& e) {
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: on_init() EXCEPTION: " << e.what();
+            return false;
+        }
+        catch (...) {
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: on_init() UNKNOWN EXCEPTION";
+            return false;
+        }
     }
 
     void GLGizmoVoronoi::on_opening()
     {
-        // Only update previews if we have a valid volume
-        if (m_volume && m_configuration.show_seed_preview) {
-            try {
-                update_seed_preview();
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() START";
+        
+        try {
+            // Only update previews if we have a valid volume
+            if (m_volume && m_configuration.show_seed_preview) {
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - updating previews";
+                try {
+                    update_seed_preview();
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - seed preview updated";
+                }
+                catch (const std::exception& e) {
+                    BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: on_opening() - Exception in preview update: " << e.what();
+                }
+                catch (...) {
+                    BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: on_opening() - Unknown exception in preview update";
+                }
             }
-            catch (const std::exception& e) {
-                BOOST_LOG_TRIVIAL(error) << "Exception in preview update: " << e.what();
+            else {
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - skipping preview (volume: " 
+                    << (m_volume ? "VALID" : "NULL") << ", show_preview: " << m_configuration.show_seed_preview << ")";
+            }
+
+            // Safe 2D preview update
+            try {
+                update_2d_voronoi_preview();
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - 2D preview updated";
             }
             catch (...) {
-                BOOST_LOG_TRIVIAL(error) << "Unknown exception in preview update";
+                BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: on_opening() - Exception in 2D preview update";
             }
-        }
 
-        // Safe 2D preview update
-        try {
-            update_2d_voronoi_preview();
+            request_rerender();
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() COMPLETE";
+        }
+        catch (const std::exception& e) {
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: on_opening() EXCEPTION: " << e.what();
+            throw;
         }
         catch (...) {
-            BOOST_LOG_TRIVIAL(error) << "Exception in 2D preview update";
+            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: on_opening() UNKNOWN EXCEPTION";
+            throw;
         }
-
-        request_rerender();
     }
 
     void GLGizmoVoronoi::on_shutdown()
