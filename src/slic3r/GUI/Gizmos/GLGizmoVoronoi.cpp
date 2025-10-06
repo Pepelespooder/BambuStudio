@@ -428,8 +428,18 @@ namespace Slic3r::GUI {
 
     bool GLGizmoVoronoi::on_is_activable() const
     {
+        fprintf(stderr, "GLGizmoVoronoi: on_is_activable() CALLED\n");
+        fflush(stderr);
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_is_activable() CALLED";
+
         const Selection& selection = m_parent.get_selection();
-        return selection.is_single_full_instance() && !selection.is_wipe_tower();
+        bool result = selection.is_single_full_instance() && !selection.is_wipe_tower();
+
+        fprintf(stderr, "GLGizmoVoronoi: on_is_activable() returning %d\n", result);
+        fflush(stderr);
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_is_activable() returning " << result;
+
+        return result;
     }
 
     void GLGizmoVoronoi::on_set_state()
@@ -531,6 +541,9 @@ namespace Slic3r::GUI {
     {
         return CommonGizmosDataID(
             int(CommonGizmosDataID::SelectionInfo)
+          | int(CommonGizmosDataID::InstancesHider)
+          | int(CommonGizmosDataID::Raycaster)
+          | int(CommonGizmosDataID::ObjectClipper)
         );
     }
 
