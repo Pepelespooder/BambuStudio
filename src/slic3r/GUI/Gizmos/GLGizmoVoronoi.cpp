@@ -322,6 +322,10 @@ namespace Slic3r::GUI {
                 m_configuration.enable_triangle_painting = true;
                 // Initialize painting system
                 update_from_model_object(true);
+                // Enable clipping plane for painting
+                if (m_c && m_c->object_clipper()) {
+                    m_c->object_clipper()->set_position(0.5, false);
+                }
                 request_rerender();
             }
 
@@ -349,6 +353,10 @@ namespace Slic3r::GUI {
                 // Apply the painting changes
                 update_model_object();
                 m_configuration.enable_triangle_painting = false;
+                // Disable clipping plane when exiting painting mode
+                if (m_c && m_c->object_clipper()) {
+                    m_c->object_clipper()->set_position(0, false);
+                }
                 request_rerender();
             }
 
@@ -366,6 +374,10 @@ namespace Slic3r::GUI {
             if (ImGui::Button(into_u8(_u8L("Cancel")).c_str())) {
                 // Cancel painting mode without applying changes
                 m_configuration.enable_triangle_painting = false;
+                // Disable clipping plane when exiting painting mode
+                if (m_c && m_c->object_clipper()) {
+                    m_c->object_clipper()->set_position(0, false);
+                }
                 // Reset any pending changes if needed
                 update_from_model_object(true);
                 request_rerender();
@@ -774,12 +786,12 @@ namespace Slic3r::GUI {
             return;
 
         m_gui_cfg = GuiCfg();
-        m_gui_cfg->top_left_width = 200;
-        m_gui_cfg->bottom_left_width = 220;
-        m_gui_cfg->input_width = 100;
+        m_gui_cfg->top_left_width = 280;
+        m_gui_cfg->bottom_left_width = 300;
+        m_gui_cfg->input_width = 150;
         m_gui_cfg->window_offset_x = 0;
-        m_gui_cfg->window_offset_y = 200;
-        m_gui_cfg->window_padding = 10;
+        m_gui_cfg->window_offset_y = 650;
+        m_gui_cfg->window_padding = 15;
     }
 
     void GLGizmoVoronoi::request_rerender()
@@ -1067,8 +1079,23 @@ namespace Slic3r::GUI {
     void GLGizmoVoronoi::render_painter_gizmo() const
     {
         const Selection& selection = m_parent.get_selection();
+
+        glsafe(::glEnable(GL_BLEND));
+        glsafe(::glEnable(GL_DEPTH_TEST));
+
         render_triangles(selection);
+
+        // Render the clipping plane cut to show the model cross-section
+        if (m_c && m_c->object_clipper()) {
+            m_c->object_clipper()->render_cut();
+        }
+        if (m_c && m_c->instances_hider()) {
+            m_c->instances_hider()->render_cut();
+        }
+
         render_cursor();
+
+        glsafe(::glDisable(GL_BLEND));
     }
 
     void GLGizmoVoronoi::render_triangles(const Selection& selection) const
@@ -1187,10 +1214,29 @@ namespace Slic3r::GUI {
     void GLGizmoVoronoi::on_opening()
     {
         BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() START";
-        
+
         try {
-            // Only update previews if we have a valid volume
-            if (m_volume && m_configuration.show_seed_preview) {
+            // Try to get volume from selection if m_volume isn't set yet
+            if (!m_volume && m_c && m_c->selection_info()) {
+                const ModelObject* mo = m_c->selection_info()->model_object();
+                if (mo && !mo->volumes.empty()) {
+                    for (const ModelVolume* mv : mo->volumes) {
+                        if (mv->is_model_part()) {
+                            m_volume = mv;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Disable clipping plane initially (only enable during painting mode)
+            if (m_c && m_c->object_clipper()) {
+                m_c->object_clipper()->set_position(0, false);
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - disabled clipping plane";
+            }
+
+            // Always try to update previews when opening, not just when show_seed_preview is true
+            if (m_volume) {
                 BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - updating previews";
                 try {
                     update_seed_preview();
@@ -1204,8 +1250,7 @@ namespace Slic3r::GUI {
                 }
             }
             else {
-                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - skipping preview (volume: " 
-                    << (m_volume ? "VALID" : "NULL") << ", show_preview: " << m_configuration.show_seed_preview << ")";
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - skipping preview (volume: NULL)";
             }
 
             // Safe 2D preview update
