@@ -457,24 +457,12 @@ namespace Slic3r::GUI {
 
                 // Button is always rendered, but only clickable if has_volume
                 bool button_clicked = ImGui::Button(into_u8(_u8L("Generate Voronoi")).c_str());
-                if (button_clicked) {
-                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: Generate button clicked, has_volume: " << has_volume;
-                    if (has_volume) {
-                        // Double-check we're not already running (safety check)
-                        bool already_running = false;
-                        {
-                            std::lock_guard<std::mutex> lock(m_state_mutex);
-                            already_running = (m_state.status == State::running);
-                        }
-
-                        if (!already_running) {
-                            apply_voronoi();
-                        } else {
-                            BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: Generate clicked but already running, ignoring";
-                        }
-                    } else {
-                        BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: Cannot generate - m_volume is NULL!";
-                    }
+                if (button_clicked && has_volume) {
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: Generate button clicked, has_volume: true";
+                    // Just call apply_voronoi - it will handle the mutex and check if already running
+                    apply_voronoi();
+                } else if (button_clicked && !has_volume) {
+                    BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: Cannot generate - m_volume is NULL!";
                 }
 
                 if (!has_volume) {
@@ -646,14 +634,15 @@ namespace Slic3r::GUI {
             logged_once = true;
         }
 
-        // Render seed preview points if enabled
+        // Call the painter base class to render the model triangles (like BrimEars renders the model)
+        // This ensures the selected object is visible in the viewport
+        const Selection& selection = m_parent.get_selection();
+        render_painter_gizmo();
+
+        // Render seed preview points if enabled (on top of the model)
         if (m_configuration.show_seed_preview) {
             render_seed_preview();
         }
-
-        // Note: Model rendering is handled by the canvas layer automatically
-        // The painter base class has empty on_render(), so we don't call it
-        // Model should be visible unless something is hiding it
     }
 
     CommonGizmosDataID GLGizmoVoronoi::on_get_requirements() const
@@ -1148,14 +1137,20 @@ namespace Slic3r::GUI {
             }
             else {
                 // Vertex seeds - use farthest point sampling for better distribution
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - Using VERTEX seeds, mesh has " << mesh.vertices.size() << " vertices";
+
                 if (static_cast<int>(mesh.vertices.size()) <= m_configuration.num_seeds) {
                     // Use all vertices if we have fewer than requested
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - Using ALL vertices (mesh.vertices.size() <= num_seeds)";
                     for (const auto& v : mesh.vertices) {
                         m_seed_preview_points.push_back(v);
                     }
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - Added " << m_seed_preview_points.size() << " vertex seeds";
                 }
                 else {
                     // Farthest point sampling
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - Using farthest point sampling for " << m_configuration.num_seeds << " seeds from " << mesh.vertices.size() << " vertices";
+
                     std::vector<bool> selected(mesh.vertices.size(), false);
                     std::vector<float> min_distances(mesh.vertices.size(), std::numeric_limits<float>::max());
 
@@ -1165,6 +1160,7 @@ namespace Slic3r::GUI {
                     size_t first_idx = dist(rng);
                     selected[first_idx] = true;
                     m_seed_preview_points.push_back(mesh.vertices[first_idx]);
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - Selected first vertex at index " << first_idx;
 
                     // Update distances from first point
                     for (size_t i = 0; i < mesh.vertices.size(); ++i) {
@@ -1197,6 +1193,7 @@ namespace Slic3r::GUI {
                             }
                         }
                     }
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_seed_preview() - Farthest point sampling complete, selected " << m_seed_preview_points.size() << " vertices";
                 }
             }
 
@@ -1429,10 +1426,10 @@ namespace Slic3r::GUI {
         BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() START";
 
         try {
-            // CRITICAL: Make sure model is visible!
-            // Painter gizmos may hide the model by default, so we explicitly show it
-            m_parent.toggle_model_objects_visibility(true);
-            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - toggled model visibility to TRUE";
+            // NOTE: Don't call toggle_model_objects_visibility here!
+            // The base class GLGizmoPainterBase already handles model visibility correctly.
+            // Calling it here can cause issues with the rendering pipeline.
+            // Just like GLGizmoSeam, we let the base class handle everything.
 
             // Try to get volume from selection if m_volume isn't set yet
             if (!m_volume && m_c && m_c->selection_info()) {
@@ -1550,11 +1547,14 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::update_2d_voronoi_preview()
     {
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_2d_voronoi_preview() START - seed_preview_points.size() = " << m_seed_preview_points.size();
+
         m_2d_voronoi_cells.clear();
         m_2d_delaunay_edges.clear();
 
         if (m_seed_preview_points.empty()) {
             // Generate fallback preview instead of returning empty
+            BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: update_2d_voronoi_preview() - seed_preview_points is EMPTY, falling back to hexagonal preview";
             try {
                 generate_fallback_hexagonal_preview();
             }
@@ -1563,6 +1563,8 @@ namespace Slic3r::GUI {
             }
             return;
         }
+
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_2d_voronoi_preview() - seed_preview_points is NOT empty, generating actual Voronoi diagram";
 
         // Convert 3D seed points to 2D (project to XY plane)
         std::vector<jcv_point> points_2d;
