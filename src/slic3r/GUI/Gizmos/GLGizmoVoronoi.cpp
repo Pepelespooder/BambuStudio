@@ -202,10 +202,16 @@ namespace Slic3r::GUI {
         if (ImGui::Combo("##seed_type", &current_seed, seed_types, IM_ARRAYSIZE(seed_types))) {
             m_configuration.seed_type = static_cast<Configuration::SeedType>(current_seed);
         }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Vertices: Use mesh vertices\nGrid: Regular 3D lattice\nRandom: Randomized points")).c_str());
+        }
 
         // Number of seeds with manual input (controls wireframe density)
         ImGui::Text("%s:", tr_num_seeds.c_str());
         ImGui::SliderInt("##num_seeds", &m_configuration.num_seeds, 10, 500);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Controls wireframe density - more seeds = denser structure")).c_str());
+        }
 
         // Manual input for precise seed count
         ImGui::SameLine();
@@ -230,6 +236,9 @@ namespace Slic3r::GUI {
         int current_shape = static_cast<int>(m_configuration.edge_shape);
         if (ImGui::Combo("##edge_shape", &current_shape, edge_shapes, IM_ARRAYSIZE(edge_shapes))) {
             m_configuration.edge_shape = static_cast<Configuration::EdgeShape>(current_shape);
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Cross-section shape of struts")).c_str());
         }
 
         // Edge detail/segments (for custom complexity)
@@ -259,11 +268,20 @@ namespace Slic3r::GUI {
         if (ImGui::RadioButton("Solid", !m_configuration.hollow_cells)) {
             m_configuration.hollow_cells = false;
         }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Fill Voronoi cells (future feature)")).c_str());
+        }
         ImGui::SameLine();
         if (ImGui::RadioButton("Hollow", m_configuration.hollow_cells)) {
             m_configuration.hollow_cells = true;
         }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Only wireframe edges, no cell filling (current mode)")).c_str());
+        }
         ImGui::Checkbox("Clip to input", &m_configuration.clip_to_input);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", into_u8(_u8L("Trim wireframe to fit within original mesh bounds")).c_str());
+        }
 
         ImGui::Separator();
 
@@ -333,14 +351,25 @@ namespace Slic3r::GUI {
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, m_is_dark_mode ? ImVec4(60 / 255.0f, 68 / 255.0f, 71 / 255.0f, 1.0f) : ImVec4(0.60f, 0.60f, 0.60f, 1.0f));
 
             if (ImGui::Button(into_u8(_u8L("Painting")).c_str())) {
-                m_configuration.enable_triangle_painting = true;
-                // Initialize painting system
-                update_from_model_object(true);
-                // Enable clipping plane for painting
-                if (m_c && m_c->object_clipper()) {
-                    m_c->object_clipper()->set_position(0.5, false);
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: Painting button clicked, m_volume: " << (m_volume ? "VALID" : "NULL");
+
+                // Only enable painting if we have a valid volume
+                if (m_volume) {
+                    m_configuration.enable_triangle_painting = true;
+                    // Initialize painting system
+                    update_from_model_object(true);
+                    // Enable clipping plane for painting
+                    if (m_c && m_c->object_clipper()) {
+                        m_c->object_clipper()->set_position(0.5, false);
+                        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: Clipping plane enabled at position 0.5";
+                    }
+                    request_rerender();
+                } else {
+                    BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: Cannot enable painting - no volume available";
                 }
-                request_rerender();
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", into_u8(_u8L("Paint areas to exclude from Voronoi generation")).c_str());
             }
 
             ImGui::PopStyleColor(3);
@@ -351,6 +380,9 @@ namespace Slic3r::GUI {
             ImGui::Text("%s:", into_u8(_u8L("Brush radius")).c_str());
             ImGui::SliderFloat("##cursor_radius", &m_cursor_radius,
                 get_cursor_radius_min(), get_cursor_radius_max(), "%.1f");
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", into_u8(_u8L("Size of the paint brush")).c_str());
+            }
 
             ImGui::TextColored(ImVec4(0.8f, 0.2f, 0.2f, 1.0f),
                 "%s", into_u8(_u8L("Paint surfaces red to exclude")).c_str());
@@ -369,7 +401,7 @@ namespace Slic3r::GUI {
                 m_configuration.enable_triangle_painting = false;
                 // Disable clipping plane when exiting painting mode
                 if (m_c && m_c->object_clipper()) {
-                    m_c->object_clipper()->set_position(0, false);
+                    m_c->object_clipper()->set_position(-1., false);
                 }
                 request_rerender();
             }
@@ -390,7 +422,7 @@ namespace Slic3r::GUI {
                 m_configuration.enable_triangle_painting = false;
                 // Disable clipping plane when exiting painting mode
                 if (m_c && m_c->object_clipper()) {
-                    m_c->object_clipper()->set_position(0, false);
+                    m_c->object_clipper()->set_position(-1., false);
                 }
                 // Reset any pending changes if needed
                 update_from_model_object(true);
@@ -507,7 +539,7 @@ namespace Slic3r::GUI {
             // Disable clipping plane immediately after base class (which may have enabled it)
             // Only enable clipping when user explicitly enters painting mode
             if (m_c && m_c->object_clipper() && !m_configuration.enable_triangle_painting) {
-                m_c->object_clipper()->set_position(0, false);
+                m_c->object_clipper()->set_position(-1., false);
                 BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - disabled clipping plane after base class";
             }
 
@@ -558,6 +590,14 @@ namespace Slic3r::GUI {
             }
         }
 
+        const Selection& selection = m_parent.get_selection();
+
+        // Always render the model triangles (with or without painting)
+        glsafe(::glEnable(GL_BLEND));
+        glsafe(::glEnable(GL_DEPTH_TEST));
+        render_triangles(selection);
+        glsafe(::glDisable(GL_BLEND));
+
         // Render preview if available
         if (m_glmodel.is_initialized()) {
             glsafe(::glEnable(GL_BLEND));
@@ -576,9 +616,9 @@ namespace Slic3r::GUI {
             render_seed_preview();
         }
 
-        // Render painting gizmo when painting is active
+        // Render painting cursor when painting is active
         if (m_configuration.enable_triangle_painting) {
-            render_painter_gizmo();
+            render_cursor();
         }
     }
 
@@ -606,7 +646,9 @@ namespace Slic3r::GUI {
         // Copy mesh data immediately before starting thread to avoid dangling pointer
         indexed_triangle_set mesh_copy;
         try {
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - copying mesh";
             mesh_copy = m_volume->mesh().its;
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - mesh copied, vertices: " << mesh_copy.vertices.size() << ", faces: " << mesh_copy.indices.size();
         }
         catch (...) {
             BOOST_LOG_TRIVIAL(error) << "Failed to copy mesh for Voronoi generation";
@@ -616,8 +658,11 @@ namespace Slic3r::GUI {
         // Start worker thread
         {
             std::lock_guard<std::mutex> lock(m_state_mutex);
-            if (m_state.status == State::running)
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - acquired mutex, current status: " << (int)m_state.status;
+            if (m_state.status == State::running) {
+                BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi::apply_voronoi() - already running, returning";
                 return;
+            }
 
             m_state.status = State::running;
             m_state.progress = 0;
@@ -625,6 +670,7 @@ namespace Slic3r::GUI {
             m_state.mv = m_volume;  // Store pointer only for identity check in worker_finished
             m_state.mesh_copy = std::move(mesh_copy);  // Store mesh copy
             m_state.result.reset();
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - state set to running";
         }
 
         if (m_worker.joinable())
@@ -847,9 +893,9 @@ namespace Slic3r::GUI {
             return;
 
         m_gui_cfg = GuiCfg();
-        m_gui_cfg->top_left_width = 280;
-        m_gui_cfg->bottom_left_width = 300;
-        m_gui_cfg->input_width = 150;
+        m_gui_cfg->top_left_width = 300;      // Increased to prevent scrollbar from cutting off buttons
+        m_gui_cfg->bottom_left_width = 320;   // Increased to prevent scrollbar from cutting off buttons
+        m_gui_cfg->input_width = 160;         // Slightly wider for better usability
         m_gui_cfg->window_offset_x = 0;
         m_gui_cfg->window_offset_y = 650;
         m_gui_cfg->window_padding = 15;
@@ -1292,7 +1338,7 @@ namespace Slic3r::GUI {
 
             // Disable clipping plane initially (only enable during painting mode)
             if (m_c && m_c->object_clipper()) {
-                m_c->object_clipper()->set_position(0, false);
+                m_c->object_clipper()->set_position(-1., false);
                 BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - disabled clipping plane";
             }
 
