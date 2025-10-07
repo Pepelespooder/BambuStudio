@@ -140,7 +140,7 @@ namespace Slic3r::GUI {
 
     std::string GLGizmoVoronoi::on_get_name() const
     {
-        if (!on_is_activable() && m_state == EState::Off) {
+        if (!on_is_activable() && get_state() == EState::Off) {
             return _u8L("Voronoi") + ":\n" + _u8L("Please select single object.");
         } else {
             return _u8L("Voronoi");
