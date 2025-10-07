@@ -10,6 +10,8 @@
 #include <cmath>
 #include <limits>
 
+#include <boost/log/trivial.hpp>
+
 // CGAL headers for 3D Voronoi/Delaunay
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Delaunay_triangulation_3.h>
@@ -111,14 +113,20 @@ namespace Slic3r {
         const indexed_triangle_set& input_mesh,
         const Config& config)
     {
+        BOOST_LOG_TRIVIAL(info) << "VoronoiMesh::generate() - START, input vertices: " << input_mesh.vertices.size() << ", faces: " << input_mesh.indices.size();
+
         // Check for cancellation
         if (config.progress_callback && !config.progress_callback(0))
             return nullptr;
 
         // Step 1: Generate seed points (10% progress)
+        BOOST_LOG_TRIVIAL(info) << "VoronoiMesh::generate() - Generating seed points, type: " << (int)config.seed_type << ", num_seeds: " << config.num_seeds;
         std::vector<Vec3d> seed_points = generate_seed_points(input_mesh, config);
-        if (seed_points.empty())
+        BOOST_LOG_TRIVIAL(info) << "VoronoiMesh::generate() - Generated " << seed_points.size() << " seed points";
+        if (seed_points.empty()) {
+            BOOST_LOG_TRIVIAL(error) << "VoronoiMesh::generate() - No seed points generated!";
             return nullptr;
+        }
 
         if (config.progress_callback && !config.progress_callback(10))
             return nullptr;
@@ -133,17 +141,22 @@ namespace Slic3r {
         Vec3d expansion = bbox.size() * 0.1;
         bbox.min -= expansion;
         bbox.max += expansion;
+        BOOST_LOG_TRIVIAL(info) << "VoronoiMesh::generate() - Bounding box computed: min(" << bbox.min.x() << "," << bbox.min.y() << "," << bbox.min.z() << "), max(" << bbox.max.x() << "," << bbox.max.y() << "," << bbox.max.z() << ")";
 
         if (config.progress_callback && !config.progress_callback(20))
             return nullptr;
 
         // Step 3: Create wireframe structure from Voronoi edges
+        BOOST_LOG_TRIVIAL(info) << "VoronoiMesh::generate() - Creating edge structure, thickness: " << config.edge_thickness << ", shape: " << (int)config.edge_shape << ", segments: " << config.edge_segments;
         auto result = std::make_unique<indexed_triangle_set>();
         create_edge_structure(*result, seed_points, bbox, config.edge_thickness,
                             config.edge_shape, config.edge_segments, config);
+        BOOST_LOG_TRIVIAL(info) << "VoronoiMesh::generate() - Edge structure created, vertices: " << (result ? result->vertices.size() : 0) << ", faces: " << (result ? result->indices.size() : 0);
 
-        if (!result || result->vertices.empty())
+        if (!result || result->vertices.empty()) {
+            BOOST_LOG_TRIVIAL(error) << "VoronoiMesh::generate() - Edge structure is empty or null!";
             return nullptr;
+        }
 
         if (config.progress_callback && !config.progress_callback(90))
             return nullptr;

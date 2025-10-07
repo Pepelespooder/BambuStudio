@@ -516,6 +516,10 @@ namespace Slic3r::GUI {
             if (get_state() == GLGizmoBase::EState::On) {
                 BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - activating gizmo, capturing volume BEFORE base class";
 
+                // Ensure painting mode is disabled when first activating
+                m_configuration.enable_triangle_painting = false;
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - painting mode explicitly disabled";
+
                 // Check if plater is available
                 Plater* plater = wxGetApp().plater();
                 if (plater) {
@@ -540,11 +544,11 @@ namespace Slic3r::GUI {
 
             fprintf(stderr, "GLGizmoVoronoi: on_set_state() BASE CLASS returned\n");
             fflush(stderr);
-            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - base class returned";
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - base class returned, enable_triangle_painting: " << m_configuration.enable_triangle_painting;
 
             // Disable clipping plane immediately after base class (which may have enabled it)
             // Only enable clipping when user explicitly enters painting mode
-            if (m_c && m_c->object_clipper() && !m_configuration.enable_triangle_painting) {
+            if (m_c && m_c->object_clipper()) {
                 m_c->object_clipper()->set_position(-1., false);
                 BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - disabled clipping plane after base class";
             }
@@ -554,10 +558,28 @@ namespace Slic3r::GUI {
 
                 m_move_to_center = true;
 
-                // Make sure model is visible - don't hide any instances
-                if (m_c && m_c->instances_hider()) {
-                    // Don't hide anything
-                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - ensuring instances are visible";
+                // Make sure model is visible - ensure instances hider shows everything
+                if (m_c) {
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - m_c is valid, checking subsystems";
+
+                    if (m_c->instances_hider()) {
+                        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - instances_hider is available";
+                        // The instances hider should show all instances by default
+                    } else {
+                        BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: on_set_state() - instances_hider is NULL!";
+                    }
+
+                    if (m_c->selection_info()) {
+                        const ModelObject* mo = m_c->selection_info()->model_object();
+                        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - model_object: " << (mo ? "VALID" : "NULL");
+                        if (mo) {
+                            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - model has " << mo->volumes.size() << " volumes";
+                        }
+                    } else {
+                        BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: on_set_state() - selection_info is NULL!";
+                    }
+                } else {
+                    BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: on_set_state() - m_c is NULL! Model may not be visible!";
                 }
 
                 // Initialize seed preview if enabled
@@ -592,13 +614,34 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::on_render()
     {
+        static bool logged_once = false;
+        if (!logged_once) {
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - First call";
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - enable_triangle_painting: " << m_configuration.enable_triangle_painting;
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - show_seed_preview: " << m_configuration.show_seed_preview;
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - m_c: " << (m_c ? "VALID" : "NULL");
+
+            if (m_c) {
+                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - object_clipper: " << (m_c->object_clipper() ? "VALID" : "NULL");
+                if (m_c->object_clipper()) {
+                    const auto* clipping_plane = m_c->object_clipper()->get_clipping_plane();
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - clipping_plane: " << (clipping_plane ? "EXISTS" : "NULL");
+                    if (clipping_plane) {
+                        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - clipping_plane active: " << clipping_plane->is_active();
+                    }
+                }
+            }
+            logged_once = true;
+        }
+
         // Render seed preview points if enabled
         if (m_configuration.show_seed_preview) {
             render_seed_preview();
         }
 
         // Note: Model rendering is handled by the canvas layer automatically
-        // We don't need to render the model ourselves
+        // The painter base class has empty on_render(), so we don't call it
+        // Model should be visible unless something is hiding it
     }
 
     CommonGizmosDataID GLGizmoVoronoi::on_get_requirements() const
@@ -629,13 +672,19 @@ namespace Slic3r::GUI {
             mesh_copy = m_volume->mesh().its;
             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - mesh copied, vertices: " << mesh_copy.vertices.size() << ", faces: " << mesh_copy.indices.size();
         }
+        catch (const std::exception& e) {
+            BOOST_LOG_TRIVIAL(error) << "Failed to copy mesh for Voronoi generation: " << e.what();
+            return;
+        }
         catch (...) {
-            BOOST_LOG_TRIVIAL(error) << "Failed to copy mesh for Voronoi generation";
+            BOOST_LOG_TRIVIAL(error) << "Failed to copy mesh for Voronoi generation (unknown exception)";
             return;
         }
 
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - about to acquire mutex";
+
         // Start worker thread
-        {
+        try {
             std::lock_guard<std::mutex> lock(m_state_mutex);
             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - acquired mutex, current status: " << (int)m_state.status;
             if (m_state.status == State::running) {
@@ -651,12 +700,24 @@ namespace Slic3r::GUI {
             m_state.result.reset();
             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - state set to running";
         }
+        catch (const std::exception& e) {
+            BOOST_LOG_TRIVIAL(error) << "Exception in mutex section: " << e.what();
+            return;
+        }
+        catch (...) {
+            BOOST_LOG_TRIVIAL(error) << "Unknown exception in mutex section";
+            return;
+        }
 
-        if (m_worker.joinable())
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - checking if worker is joinable";
+        if (m_worker.joinable()) {
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - joining previous worker";
             m_worker.join();
+        }
 
         BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - Starting worker thread";
         m_worker = std::thread([this]() { process(); });
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - Worker thread started";
     }
 
     void GLGizmoVoronoi::close()
@@ -1164,6 +1225,13 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::render_painter_gizmo() const
     {
+        static bool logged_once = false;
+        if (!logged_once) {
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::render_painter_gizmo() - First call";
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::render_painter_gizmo() - enable_triangle_painting: " << m_configuration.enable_triangle_painting;
+            logged_once = true;
+        }
+
         const Selection& selection = m_parent.get_selection();
 
         glsafe(::glEnable(GL_BLEND));
@@ -1171,15 +1239,18 @@ namespace Slic3r::GUI {
 
         render_triangles(selection);
 
-        // Render the clipping plane cut to show the model cross-section
-        if (m_c && m_c->object_clipper()) {
-            m_c->object_clipper()->render_cut();
-        }
-        if (m_c && m_c->instances_hider()) {
-            m_c->instances_hider()->render_cut();
-        }
+        // Only render clipping plane and cursor when painting mode is active
+        if (m_configuration.enable_triangle_painting) {
+            // Render the clipping plane cut to show the model cross-section
+            if (m_c && m_c->object_clipper()) {
+                m_c->object_clipper()->render_cut();
+            }
+            if (m_c && m_c->instances_hider()) {
+                m_c->instances_hider()->render_cut();
+            }
 
-        render_cursor();
+            render_cursor();
+        }
 
         glsafe(::glDisable(GL_BLEND));
     }
@@ -1302,6 +1373,11 @@ namespace Slic3r::GUI {
         BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() START";
 
         try {
+            // CRITICAL: Make sure model is visible!
+            // Painter gizmos may hide the model by default, so we explicitly show it
+            m_parent.toggle_model_objects_visibility(true);
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - toggled model visibility to TRUE";
+
             // Try to get volume from selection if m_volume isn't set yet
             if (!m_volume && m_c && m_c->selection_info()) {
                 const ModelObject* mo = m_c->selection_info()->model_object();
@@ -1393,6 +1469,9 @@ namespace Slic3r::GUI {
 
             // Reset volume pointer
             m_volume = nullptr;
+
+            // Ensure model is visible when shutting down (like other painter gizmos)
+            m_parent.toggle_model_objects_visibility(true);
 
         }
         catch (const std::exception& e) {
