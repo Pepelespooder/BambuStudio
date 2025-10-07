@@ -1321,6 +1321,12 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::render_triangles(const Selection& selection) const
     {
+        // Safety check: only render if triangle selectors are initialized
+        if (m_triangle_selectors.empty()) {
+            BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi::render_triangles() - triangle_selectors is empty, skipping render";
+            return;
+        }
+
         // Call the base class implementation which handles all the shader setup
         // and proper rendering of the model triangles
         GLGizmoPainterBase::render_triangles(selection);
