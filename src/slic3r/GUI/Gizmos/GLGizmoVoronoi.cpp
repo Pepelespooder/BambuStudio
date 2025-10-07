@@ -140,7 +140,22 @@ namespace Slic3r::GUI {
 
     std::string GLGizmoVoronoi::on_get_name() const
     {
-        return _u8L("Voronoi");
+        if (!on_is_activable() && m_state == EState::Off) {
+            return _u8L("Voronoi") + ":\n" + _u8L("Please select single object.");
+        } else {
+            return _u8L("Voronoi");
+        }
+    }
+
+    bool GLGizmoVoronoi::on_is_activable() const
+    {
+        const Selection& selection = m_parent.get_selection();
+
+        // Require a single full instance to be selected (like BrimEars)
+        if (!selection.is_single_full_instance())
+            return false;
+
+        return true;
     }
 
     void GLGizmoVoronoi::on_render_input_window(float x, float y, float bottom_limit)
@@ -738,14 +753,8 @@ namespace Slic3r::GUI {
         if (m_worker.joinable())
             m_worker.join();
 
-        // Guard against null plater/canvas during shutdown
-        Plater* plater = wxGetApp().plater();
-        if (plater && plater->canvas3D()) {
-            plater->canvas3D()->set_as_dirty();
-        }
-        if (plater && plater->get_view3D_canvas3D()) {
-            plater->get_view3D_canvas3D()->set_as_dirty();
-        }
+        // Post event to reset/close the gizmo (like BrimEars does)
+        m_parent.post_event(SimpleEvent(EVT_GLCANVAS_RESETGIZMOS));
     }
 
     void GLGizmoVoronoi::process()
@@ -1443,6 +1452,11 @@ namespace Slic3r::GUI {
                     }
                 }
             }
+
+            // Initialize triangle selectors so the model can be rendered
+            // This is essential for render_triangles() to work properly
+            update_from_model_object(true);
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_opening() - initialized triangle selectors";
 
             // Disable clipping plane initially (only enable during painting mode)
             if (m_c && m_c->object_clipper()) {
