@@ -307,9 +307,20 @@ namespace Slic3r::GUI {
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("%s", into_u8(_u8L("Controls the pattern/layout of the wireframe structure")).c_str());
         }
+
+        // Seed preview checkbox with randomize button on same line
+        if (ImGui::Checkbox(tr_seed_preview.c_str(), &m_configuration.show_seed_preview)) {
+            if (m_configuration.show_seed_preview) {
+                update_seed_preview();
+            }
+            else {
+                m_seed_preview_model.reset();
+            }
+        }
+
+        // Randomize button on same line as preview seeds checkbox
         ImGui::SameLine();
 
-        // Randomize button with secondary styling
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
         ImGui::PushStyleColor(ImGuiCol_Button, m_is_dark_mode ? ImVec4(60 / 255.0f, 60 / 255.0f, 60 / 255.0f, 1.0f) : ImVec4(0.75f, 0.75f, 0.75f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, m_is_dark_mode ? ImVec4(70 / 255.0f, 70 / 255.0f, 70 / 255.0f, 1.0f) : ImVec4(0.85f, 0.85f, 0.85f, 1.0f));
@@ -319,21 +330,11 @@ namespace Slic3r::GUI {
             randomize_seed();
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("%s", into_u8(_u8L("Generate new random pattern")).c_str());
+            ImGui::SetTooltip("%s", into_u8(_u8L("Generate new random seed")).c_str());
         }
 
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(1);
-
-        // Seed preview
-        if (ImGui::Checkbox(tr_seed_preview.c_str(), &m_configuration.show_seed_preview)) {
-            if (m_configuration.show_seed_preview) {
-                update_seed_preview();
-            }
-            else {
-                m_seed_preview_model.reset();
-            }
-        }
 
         if (m_configuration.show_seed_preview) {
             // Update Preview button with secondary styling
@@ -632,6 +633,7 @@ namespace Slic3r::GUI {
         static bool logged_once = false;
         if (!logged_once) {
             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - First call";
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - triangle_selectors.size(): " << m_triangle_selectors.size();
             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - enable_triangle_painting: " << m_configuration.enable_triangle_painting;
             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - show_seed_preview: " << m_configuration.show_seed_preview;
             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::on_render() - m_c: " << (m_c ? "VALID" : "NULL");
@@ -649,12 +651,12 @@ namespace Slic3r::GUI {
             logged_once = true;
         }
 
-        // Call the painter base class to render the model triangles (like BrimEars renders the model)
-        // This ensures the selected object is visible in the viewport
-        const Selection& selection = m_parent.get_selection();
-        render_painter_gizmo();
+        // Only render painted triangles when painting mode is active
+        if (m_configuration.enable_triangle_painting) {
+            render_painter_gizmo();
+        }
 
-        // Render seed preview points if enabled (on top of the model)
+        // Render seed preview points if enabled
         if (m_configuration.show_seed_preview) {
             render_seed_preview();
         }
@@ -1319,24 +1321,9 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::render_triangles(const Selection& selection) const
     {
-        if (!m_configuration.enable_triangle_painting || !m_c)
-            return;
-
-        const ModelObject* mo = m_c->selection_info()->model_object();
-        if (mo && selection.is_from_single_instance()) {
-            const GLVolume* gl_volume = selection.get_volume(*selection.get_volume_idxs().begin());
-
-            for (const ModelVolume* mv : mo->volumes) {
-                if (mv->is_model_part()) {
-                    auto it = std::find(mo->volumes.begin(), mo->volumes.end(), mv);
-                    int mesh_id = std::distance(mo->volumes.begin(), it);
-                    if (m_imgui && mesh_id < (int)m_triangle_selectors.size() && m_triangle_selectors[mesh_id]) {
-                        const Transform3d trafo_matrix = mo->instances[selection.get_instance_idx()]->get_transformation().get_matrix() * mv->get_matrix();
-                        m_triangle_selectors[mesh_id]->render(m_imgui, trafo_matrix);
-                    }
-                }
-            }
-        }
+        // Call the base class implementation which handles all the shader setup
+        // and proper rendering of the model triangles
+        GLGizmoPainterBase::render_triangles(selection);
     }
 
     void GLGizmoVoronoi::update_model_object()
@@ -1365,25 +1352,51 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::update_from_model_object(bool first_update)
     {
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_from_model_object() START, first_update=" << first_update;
+
         // Safety check for m_c pointer
-        if (!m_c)
+        if (!m_c) {
+            BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: update_from_model_object() - m_c is NULL";
             return;
+        }
+
+        if (!m_c->selection_info()) {
+            BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: update_from_model_object() - selection_info is NULL";
+            return;
+        }
 
         const ModelObject* mo = m_c->selection_info()->model_object();
-        if (!mo)
+        if (!mo) {
+            BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: update_from_model_object() - model_object is NULL";
             return;
+        }
+
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_from_model_object() - model_object has " << mo->volumes.size() << " volumes";
 
         // Initialize triangle selectors if needed
         if (first_update || m_triangle_selectors.empty()) {
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_from_model_object() - clearing triangle selectors";
             m_triangle_selectors.clear();
 
             for (const ModelVolume* mv : mo->volumes) {
                 if (mv->is_model_part()) {
-                    const TriangleMesh& mesh = mv->mesh();
-                    m_triangle_selectors.emplace_back(std::make_unique<TriangleSelectorGUI>(mesh));
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_from_model_object() - creating triangle selector for model part";
+                    try {
+                        const TriangleMesh& mesh = mv->mesh();
+                        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_from_model_object() - got mesh, creating TriangleSelectorGUI";
+                        m_triangle_selectors.emplace_back(std::make_unique<TriangleSelectorGUI>(mesh));
+                        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_from_model_object() - TriangleSelectorGUI created successfully";
+                    }
+                    catch (const std::exception& e) {
+                        BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi: update_from_model_object() - Exception creating TriangleSelectorGUI: " << e.what();
+                        throw;
+                    }
                 }
             }
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_from_model_object() - created " << m_triangle_selectors.size() << " triangle selectors";
         }
+
+        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: update_from_model_object() COMPLETE";
     }
 
     bool GLGizmoVoronoi::on_init()
