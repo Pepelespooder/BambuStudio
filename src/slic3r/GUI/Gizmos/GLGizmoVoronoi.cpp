@@ -11,6 +11,7 @@
 
 #include <GL/glew.h>
 #include <thread>
+#include <chrono>
 #include <random>
 #include <cmath>
 #include <memory>
@@ -459,7 +460,18 @@ namespace Slic3r::GUI {
                 if (button_clicked) {
                     BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: Generate button clicked, has_volume: " << has_volume;
                     if (has_volume) {
-                        apply_voronoi();
+                        // Double-check we're not already running (safety check)
+                        bool already_running = false;
+                        {
+                            std::lock_guard<std::mutex> lock(m_state_mutex);
+                            already_running = (m_state.status == State::running);
+                        }
+
+                        if (!already_running) {
+                            apply_voronoi();
+                        } else {
+                            BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: Generate clicked but already running, ignoring";
+                        }
                     } else {
                         BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: Cannot generate - m_volume is NULL!";
                     }
@@ -656,21 +668,22 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::apply_voronoi()
     {
-        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - START";
+        BOOST_LOG_TRIVIAL(info) << "=== GLGizmoVoronoi::apply_voronoi() - START ===";
+        BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - Thread ID: " << std::this_thread::get_id();
 
         if (!m_volume) {
-            BOOST_LOG_TRIVIAL(error) << "GLGizmoVoronoi::apply_voronoi() - m_volume is NULL!";
+            BOOST_LOG_TRIVIAL(error) << "apply_voronoi() - m_volume is NULL!";
             return;
         }
 
-        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - m_volume is valid";
+        BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - m_volume is valid";
 
         // Copy mesh data immediately before starting thread to avoid dangling pointer
         indexed_triangle_set mesh_copy;
         try {
-            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - copying mesh";
+            BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - copying mesh";
             mesh_copy = m_volume->mesh().its;
-            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - mesh copied, vertices: " << mesh_copy.vertices.size() << ", faces: " << mesh_copy.indices.size();
+            BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - mesh copied, vertices: " << mesh_copy.vertices.size() << ", faces: " << mesh_copy.indices.size();
         }
         catch (const std::exception& e) {
             BOOST_LOG_TRIVIAL(error) << "Failed to copy mesh for Voronoi generation: " << e.what();
@@ -681,14 +694,30 @@ namespace Slic3r::GUI {
             return;
         }
 
-        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - about to acquire mutex";
+        // CRITICAL: Join previous worker BEFORE acquiring mutex to avoid deadlock
+        BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - checking if worker is joinable";
+        if (m_worker.joinable()) {
+            BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - previous worker IS joinable, joining now (this may take time)...";
+            auto start_time = std::chrono::steady_clock::now();
+            m_worker.join();
+            auto end_time = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - previous worker joined successfully (took " << duration << "ms)";
+        } else {
+            BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - no previous worker to join";
+        }
+
+        BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - about to acquire mutex";
 
         // Start worker thread
         try {
+            BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - attempting lock_guard on m_state_mutex...";
             std::lock_guard<std::mutex> lock(m_state_mutex);
-            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - acquired mutex, current status: " << (int)m_state.status;
+            BOOST_LOG_TRIVIAL(info) << "apply_voronoi() - SUCCESS! Mutex acquired, current status: " << (int)m_state.status;
+
+            // Check if somehow another thread started running (shouldn't happen since we joined)
             if (m_state.status == State::running) {
-                BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi::apply_voronoi() - already running, returning";
+                BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi::apply_voronoi() - already running (unexpected!), returning";
                 return;
             }
 
@@ -707,12 +736,6 @@ namespace Slic3r::GUI {
         catch (...) {
             BOOST_LOG_TRIVIAL(error) << "Unknown exception in mutex section";
             return;
-        }
-
-        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - checking if worker is joinable";
-        if (m_worker.joinable()) {
-            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - joining previous worker";
-            m_worker.join();
         }
 
         BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::apply_voronoi() - Starting worker thread";
@@ -738,7 +761,8 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::process()
     {
-        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::process() - Worker thread started";
+        BOOST_LOG_TRIVIAL(info) << "=== process() - Worker thread STARTED ===";
+        BOOST_LOG_TRIVIAL(info) << "process() - Thread ID: " << std::this_thread::get_id();
 
         try {
             std::unique_ptr<indexed_triangle_set> result;
@@ -747,15 +771,22 @@ namespace Slic3r::GUI {
             indexed_triangle_set input_mesh_copy;
             VoronoiMesh::Config voronoi_config;
 
+            BOOST_LOG_TRIVIAL(info) << "process() - About to acquire mutex to read config...";
             {
                 std::lock_guard<std::mutex> lock(m_state_mutex);
-                if (m_state.status != State::running)
+                BOOST_LOG_TRIVIAL(info) << "process() - Mutex acquired, status: " << (int)m_state.status;
+                if (m_state.status != State::running) {
+                    BOOST_LOG_TRIVIAL(warning) << "process() - Status is NOT running, exiting early";
                     return;
+                }
 
                 // Use the mesh copy, NOT the ModelVolume pointer!
+                BOOST_LOG_TRIVIAL(info) << "process() - Copying mesh from state";
                 input_mesh_copy = m_state.mesh_copy;
+                BOOST_LOG_TRIVIAL(info) << "process() - Mesh copied: vertices=" << input_mesh_copy.vertices.size() << ", faces=" << input_mesh_copy.indices.size();
 
                 // Convert configuration
+                BOOST_LOG_TRIVIAL(info) << "process() - Converting configuration";
                 voronoi_config.seed_type = static_cast<VoronoiMesh::SeedType>(m_state.config.seed_type);
                 voronoi_config.num_seeds = m_state.config.num_seeds;
                 voronoi_config.wall_thickness = m_state.config.wall_thickness;
@@ -769,12 +800,20 @@ namespace Slic3r::GUI {
                 voronoi_config.random_seed = m_state.config.random_seed;
 
                 // Set progress callback
+                // Use try_lock to avoid deadlock - if we can't get the lock, just skip the update
+                BOOST_LOG_TRIVIAL(info) << "process() - Setting up progress callback";
                 voronoi_config.progress_callback = [this](int progress) -> bool {
-                    std::lock_guard<std::mutex> lock(m_state_mutex);
-                    m_state.progress = progress;
-                    return m_state.status == State::running;
+                    std::unique_lock<std::mutex> lock(m_state_mutex, std::try_to_lock);
+                    if (lock.owns_lock()) {
+                        m_state.progress = progress;
+                        return m_state.status == State::running;
+                    }
+                    // If we couldn't get the lock, assume we should continue
+                    return true;
                     };
+                BOOST_LOG_TRIVIAL(info) << "process() - Config setup complete, releasing mutex";
             }
+            BOOST_LOG_TRIVIAL(info) << "process() - Mutex released, config ready";
 
             // Validate input mesh
             if (input_mesh_copy.vertices.empty() || input_mesh_copy.indices.empty()) {
@@ -785,9 +824,13 @@ namespace Slic3r::GUI {
             }
 
             // Generate Voronoi mesh
-            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::process() - Calling VoronoiMesh::generate()";
+            BOOST_LOG_TRIVIAL(info) << "process() - *** Calling VoronoiMesh::generate() ***";
+            auto gen_start = std::chrono::steady_clock::now();
             result = VoronoiMesh::generate(input_mesh_copy, voronoi_config);
-            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::process() - VoronoiMesh::generate() returned, result is " << (result ? "valid" : "NULL");
+            auto gen_end = std::chrono::steady_clock::now();
+            auto gen_duration = std::chrono::duration_cast<std::chrono::milliseconds>(gen_end - gen_start).count();
+            BOOST_LOG_TRIVIAL(info) << "process() - *** VoronoiMesh::generate() RETURNED (took " << gen_duration << "ms) ***";
+            BOOST_LOG_TRIVIAL(info) << "process() - Result is " << (result ? "VALID" : "NULL");
 
             if (result && !result->vertices.empty() && !result->indices.empty()) {
                 // Validate result before storing
@@ -851,26 +894,32 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::worker_finished()
     {
-        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::worker_finished() - START";
+        BOOST_LOG_TRIVIAL(info) << "=== worker_finished() - START ===";
+        BOOST_LOG_TRIVIAL(info) << "worker_finished() - Thread ID: " << std::this_thread::get_id();
 
         std::unique_ptr<indexed_triangle_set> result_its;
         const ModelVolume* mv = nullptr;
 
+        BOOST_LOG_TRIVIAL(info) << "worker_finished() - Acquiring mutex to get result...";
         {
             std::lock_guard<std::mutex> lock(m_state_mutex);
+            BOOST_LOG_TRIVIAL(info) << "worker_finished() - Mutex acquired";
 
             if (m_state.result && m_state.status == State::running) {
-                BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::worker_finished() - Result available, moving to result_its";
+                BOOST_LOG_TRIVIAL(info) << "worker_finished() - Result available! Moving to result_its";
+                BOOST_LOG_TRIVIAL(info) << "worker_finished() - Result mesh: vertices=" << m_state.result->vertices.size() << ", faces=" << m_state.result->indices.size();
                 result_its = std::move(m_state.result);
                 mv = m_state.mv;
                 m_state.status = State::idle;
+                BOOST_LOG_TRIVIAL(info) << "worker_finished() - Status set to idle";
             }
             else {
-                BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi::worker_finished() - No result or not running, exiting";
+                BOOST_LOG_TRIVIAL(warning) << "worker_finished() - No result or not running! result=" << (m_state.result ? "exists" : "NULL") << ", status=" << (int)m_state.status;
                 m_state.status = State::idle;
                 return;
             }
         }
+        BOOST_LOG_TRIVIAL(info) << "worker_finished() - Mutex released";
 
         // Apply the result to the model (outside of lock)
         if (result_its && mv && !result_its->vertices.empty()) {
@@ -917,6 +966,13 @@ namespace Slic3r::GUI {
             obj->invalidate_bounding_box();
             plater->changed_object(cid.object_id);
             plater->update();
+
+            // Force canvas refresh to show the new mesh
+            BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::worker_finished() - Forcing canvas refresh";
+            GLCanvas3D* canvas = plater->canvas3D();
+            if (canvas) {
+                canvas->reload_scene(true);  // Reload the scene to show the new mesh
+            }
 
             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi::worker_finished() - COMPLETE, model replaced!";
             request_rerender();
