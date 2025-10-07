@@ -454,13 +454,20 @@ namespace Slic3r::GUI {
 
         // Apply button
         {
-            std::lock_guard<std::mutex> lock(m_state_mutex);
-            if (m_state.status == State::idle) {
+            // Check status and volume, but release lock before calling apply_voronoi()
+            bool is_idle;
+            bool has_volume;
+            {
+                std::lock_guard<std::mutex> lock(m_state_mutex);
+                is_idle = (m_state.status == State::idle);
+                has_volume = (m_volume != nullptr);
+            }
+
+            if (is_idle) {
                 // Generate button with primary styling
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
 
                 // Disable button if no volume
-                bool has_volume = (m_volume != nullptr);
                 if (!has_volume) {
                     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
                     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
@@ -591,6 +598,12 @@ namespace Slic3r::GUI {
                         if (mo) {
                             BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - model has " << mo->volumes.size() << " volumes";
                         }
+
+                        // Initialize triangle selectors now that selection_info is available
+                        // This ensures the mesh can be rendered even if on_opening() was called too early
+                        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - initializing triangle selectors";
+                        update_from_model_object(true);
+                        BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - triangle selectors initialized, count: " << m_triangle_selectors.size();
                     } else {
                         BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: on_set_state() - selection_info is NULL!";
                     }
@@ -651,10 +664,8 @@ namespace Slic3r::GUI {
             logged_once = true;
         }
 
-        // Only render painted triangles when painting mode is active
-        if (m_configuration.enable_triangle_painting) {
-            render_painter_gizmo();
-        }
+        // Always render the mesh so it's visible when gizmo is active
+        render_painter_gizmo();
 
         // Render seed preview points if enabled
         if (m_configuration.show_seed_preview) {
@@ -1021,8 +1032,11 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::randomize_seed()
     {
-        // Generate new random seed using current time
-        m_configuration.random_seed = static_cast<int>(std::time(nullptr)) % 100000;
+        // Generate truly random seed using random_device and mt19937
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> dis(0, 99999);
+        m_configuration.random_seed = dis(gen);
 
         // Update preview if it's enabled
         if (m_configuration.show_seed_preview) {
