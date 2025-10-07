@@ -455,8 +455,14 @@ namespace Slic3r::GUI {
                 }
 
                 // Button is always rendered, but only clickable if has_volume
-                if (ImGui::Button(into_u8(_u8L("Generate Voronoi")).c_str()) && has_volume) {
-                    apply_voronoi();
+                bool button_clicked = ImGui::Button(into_u8(_u8L("Generate Voronoi")).c_str());
+                if (button_clicked) {
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: Generate button clicked, has_volume: " << has_volume;
+                    if (has_volume) {
+                        apply_voronoi();
+                    } else {
+                        BOOST_LOG_TRIVIAL(warning) << "GLGizmoVoronoi: Cannot generate - m_volume is NULL!";
+                    }
                 }
 
                 if (!has_volume) {
@@ -548,6 +554,12 @@ namespace Slic3r::GUI {
 
                 m_move_to_center = true;
 
+                // Make sure model is visible - don't hide any instances
+                if (m_c && m_c->instances_hider()) {
+                    // Don't hide anything
+                    BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - ensuring instances are visible";
+                }
+
                 // Initialize seed preview if enabled
                 if (m_configuration.show_seed_preview) {
                     BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - updating seed preview";
@@ -556,7 +568,7 @@ namespace Slic3r::GUI {
                     update_2d_voronoi_preview();
                     BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - preview updates complete";
                 }
-                
+
                 BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - activation COMPLETE";
             }
             else {
@@ -580,46 +592,13 @@ namespace Slic3r::GUI {
 
     void GLGizmoVoronoi::on_render()
     {
-        // Ensure m_volume is set by fetching from selection if needed
-        if (!m_volume) {
-            Plater* plater = wxGetApp().plater();
-            if (plater) {
-                Model& model = plater->model();
-                const Selection& selection = m_parent.get_selection();
-                m_volume = get_model_volume(selection, model);
-            }
-        }
-
-        const Selection& selection = m_parent.get_selection();
-
-        // Always render the model triangles (with or without painting)
-        glsafe(::glEnable(GL_BLEND));
-        glsafe(::glEnable(GL_DEPTH_TEST));
-        render_triangles(selection);
-        glsafe(::glDisable(GL_BLEND));
-
-        // Render preview if available
-        if (m_glmodel.is_initialized()) {
-            glsafe(::glEnable(GL_BLEND));
-            glsafe(::glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
-
-            const Camera& camera = wxGetApp().plater()->get_camera();
-            const Transform3d view_matrix = camera.get_view_matrix();
-            const Transform3d projection_matrix = camera.get_projection_matrix();
-
-            // Render the preview model
-            glsafe(::glDisable(GL_BLEND));
-        }
-
-        // Render seed preview points
+        // Render seed preview points if enabled
         if (m_configuration.show_seed_preview) {
             render_seed_preview();
         }
 
-        // Render painting cursor when painting is active
-        if (m_configuration.enable_triangle_painting) {
-            render_cursor();
-        }
+        // Note: Model rendering is handled by the canvas layer automatically
+        // We don't need to render the model ourselves
     }
 
     CommonGizmosDataID GLGizmoVoronoi::on_get_requirements() const
