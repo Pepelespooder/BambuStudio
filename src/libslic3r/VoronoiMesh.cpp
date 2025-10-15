@@ -119,7 +119,8 @@ namespace Slic3r {
         // Forward declarations for helper functions
         void clip_wireframe_to_mesh(indexed_triangle_set& wireframe, const indexed_triangle_set& mesh);
         void remove_degenerate_faces(indexed_triangle_set& mesh);
-        
+        void decimate_mesh(indexed_triangle_set& mesh, const VoronoiMesh::Config& config);
+
         // Type aliases for convenience
         using Config = VoronoiMesh::Config;
         using EdgeShape = VoronoiMesh::EdgeShape;

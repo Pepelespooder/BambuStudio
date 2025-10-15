@@ -101,7 +101,8 @@ namespace Slic3r {
             float min_wall_thickness = 0.4f;   // Minimum printable wall thickness (mm)
             float min_feature_size = 0.2f;     // Minimum printable feature size (mm)
             bool validate_printability = false; // Pre-validate before generation
-n            // Mesh optimization for performance
+
+            // Mesh optimization for performance
             bool simplify_mesh = false;        // Reduce triangle count after generation
             float target_triangle_ratio = 0.5f;  // Target ratio (0.5 = 50% of original triangles)
             int max_triangles = 100000;         // Maximum triangle count (0 = no limit)
