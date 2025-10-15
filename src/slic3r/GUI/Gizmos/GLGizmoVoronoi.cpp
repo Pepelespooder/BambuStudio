@@ -304,10 +304,11 @@ namespace Slic3r::GUI {
         VoronoiMesh::Config out;
 
         switch (cfg.seed_type) {
-        case Configuration::SEED_VERTICES: out.seed_type = VoronoiMesh::SeedType::Vertices; break;
-        case Configuration::SEED_GRID:     out.seed_type = VoronoiMesh::SeedType::Grid;     break;
-        case Configuration::SEED_RANDOM:   out.seed_type = VoronoiMesh::SeedType::Random;   break;
-        default:                           out.seed_type = VoronoiMesh::SeedType::Vertices; break;
+        case Configuration::SEED_VERTICES:        out.seed_type = VoronoiMesh::SeedType::Vertices;       break;
+        case Configuration::SEED_GRID:            out.seed_type = VoronoiMesh::SeedType::Grid;           break;
+        case Configuration::SEED_RANDOM:          out.seed_type = VoronoiMesh::SeedType::Random;         break;
+        case Configuration::SEED_BOUNDING_VOLUME: out.seed_type = VoronoiMesh::SeedType::BoundingVolume; break;
+        default:                                  out.seed_type = VoronoiMesh::SeedType::Vertices;       break;
         }
 
         out.num_seeds = std::max(0, cfg.num_seeds);
@@ -365,6 +366,11 @@ namespace Slic3r::GUI {
         out.restricted_voronoi = cfg.restricted_voronoi;
         if (out.restricted_voronoi)
             out.clip_to_mesh = true;
+
+        // Mesh decimation/simplification
+        out.simplify_mesh = cfg.simplify_mesh;
+        out.target_triangle_ratio = cfg.target_triangle_ratio;
+        out.max_triangles = cfg.max_triangles;
 
         return out;
     }
@@ -969,6 +975,39 @@ namespace Slic3r::GUI {
             if (ImGui::IsItemHovered()) {
                 ImGui::SetTooltip("%s", into_u8(_u8L("Check if settings will produce printable features\nWarns if cells are too small for selected nozzle")).c_str());
             }
+
+            ImGui::Separator();
+
+            // Mesh Simplification (Decimation)
+            ImGui::Text("%s:", into_u8(_u8L("Performance")).c_str());
+            if (ImGui::Checkbox(into_u8(_u8L("Simplify mesh")).c_str(), &m_configuration.simplify_mesh)) {
+                // Config changed
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", into_u8(_u8L("Reduce triangle count using quadric edge collapse\nHelps with 4-7M triangle Voronoi meshes that slow down slicing\nTypical reduction: 50-80% with minimal quality loss")).c_str());
+            }
+
+            if (m_configuration.simplify_mesh) {
+                ImGui::Indent();
+
+                ImGui::Text("%s:", into_u8(_u8L("Target ratio")).c_str());
+                int ratio_percent = static_cast<int>(m_configuration.target_triangle_ratio * 100.0f);
+                if (ImGui::SliderInt("##target_ratio", &ratio_percent, 10, 90, "%d%%")) {
+                    m_configuration.target_triangle_ratio = ratio_percent / 100.0f;
+                }
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("%s", into_u8(_u8L("Target triangle count as % of original\n50%% = half the triangles (recommended)\n20%% = aggressive simplification\n80%% = conservative simplification")).c_str());
+                }
+
+                ImGui::Text("%s:", into_u8(_u8L("Max triangles")).c_str());
+                ImGui::InputInt("##max_triangles", &m_configuration.max_triangles);
+                m_configuration.max_triangles = std::max(0, m_configuration.max_triangles);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("%s", into_u8(_u8L("Hard limit on triangle count (0 = no limit)\n100,000 = typical for good balance\n500,000 = high detail\nOverrides ratio if original exceeds this")).c_str());
+                }
+
+                ImGui::Unindent();
+            }
         }
 
         ImGui::Separator();
@@ -1248,6 +1287,7 @@ namespace Slic3r::GUI {
             else {
                 BOOST_LOG_TRIVIAL(info) << "GLGizmoVoronoi: on_set_state() - deactivating gizmo";
                 m_volume = nullptr;
+                m_original_mesh.clear();  // Clear cached mesh so next activation captures new model
                 m_glmodel.reset();
                 m_seed_preview_points.clear();
                 m_seed_preview_points_exact.clear();

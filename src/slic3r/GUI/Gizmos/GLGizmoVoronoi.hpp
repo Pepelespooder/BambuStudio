@@ -101,7 +101,8 @@ namespace Slic3r {
                 enum SeedType {
                     SEED_VERTICES,
                     SEED_GRID,
-                    SEED_RANDOM
+                    SEED_RANDOM,
+                    SEED_BOUNDING_VOLUME
                 };
 
                 enum EdgeShape {
@@ -171,6 +172,11 @@ namespace Slic3r {
                 // Restricted Voronoi (surface)
                 bool restricted_voronoi = false;
 
+                // Mesh simplification (decimation)
+                bool simplify_mesh = false;
+                float target_triangle_ratio = 0.5f;
+                int max_triangles = 100000;
+
                 bool operator==(const Configuration& rhs) const {
                     return seed_type == rhs.seed_type &&
                         num_seeds == rhs.num_seeds &&
@@ -203,7 +209,10 @@ namespace Slic3r {
                         min_wall_thickness == rhs.min_wall_thickness &&
                         min_feature_size == rhs.min_feature_size &&
                         validate_printability == rhs.validate_printability &&
-                        restricted_voronoi == rhs.restricted_voronoi;
+                        restricted_voronoi == rhs.restricted_voronoi &&
+                        simplify_mesh == rhs.simplify_mesh &&
+                        target_triangle_ratio == rhs.target_triangle_ratio &&
+                        max_triangles == rhs.max_triangles;
                 }
                 bool operator!=(const Configuration& rhs) const {
                     return !(*this == rhs);

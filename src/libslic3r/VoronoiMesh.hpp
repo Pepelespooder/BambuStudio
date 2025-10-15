@@ -14,11 +14,12 @@ namespace Slic3r {
     {
     public:
         enum class SeedType {
-            Vertices,    // Use mesh vertices as seed points
-            Grid,        // Use regular grid of points
-            Random,      // Use random points within bounding box
-            Surface,     // Place seeds on mesh surface
-            Adaptive     // Adaptive density based on mesh features
+            Vertices,       // Use mesh vertices as seed points
+            Grid,           // Use regular grid of points (filtered to inside mesh)
+            Random,         // Use random points within bounding box (filtered to inside mesh)
+            Surface,        // Place seeds on mesh surface
+            Adaptive,       // Adaptive density based on mesh features
+            BoundingVolume  // Fill entire bounding volume (no inside/outside filtering - for hollow models)
         };
 
         // Edge shape types for wireframe edges (mathematically correct Voronoi edges)
@@ -100,6 +101,10 @@ namespace Slic3r {
             float min_wall_thickness = 0.4f;   // Minimum printable wall thickness (mm)
             float min_feature_size = 0.2f;     // Minimum printable feature size (mm)
             bool validate_printability = false; // Pre-validate before generation
+n            // Mesh optimization for performance
+            bool simplify_mesh = false;        // Reduce triangle count after generation
+            float target_triangle_ratio = 0.5f;  // Target ratio (0.5 = 50% of original triangles)
+            int max_triangles = 100000;         // Maximum triangle count (0 = no limit)
 
             // Progress callback - returns false to cancel
             std::function<bool(int)> progress_callback = nullptr;
@@ -267,6 +272,13 @@ namespace Slic3r {
             const indexed_triangle_set& mesh,
             int num_seeds,
             float adaptive_factor,
+            int random_seed
+        );
+
+        // Generate seeds in full bounding volume (no inside/outside filtering)
+        static std::vector<Vec3d> generate_bounding_volume_seeds(
+            const indexed_triangle_set& mesh,
+            int num_seeds,
             int random_seed
         );
 

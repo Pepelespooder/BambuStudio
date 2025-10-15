@@ -4,6 +4,7 @@
 #include "libslic3r/MeshBoolean.hpp"
 #include "libslic3r/Point.hpp"
 #include "libslic3r/TriangleMesh.hpp"
+#include "libslic3r/QuadricEdgeCollapse.hpp"
 #include <random>
 #include <algorithm>
 #include <set>
@@ -2751,6 +2752,35 @@ namespace Slic3r {
             apply_inverse_anisotropic_transform(*result, config.anisotropy_direction, config.anisotropy_ratio);
         }
 
+        // FIX: Align Z-min with original mesh to prevent embedding in bed
+        // The expanded bounds may have pushed geometry below the original mesh's Z-min
+        if (!result->vertices.empty()) {
+            // Find Z-min of generated mesh
+            float generated_z_min = std::numeric_limits<float>::max();
+            for (const auto& v : result->vertices) {
+                generated_z_min = std::min(generated_z_min, v.z());
+            }
+
+            // Original mesh Z-min
+            float original_z_min = static_cast<float>(bbox.min.z());
+
+            // Calculate offset needed to align Z-mins
+            float z_offset = original_z_min - generated_z_min;
+
+            if (std::abs(z_offset) > 1e-6) {  // Only adjust if significant difference
+                BOOST_LOG_TRIVIAL(info) << "VoronoiMesh::generate() - Adjusting Z-offset by " << z_offset
+                                         << " (original_z_min=" << original_z_min
+                                         << ", generated_z_min=" << generated_z_min << ")";
+                // Apply Z-offset to all vertices
+                for (auto& v : result->vertices) {
+                    v.z() += z_offset;
+                }
+            }
+        }
+
+        // Apply mesh decimation to reduce triangle count if requested
+        decimate_mesh(*result, config);
+
         return result;
     }
 
@@ -2906,6 +2936,8 @@ namespace Slic3r {
             return generate_surface_seeds(mesh, config.num_seeds, config.random_seed);
         case SeedType::Adaptive:
             return generate_adaptive_seeds(mesh, config.num_seeds, config.adaptive_factor, config.random_seed);
+        case SeedType::BoundingVolume:
+            return generate_bounding_volume_seeds(mesh, config.num_seeds, config.random_seed);
         default:
             return {};
         }
@@ -3291,9 +3323,60 @@ namespace Slic3r {
             }
         }
         
-        BOOST_LOG_TRIVIAL(info) << "generate_adaptive_seeds() - Generated " << seeds.size() 
+        BOOST_LOG_TRIVIAL(info) << "generate_adaptive_seeds() - Generated " << seeds.size()
                                  << " adaptive seeds (target: " << num_seeds << ")";
-        
+
+        return seeds;
+    }
+
+    // NEW: Generate seeds in full bounding volume without inside/outside filtering
+    // Perfect for hollow models where you want wireframe throughout the entire volume
+    std::vector<Vec3d> VoronoiMesh::generate_bounding_volume_seeds(
+        const indexed_triangle_set& mesh,
+        int num_seeds,
+        int random_seed)
+    {
+        std::vector<Vec3d> seeds;
+
+        if (mesh.vertices.empty() || num_seeds <= 0) {
+            return seeds;
+        }
+
+        // Compute bounding box
+        BoundingBoxf3 bbox;
+        for (const auto& v : mesh.vertices) {
+            bbox.merge(v.cast<double>());
+        }
+
+        BOOST_LOG_TRIVIAL(info) << "generate_bounding_volume_seeds() - Generating " << num_seeds
+                                 << " seeds in full bounding volume";
+        BOOST_LOG_TRIVIAL(info) << "  Bounding box: min=" << bbox.min.transpose()
+                                 << ", max=" << bbox.max.transpose();
+        BOOST_LOG_TRIVIAL(info) << "  Volume size: " << bbox.size().transpose();
+        BOOST_LOG_TRIVIAL(info) << "  NO inside/outside filtering - fills entire volume (perfect for hollow models)";
+
+        // Shrink bbox slightly to keep seeds away from exact boundaries
+        Vec3d shrink = bbox.size() * 0.05;  // 5% shrink
+        bbox.min += shrink;
+        bbox.max -= shrink;
+
+        std::mt19937 gen(random_seed);
+        std::uniform_real_distribution<double> dist_x(bbox.min.x(), bbox.max.x());
+        std::uniform_real_distribution<double> dist_y(bbox.min.y(), bbox.max.y());
+        std::uniform_real_distribution<double> dist_z(bbox.min.z(), bbox.max.z());
+
+        seeds.reserve(num_seeds);
+
+        // Generate seeds uniformly in bounding volume
+        // NO filtering - accept all points
+        for (int i = 0; i < num_seeds; ++i) {
+            Vec3d point(dist_x(gen), dist_y(gen), dist_z(gen));
+            seeds.push_back(point);
+        }
+
+        BOOST_LOG_TRIVIAL(info) << "generate_bounding_volume_seeds() - Generated " << seeds.size()
+                                 << " seeds filling entire bounding volume";
+
         return seeds;
     }
 
@@ -3436,7 +3519,7 @@ namespace Slic3r {
         const double bbox_diag = (bounds.max - bounds.min).norm();
         const double abs_eps = std::max(1e-7, 1e-8 * bbox_diag);
 
-        constexpr double WIREFRAME_BOUNDARY_MARGIN = 0.5;
+        constexpr double WIREFRAME_BOUNDARY_MARGIN = 0.05;  // 5% expansion (was 0.5 = 50%!)
         BoundingBoxf3 expanded_bounds = expand_bounds(bounds, WIREFRAME_BOUNDARY_MARGIN);
         
         // Build Delaunay triangulation
@@ -3544,6 +3627,8 @@ namespace Slic3r {
         remove_degenerate_faces(*result);
         weld_vertices(*result, WELD_DISTANCE);
         remove_degenerate_faces(*result);
+        // Fix face orientation to ensure positive volume
+        orient_faces_consistently(*result);
 
         if (!config.hollow_cells && config.wall_thickness > 0.0f) {
             create_hollow_cells(*result, config.wall_thickness);
@@ -3846,6 +3931,8 @@ namespace Slic3r {
         remove_degenerate_faces(*result);
         weld_vertices(*result, WELD_DISTANCE);
         remove_degenerate_faces(*result);
+        // Fix face orientation to ensure positive volume
+        orient_faces_consistently(*result);
         
         // Apply styling if solid cells
         if (!config.hollow_cells && config.wall_thickness > 0.0f) {
@@ -3911,18 +3998,81 @@ namespace Slic3r {
             std::vector<VorEdge> clipped_edges;
             clipped_edges.reserve(raw_edges.size());
 
+            BOOST_LOG_TRIVIAL(info) << "create_wireframe_from_delaunay() - Clipping " << raw_edges.size()
+                                     << " edges to mesh boundaries (with proper intersection)";
+
+            int fully_inside = 0;
+            int fully_outside = 0;
+            int partially_clipped = 0;
+
             for (const auto& edge : raw_edges) {
                 Vec3d p1 = to_vec3d(edge.a);
                 Vec3d p2 = to_vec3d(edge.b);
                 bool p1_inside = is_point_inside_mesh(aabb, p1);
                 bool p2_inside = is_point_inside_mesh(aabb, p2);
-                if (p1_inside || p2_inside) {
+
+                if (p1_inside && p2_inside) {
+                    // Both endpoints inside - keep entire edge
                     clipped_edges.push_back(edge);
+                    fully_inside++;
+                } else if (p1_inside || p2_inside) {
+                    // One endpoint inside, one outside - CLIP THE EDGE AT MESH BOUNDARY
+                    Vec3d inside_pt = p1_inside ? p1 : p2;
+                    Vec3d outside_pt = p1_inside ? p2 : p1;
+
+                    // Binary search to find intersection point at mesh boundary
+                    // We're looking for the point where the edge crosses from inside to outside
+                    Vec3d lo = inside_pt;   // Known to be inside
+                    Vec3d hi = outside_pt;  // Known to be outside
+
+                    const int max_iterations = 20;
+                    const double convergence_threshold = 0.01;  // 0.01mm precision
+
+                    for (int iter = 0; iter < max_iterations; ++iter) {
+                        Vec3d mid = (lo + hi) * 0.5;
+
+                        if (is_point_inside_mesh(aabb, mid)) {
+                            lo = mid;  // Mid is inside, move lo closer to boundary
+                        } else {
+                            hi = mid;  // Mid is outside, move hi closer to boundary
+                        }
+
+                        if ((hi - lo).norm() < convergence_threshold) {
+                            break;  // Close enough to boundary
+                        }
+                    }
+
+                    // Use the last known inside point as the clipped endpoint
+                    Vec3d clipped_pt = lo;
+
+                    // Create clipped edge with proper endpoint order
+                    if (p1_inside) {
+                        // p1 inside, p2 outside → clip p2 to boundary
+                        clipped_edges.push_back({
+                            edge.a,
+                            Point_3(clipped_pt.x(), clipped_pt.y(), clipped_pt.z())
+                        });
+                    } else {
+                        // p2 inside, p1 outside → clip p1 to boundary
+                        clipped_edges.push_back({
+                            Point_3(clipped_pt.x(), clipped_pt.y(), clipped_pt.z()),
+                            edge.b
+                        });
+                    }
+                    partially_clipped++;
+                }
+                // If both endpoints outside, skip entirely (fully_outside++)
+                else {
+                    fully_outside++;
                 }
             }
 
-            BOOST_LOG_TRIVIAL(info) << "create_wireframe_from_delaunay() - Edges after endpoint clipping: "
-                                    << clipped_edges.size() << " / " << raw_edges.size();
+            BOOST_LOG_TRIVIAL(info) << "create_wireframe_from_delaunay() - Clipping results:";
+            BOOST_LOG_TRIVIAL(info) << "  Fully inside: " << fully_inside;
+            BOOST_LOG_TRIVIAL(info) << "  Clipped at boundary: " << partially_clipped;
+            BOOST_LOG_TRIVIAL(info) << "  Fully outside (removed): " << fully_outside;
+            BOOST_LOG_TRIVIAL(info) << "  Final edge count: " << clipped_edges.size() << " / " << raw_edges.size();
+
             raw_edges.swap(clipped_edges);
         } else {
             BOOST_LOG_TRIVIAL(info) << "create_wireframe_from_delaunay() - Skipping clipping, keeping all "
@@ -5712,6 +5862,65 @@ namespace Slic3r {
 
         BOOST_LOG_TRIVIAL(info) << "validate_printability() - PASSED: All cells meet minimum feature size";
         return true;
+    }
+
+    // Apply mesh decimation to reduce triangle count
+    static void decimate_mesh(indexed_triangle_set& mesh, const VoronoiMesh::Config& config)
+    {
+        if (!config.simplify_mesh)
+            return;
+
+        size_t original_triangles = mesh.indices.size();
+
+        if (original_triangles == 0) {
+            BOOST_LOG_TRIVIAL(warning) << "decimate_mesh() - Mesh has no triangles, skipping";
+            return;
+        }
+
+        // Calculate target triangle count
+        uint32_t target_triangles = 0;
+
+        if (config.max_triangles > 0 && original_triangles > static_cast<size_t>(config.max_triangles)) {
+            // Hard limit: reduce to max_triangles
+            target_triangles = config.max_triangles;
+            BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - Applying hard triangle limit: "
+                                     << original_triangles << " -> " << target_triangles;
+        } else if (config.target_triangle_ratio > 0.0f && config.target_triangle_ratio < 1.0f) {
+            // Ratio-based reduction
+            target_triangles = static_cast<uint32_t>(original_triangles * config.target_triangle_ratio);
+            BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - Applying ratio-based decimation ("
+                                     << (config.target_triangle_ratio * 100.0f) << "%): "
+                                     << original_triangles << " -> " << target_triangles;
+        } else {
+            BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - No decimation needed (within limits)";
+            return;
+        }
+
+        // Ensure minimum triangle count
+        if (target_triangles < 4) {
+            BOOST_LOG_TRIVIAL(warning) << "decimate_mesh() - Target too low, using minimum of 4 triangles";
+            target_triangles = 4;
+        }
+
+        // Apply quadric edge collapse decimation
+        try {
+            its_quadric_edge_collapse(
+                mesh,
+                target_triangles,
+                nullptr,  // max_error (use default)
+                nullptr,  // throw_on_cancel
+                nullptr   // statusfn
+            );
+
+            size_t final_triangles = mesh.indices.size();
+            float reduction_percent = 100.0f * (1.0f - (float)final_triangles / (float)original_triangles);
+
+            BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - Decimation complete: "
+                                     << original_triangles << " -> " << final_triangles
+                                     << " triangles (" << reduction_percent << "% reduction)";
+        } catch (const std::exception& e) {
+            BOOST_LOG_TRIVIAL(error) << "decimate_mesh() - Decimation failed: " << e.what();
+        }
     }
 
 
