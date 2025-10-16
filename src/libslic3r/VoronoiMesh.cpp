@@ -3813,12 +3813,72 @@ namespace Slic3r {
             if (!cell.geometry.vertices.empty()) {
                 cell.centroid /= static_cast<double>(cell.geometry.vertices.size());
             }
-            
+
             cell.seed_index = vh->info();
             cell.seed_point = p_current;
-            
+
             return true;
         }
+
+        // Apply mesh decimation to reduce triangle count
+        void decimate_mesh(indexed_triangle_set& mesh, const VoronoiMesh::Config& config)
+        {
+            if (!config.simplify_mesh)
+                return;
+
+            size_t original_triangles = mesh.indices.size();
+
+            if (original_triangles == 0) {
+                BOOST_LOG_TRIVIAL(warning) << "decimate_mesh() - Mesh has no triangles, skipping";
+                return;
+            }
+
+            // Calculate target triangle count
+            uint32_t target_triangles = 0;
+
+            if (config.max_triangles > 0 && original_triangles > static_cast<size_t>(config.max_triangles)) {
+                // Hard limit: reduce to max_triangles
+                target_triangles = config.max_triangles;
+                BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - Applying hard triangle limit: "
+                                         << original_triangles << " -> " << target_triangles;
+            } else if (config.target_triangle_ratio > 0.0f && config.target_triangle_ratio < 1.0f) {
+                // Ratio-based reduction
+                target_triangles = static_cast<uint32_t>(original_triangles * config.target_triangle_ratio);
+                BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - Applying ratio-based decimation ("
+                                         << (config.target_triangle_ratio * 100.0f) << "%): "
+                                         << original_triangles << " -> " << target_triangles;
+            } else {
+                BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - No decimation needed (within limits)";
+                return;
+            }
+
+            // Ensure minimum triangle count
+            if (target_triangles < 4) {
+                BOOST_LOG_TRIVIAL(warning) << "decimate_mesh() - Target too low, using minimum of 4 triangles";
+                target_triangles = 4;
+            }
+
+            // Apply quadric edge collapse decimation
+            try {
+                its_quadric_edge_collapse(
+                    mesh,
+                    target_triangles,
+                    nullptr,  // max_error (use default)
+                    nullptr,  // throw_on_cancel
+                    nullptr   // statusfn
+                );
+
+                size_t final_triangles = mesh.indices.size();
+                float reduction_percent = 100.0f * (1.0f - (float)final_triangles / (float)original_triangles);
+
+                BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - Decimation complete: "
+                                         << original_triangles << " -> " << final_triangles
+                                         << " triangles (" << reduction_percent << "% reduction)";
+            } catch (const std::exception& e) {
+                BOOST_LOG_TRIVIAL(error) << "decimate_mesh() - Decimation failed: " << e.what();
+            }
+        }
+
     } // anonymous namespace
 
     // Weighted Voronoi (Power Diagram) using Regular Triangulation
@@ -5864,66 +5924,5 @@ namespace Slic3r {
         BOOST_LOG_TRIVIAL(info) << "validate_printability() - PASSED: All cells meet minimum feature size";
         return true;
     }
-
-    // Apply mesh decimation to reduce triangle count
-    static void decimate_mesh(indexed_triangle_set& mesh, const VoronoiMesh::Config& config)
-    {
-        if (!config.simplify_mesh)
-            return;
-
-        size_t original_triangles = mesh.indices.size();
-
-        if (original_triangles == 0) {
-            BOOST_LOG_TRIVIAL(warning) << "decimate_mesh() - Mesh has no triangles, skipping";
-            return;
-        }
-
-        // Calculate target triangle count
-        uint32_t target_triangles = 0;
-
-        if (config.max_triangles > 0 && original_triangles > static_cast<size_t>(config.max_triangles)) {
-            // Hard limit: reduce to max_triangles
-            target_triangles = config.max_triangles;
-            BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - Applying hard triangle limit: "
-                                     << original_triangles << " -> " << target_triangles;
-        } else if (config.target_triangle_ratio > 0.0f && config.target_triangle_ratio < 1.0f) {
-            // Ratio-based reduction
-            target_triangles = static_cast<uint32_t>(original_triangles * config.target_triangle_ratio);
-            BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - Applying ratio-based decimation ("
-                                     << (config.target_triangle_ratio * 100.0f) << "%): "
-                                     << original_triangles << " -> " << target_triangles;
-        } else {
-            BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - No decimation needed (within limits)";
-            return;
-        }
-
-        // Ensure minimum triangle count
-        if (target_triangles < 4) {
-            BOOST_LOG_TRIVIAL(warning) << "decimate_mesh() - Target too low, using minimum of 4 triangles";
-            target_triangles = 4;
-        }
-
-        // Apply quadric edge collapse decimation
-        try {
-            its_quadric_edge_collapse(
-                mesh,
-                target_triangles,
-                nullptr,  // max_error (use default)
-                nullptr,  // throw_on_cancel
-                nullptr   // statusfn
-            );
-
-            size_t final_triangles = mesh.indices.size();
-            float reduction_percent = 100.0f * (1.0f - (float)final_triangles / (float)original_triangles);
-
-            BOOST_LOG_TRIVIAL(info) << "decimate_mesh() - Decimation complete: "
-                                     << original_triangles << " -> " << final_triangles
-                                     << " triangles (" << reduction_percent << "% reduction)";
-        } catch (const std::exception& e) {
-            BOOST_LOG_TRIVIAL(error) << "decimate_mesh() - Decimation failed: " << e.what();
-        }
-    }
-
-
 
 } // namespace Slic3r
