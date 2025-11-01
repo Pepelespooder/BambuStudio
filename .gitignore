@@ -31,3 +31,7 @@ doc/
 test.js
 /.cache/
 .clangd
+/Fuzzy Skin source
+/voronoi-dev
+/voronoi3d-source
+/.claude
